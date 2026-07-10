@@ -1,0 +1,10 @@
+# Test runner + helpers
+pytest
+python-dotenv
+requests
+
+# Needed to import the KuantorFlow app in the app-level tests
+Flask
+mysql-connector-python
+beautifulsoup4
+lxml
