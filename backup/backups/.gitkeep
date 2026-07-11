@@ -1,0 +1,2 @@
+# Backup output directory. The .sql.gz dumps are gitignored (they hold real
+# data); this file keeps the empty directory in the repo.
