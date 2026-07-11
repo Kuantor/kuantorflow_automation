@@ -1,8 +1,9 @@
 # kuantorflow_automation
 
 Automated testing of the [KuantorFlow](https://github.com/Kuantor/kuantorflow)
-project — the regression suite that guards the app's behavior, plus smoke
-tests for the deployed site.
+project, with database backup — the regression suite that guards the app's
+behavior, smoke tests for the deployed site, and a daily backup of the
+MySQL database.
 
 ## Two layers of tests
 
@@ -40,3 +41,15 @@ by default they expect it at `..\..\kuantorflow` (i.e. `!Projects\kuantorflow`).
 
 A typical pre-deployment routine: run `-m "not live"` before pushing app
 changes, and `-m live` right after clicking Reload on PythonAnywhere.
+
+## Database backup
+
+`backup/` holds a daily backup script for the MySQL `kuantorflow` database.
+Each run writes a gzip-compressed `mysqldump` (`.sql.gz`), keeps the newest
+few, and can be scheduled nightly on PythonAnywhere. See
+[`backup/README.md`](backup/README.md) for the format, configuration, and the
+PythonAnywhere scheduled-task setup.
+
+```powershell
+.\venv\Scripts\python backup/backup_db.py    # write one backup now
+```
