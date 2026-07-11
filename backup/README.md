@@ -72,3 +72,20 @@ Pick a quiet UTC time (e.g. 02:00). Each night it writes a fresh
 > Backups themselves are gitignored (`backups/*.sql.gz`) — they hold real
 > data and don't belong in the repository. To keep an off-site copy, download
 > them periodically or copy them out of the PythonAnywhere account.
+
+## Verifying backup + restore
+
+`tests/test_backup_roundtrip.py` proves a full round trip: it inserts a
+sentinel card, backs up, deletes the card, restores, and checks the card
+reappears. Because restore **overwrites** the database, the test is opt-in
+and only runs against a local database:
+
+```powershell
+# .env must have DB_HOST=localhost and the local DB_* / MYSQL(_DUMP)_PATH values
+$env:RUN_DB_ROUNDTRIP="1"
+.\venv\Scripts\pytest -m db
+```
+
+The normal offline suite (`pytest -m "not live"`) skips it and never touches
+a database.
+

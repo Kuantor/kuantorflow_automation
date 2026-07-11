@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -66,10 +67,20 @@ def main(argv) -> None:
     command = [cfg["mysql"], f"--user={cfg['user']}", f"--host={cfg['host']}", cfg["name"]]
     env = {**os.environ, "MYSQL_PWD": cfg["password"]}
 
-    with gzip.open(dump_path, "rb") as gz:
-        proc = subprocess.run(command, stdin=gz, stderr=subprocess.PIPE, env=env, check=False)
+    # Decompress in Python and feed the SQL to mysql's stdin. Passing the
+    # GzipFile straight to subprocess would hand mysql the raw compressed
+    # bytes (its .fileno() is the underlying .gz file), so we pipe and copy
+    # the decompressed bytes ourselves. stderr -> temp file (no deadlock).
+    with tempfile.TemporaryFile() as errfile:
+        proc = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=errfile, env=env)
+        with gzip.open(dump_path, "rb") as gz:
+            shutil.copyfileobj(gz, proc.stdin)
+        proc.stdin.close()
+        proc.wait()
+        errfile.seek(0)
+        stderr = errfile.read()
     if proc.returncode != 0:
-        sys.exit(f"Restore failed (exit {proc.returncode}):\n{proc.stderr.decode(errors='replace')}")
+        sys.exit(f"Restore failed (exit {proc.returncode}):\n{stderr.decode(errors='replace')}")
     print(f"Restored '{cfg['name']}' from {dump_path.name}.")
 
 
