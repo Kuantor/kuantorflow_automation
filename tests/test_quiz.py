@@ -19,7 +19,16 @@ def quiz_client(client, app_module, monkeypatch):
     return client
 
 
-def test_default_language_is_russian(quiz_client):
+def test_default_language_is_ukrainian(quiz_client):
+    """quiz_lang defaults to Ukrainian (kuantorflow#113) — the old hardcoded
+    Russian default is gone."""
+    body = quiz_client.get("/quiz/basics").get_data(as_text=True)
+    assert "Type the Ukrainian translation" in body
+    assert "house" in body and "cat" in body and "hedgehog" not in body
+
+
+def test_default_language_follows_quiz_lang_setting(quiz_client):
+    quiz_client.post("/settings", json={"quiz_lang": "russian"})
     body = quiz_client.get("/quiz/basics").get_data(as_text=True)
     assert "Type the Russian translation" in body
     assert "house" in body and "hedgehog" in body
@@ -29,20 +38,29 @@ def test_default_language_is_russian(quiz_client):
     assert 'name="answer_3"' not in body
 
 
-def test_ukrainian_mode_filters_cards(quiz_client):
+def test_explicit_lang_overrides_the_setting(quiz_client):
+    quiz_client.post("/settings", json={"quiz_lang": "russian"})
     body = quiz_client.get("/quiz/basics?lang=ukr").get_data(as_text=True)
     assert "Type the Ukrainian translation" in body
     assert "house" in body and "cat" in body and "hedgehog" not in body
     assert 'lang="uk"' in body
 
 
-def test_unknown_language_falls_back_to_russian(quiz_client):
-    body = quiz_client.get("/quiz/basics?lang=hacker").get_data(as_text=True)
+def test_hidden_preferred_language_falls_back_to_visible(quiz_client):
+    quiz_client.post("/settings", json={"quiz_lang": "ukrainian",
+                                        "show_ukrainian": False})
+    body = quiz_client.get("/quiz/basics").get_data(as_text=True)
     assert "Type the Russian translation" in body
 
 
+def test_unknown_language_falls_back_to_the_setting(quiz_client):
+    body = quiz_client.get("/quiz/basics?lang=hacker").get_data(as_text=True)
+    assert "Type the Ukrainian translation" in body
+
+
 def test_grading_accepts_any_variant_case_insensitive(quiz_client):
-    r = quiz_client.post("/quiz/basics",
+    # explicit ?lang=rus — the default is Ukrainian since kuantorflow#113
+    r = quiz_client.post("/quiz/basics?lang=rus",
                          data={"answer_1": "ЗДАНИЕ ", "answer_2": "еж"})
     assert "Score: 2 / 2" in r.get_data(as_text=True)  # ё/е tolerated too
 
@@ -60,7 +78,8 @@ def test_russian_answer_rejected_in_ukrainian_mode(quiz_client):
 
 
 def test_wrong_answers_reveal_expected(quiz_client):
-    r = quiz_client.post("/quiz/basics", data={"answer_1": "кошка", "answer_2": ""})
+    r = quiz_client.post("/quiz/basics?lang=rus",
+                         data={"answer_1": "кошка", "answer_2": ""})
     body = r.get_data(as_text=True)
     assert "Score: 0 / 2" in body
     assert "дом, здание" in body
