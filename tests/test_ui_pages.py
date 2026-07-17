@@ -38,7 +38,7 @@ def test_submit_buttons_have_loading_feedback(client):
 def test_about_modal_markup(client):
     body = client.get("/").get_data(as_text=True)
     assert 'id="about-link"' in body
-    assert "img/main_image.png" in body
+    assert "img/main_image.jpg" in body
     assert 'id="about-modal"' in body and "modal-close" in body
 
 
@@ -96,5 +96,5 @@ def test_page_specific_titles_in_og_title(client, app_module, monkeypatch):
 
 
 def test_favicon_and_preview_image_served(client):
-    for path in ("/static/img/icon.png", "/static/img/preview.jpg"):
+    for path in ("/static/img/icon.jpg", "/static/img/preview.jpg"):
         assert client.get(path).status_code == 200, f"{path} not served"
