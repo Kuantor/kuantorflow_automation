@@ -4,10 +4,12 @@ import io
 
 
 def _stub_lookup(app_module, monkeypatch):
+    # app.py routes lookups through parsers.lookup_word since provider
+    # selection (#20/#21); the extra kwargs carry the stored settings.
     monkeypatch.setattr(
         app_module,
-        "parse_google_word",
-        lambda word, topic=None: [
+        "lookup_word",
+        lambda word, topic=None, **providers: [
             {"word": word, "pos": "adjective", "translation_ukr": "стійкий",
              "explanation_en": "able to recover quickly", "topic": topic},
             {"word": word, "pos": "noun", "translation_ukr": "стійкість",

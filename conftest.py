@@ -27,6 +27,20 @@ sys.path.insert(0, KUANTORFLOW_PATH)
 TEST_KEYWORD = "test-keyword"
 
 
+@pytest.fixture(autouse=True)
+def settings_dir(tmp_path, monkeypatch):
+    """Redirect the settings store to a per-test temp directory.
+
+    Autouse because the store creates a config file on first read (#86), so
+    any test that renders a page would otherwise write into the real
+    kuantorflow checkout's settings/ directory."""
+    import settings_store
+
+    directory = tmp_path / "settings"
+    monkeypatch.setattr(settings_store, "SETTINGS_DIR", directory)
+    return directory
+
+
 @pytest.fixture()
 def keyword():
     return TEST_KEYWORD
