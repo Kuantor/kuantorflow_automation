@@ -42,6 +42,32 @@ by default they expect it at `..\..\kuantorflow` (i.e. `!Projects\kuantorflow`).
 A typical pre-deployment routine: run `-m "not live"` before pushing app
 changes, and `-m live` right after clicking Reload on PythonAnywhere.
 
+## Getting past the keyword gate
+
+The whole site sits behind the 'Enter keyword' screen, so any scripted
+session has to pass `/enter` first. `gate.py` is the one place that knows
+how — use it instead of re-implementing the POST every time:
+
+```python
+from gate import enter_gate
+
+session = enter_gate()                          # deployed site (SITE_URL)
+session = enter_gate("http://localhost:5000")   # local dev server
+```
+
+The returned `requests.Session` carries the gate cookie; the keyword comes
+from `ACCESS_KEYWORD` in `.env`. A wrong keyword raises immediately with a
+clear message instead of surfacing later as a puzzling redirect. Caveat: a
+*local* dev server checks the keyword from kuantorflow's own `.env` — if it
+differs, pass `keyword=...` explicitly.
+
+Run it directly for a quick gate-and-index smoke check:
+
+```powershell
+.\venv\Scripts\python gate.py                       # deployed site
+.\venv\Scripts\python gate.py http://localhost:5000 # local server
+```
+
 ## Database backup
 
 `backup/` holds a daily backup script for the MySQL `kuantorflow` database.
