@@ -91,6 +91,35 @@ def test_settings_popup_prefilled_from_store(client):
     assert "Look up a word (Bing Translator)" in body
 
 
+# --- Quiz language toggle (#113) ----------------------------------------------
+
+def test_quiz_lang_defaults_to_ukrainian_and_validates(client, settings_dir):
+    r = client.post("/settings", json={"quiz_lang": "no-such-language"})
+    assert r.get_json()["settings"]["quiz_lang"] == "ukrainian"  # invalid -> default
+    r = client.post("/settings", json={"quiz_lang": "russian"})
+    assert r.get_json()["settings"]["quiz_lang"] == "russian"
+
+
+def test_quiz_lang_toggle_enabled_when_both_languages_visible(client):
+    body = client.get("/").get_data(as_text=True)
+    assert re.search(r'name="quiz_lang"\s+value="ukrainian"\s+checked', body)
+    assert "quiz-lang-hint" in body
+    match = re.search(r'name="quiz_lang"[^>]*value="ukrainian"[^>]*', body)
+    assert "disabled" not in match.group(0)
+
+
+def test_quiz_lang_toggle_disabled_when_one_language_hidden(client):
+    client.post("/settings", json={"show_russian": False})
+    body = client.get("/").get_data(as_text=True)
+    for value in ("ukrainian", "russian"):
+        section = re.search(
+            r'name="quiz_lang"\s+value="%s"[\s\S]{0,120}?>' % value, body)
+        assert "disabled" in section.group(0), f"{value} radio must be disabled"
+    # the hint is shown (not hidden) in this state
+    hint = re.search(r'<p [^>]*id="quiz-lang-hint"[^>]*>', body)
+    assert "hidden" not in hint.group(0)
+
+
 # --- Auto-add on lookup (#13) -------------------------------------------------
 
 def _stub_lookup(app_module, monkeypatch):
