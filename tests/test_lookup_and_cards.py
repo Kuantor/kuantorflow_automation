@@ -57,7 +57,10 @@ def test_empty_word_shows_error_and_no_popup(client, saved):
     assert "proposal-card" not in body
 
 
-def test_mht_upload_saves_directly(client, saved):
+def test_mht_upload_shows_review_before_saving(client, saved):
+    """MHT upload no longer auto-saves: the parsed cards go through the same
+    review popup as word lookup, shown in two columns (file content beside the
+    cards), and are only written when the user clicks Add / Add All."""
     mht = b"""From: <saved>
 MIME-Version: 1.0
 Content-Type: multipart/related; boundary="----=_B"
@@ -77,8 +80,14 @@ Content-Transfer-Encoding: 8bit
         follow_redirects=True,
     )
     body = r.get_data(as_text=True)
-    assert "Saved to Database" in body and "1 flashcard(s)" in body
-    assert len(saved) == 1 and saved[0]["word"] == "ubiquitous"
+    assert r.status_code == 200
+    assert saved == [], "MHT upload must not save anything before review"
+    assert "Review the cards parsed from your file" in body
+    assert body.count('class="proposal-card"') == 1
+    assert 'name="word" value="ubiquitous"' in body
+    assert 'name="topic" value="vocab"' in body
+    assert "present everywhere" in body           # file content shown beside cards
+    assert 'id="proposal-add-all"' in body        # the "Add All" button
 
 
 CARD = {"id": 7, "word": "resilient", "pos": "adjective", "topic": "vocab",

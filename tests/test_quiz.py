@@ -22,7 +22,11 @@ def quiz_client(client, app_module, monkeypatch):
 def test_default_language_is_russian(quiz_client):
     body = quiz_client.get("/quiz/basics").get_data(as_text=True)
     assert "Type the Russian translation" in body
-    assert "house" in body and "hedgehog" in body and "cat" not in body
+    assert "house" in body and "hedgehog" in body
+    # 'cat' has no Russian translation, so it isn't quizzed. Check its question
+    # field is absent rather than the bare word "cat", which now collides with
+    # "catch" in the page's JavaScript.
+    assert 'name="answer_3"' not in body
 
 
 def test_ukrainian_mode_filters_cards(quiz_client):
