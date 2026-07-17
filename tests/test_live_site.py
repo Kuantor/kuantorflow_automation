@@ -12,8 +12,9 @@ import os
 import pytest
 import requests
 
+from gate import enter_gate
+
 SITE_URL = (os.environ.get("SITE_URL") or "").rstrip("/")
-ACCESS_KEYWORD = os.environ.get("ACCESS_KEYWORD", "password")
 TIMEOUT = 30
 
 pytestmark = [
@@ -38,25 +39,20 @@ def test_https_is_forced():
 
 
 def test_wrong_keyword_rejected():
-    s = requests.Session()
-    r = s.post(SITE_URL + "/enter",
-               data={"keyword": "definitely-wrong-keyword-12345"},
-               timeout=TIMEOUT)
-    assert "Incorrect keyword" in r.text
+    with pytest.raises(RuntimeError, match="rejected the keyword"):
+        enter_gate(SITE_URL, keyword="definitely-wrong-keyword-12345")
 
 
 def test_correct_keyword_opens_site():
-    s = requests.Session()
-    r = s.post(SITE_URL + "/enter", data={"keyword": ACCESS_KEYWORD},
-               timeout=TIMEOUT)
-    assert "Incorrect keyword" not in r.text, \
-        "ACCESS_KEYWORD in .env does not match the deployed keyword"
+    # enter_gate() is the shared gate helper — the same one every scripted
+    # test session should use to get past the 'Enter keyword' screen.
+    s = enter_gate(SITE_URL)
     r = s.get(SITE_URL + "/", timeout=TIMEOUT)
     assert "Welcome to KuantorFlow" in r.text
 
 
 def test_static_assets_served():
-    for path in ("/static/css/style.css", "/static/img/icon.png",
+    for path in ("/static/css/style.css", "/static/img/icon.jpg",
                  "/static/img/preview.jpg", "/static/img/background.jpg"):
         r = requests.get(SITE_URL + path, timeout=TIMEOUT)
         assert r.status_code == 200, f"{path} -> {r.status_code}"
