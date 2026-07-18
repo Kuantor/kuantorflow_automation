@@ -116,25 +116,25 @@ def _stub_lookup_two_cards(app_module, monkeypatch):
     )
 
 
-def test_auto_add_banner_counts_skipped_duplicates(client, app_module, monkeypatch):
+def test_auto_add_banner_counts_skipped_duplicates(user_client, app_module, monkeypatch):
     _stub_lookup_two_cards(app_module, monkeypatch)
     # the noun card is already in the DB, the adjective card is new
     monkeypatch.setattr(
         app_module, "save_flashcard",
         lambda entry: None if entry["pos"] == "noun" else 1,
     )
-    client.post("/settings", json={"cards_automatically": True})
-    body = client.post("/", data={"action": "parse_word", "word": "resilient"},
+    user_client.post("/settings", json={"cards_automatically": True})
+    body = user_client.post("/", data={"action": "parse_word", "word": "resilient"},
                        follow_redirects=True).get_data(as_text=True)
     assert ("Added 1 card(s) for &#39;resilient&#39; automatically, "
             "skipped 1 already in the database.") in body
 
 
-def test_auto_add_banner_when_everything_is_a_duplicate(client, app_module, monkeypatch):
+def test_auto_add_banner_when_everything_is_a_duplicate(user_client, app_module, monkeypatch):
     _stub_lookup_two_cards(app_module, monkeypatch)
     monkeypatch.setattr(app_module, "save_flashcard", lambda entry: None)
-    client.post("/settings", json={"cards_automatically": True})
-    body = client.post("/", data={"action": "parse_word", "word": "resilient"},
+    user_client.post("/settings", json={"cards_automatically": True})
+    body = user_client.post("/", data={"action": "parse_word", "word": "resilient"},
                        follow_redirects=True).get_data(as_text=True)
     assert "All 2 card(s) for &#39;resilient&#39; are already in the database" in body
     assert "nothing added" in body

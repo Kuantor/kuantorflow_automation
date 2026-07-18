@@ -80,3 +80,19 @@ def client(app_module):
 def fresh_client(app_module):
     """A test client with no session — still outside the gate."""
     return app_module.app.test_client()
+
+
+TEST_USER_EMAIL = "test.user@gmail.com"
+
+
+@pytest.fixture()
+def user_client(client):
+    """A test client through the gate AND signed in (session identity only).
+
+    Changing settings requires a signed-in user since kuantorflow#102 —
+    anonymous visitors share config-default.json, which is read-only for
+    them. Settings saved through this client land in
+    config-test.user.json."""
+    with client.session_transaction() as sess:
+        sess["user"] = {"name": "Test User", "email": TEST_USER_EMAIL}
+    return client

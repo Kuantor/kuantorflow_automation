@@ -29,12 +29,12 @@ def test_popup_has_visibility_checkboxes_checked_by_default(client):
     assert re.search(r'name="show_russian"\s+checked', body)
 
 
-def test_visibility_round_trip_through_settings_endpoint(client):
-    r = client.post("/settings", json={"show_russian": False})
+def test_visibility_round_trip_through_settings_endpoint(user_client):
+    r = user_client.post("/settings", json={"show_russian": False})
     stored = r.get_json()["settings"]
     assert stored["show_russian"] is False
     assert stored["show_ukrainian"] is True
-    body = client.get("/").get_data(as_text=True)
+    body = user_client.get("/").get_data(as_text=True)
     assert not re.search(r'name="show_russian"\s+checked', body)
     assert re.search(r'name="show_ukrainian"\s+checked', body)
 
@@ -48,35 +48,35 @@ def test_flashcards_show_both_languages_by_default(client, app_module, monkeypat
     assert "Russian" in body and "упругий" in body
 
 
-def test_flashcards_hide_disabled_language(client, app_module, monkeypatch):
+def test_flashcards_hide_disabled_language(user_client, app_module, monkeypatch):
     _cards(app_module, monkeypatch)
-    client.post("/settings", json={"show_russian": False})
-    body = client.get("/flashcards/vocab").get_data(as_text=True)
+    user_client.post("/settings", json={"show_russian": False})
+    body = user_client.get("/flashcards/vocab").get_data(as_text=True)
     assert "Ukrainian" in body and "стійкий" in body
     assert "упругий" not in body and "Он упругий." not in body
     assert ">Russian<" not in body
     assert "Take quiz" in body, "one language still visible — quiz stays"
 
 
-def test_flashcards_hide_quiz_link_when_no_language_visible(client, app_module, monkeypatch):
+def test_flashcards_hide_quiz_link_when_no_language_visible(user_client, app_module, monkeypatch):
     _cards(app_module, monkeypatch)
-    client.post("/settings", json={"show_russian": False, "show_ukrainian": False})
-    body = client.get("/flashcards/vocab").get_data(as_text=True)
+    user_client.post("/settings", json={"show_russian": False, "show_ukrainian": False})
+    body = user_client.get("/flashcards/vocab").get_data(as_text=True)
     assert "Take quiz" not in body
     assert "стійкий" not in body and "упругий" not in body
 
 
 # --- Lookup review popup (#46/#79) --------------------------------------------
 
-def test_review_popup_carries_hidden_language_as_hidden_input(client, app_module, monkeypatch):
+def test_review_popup_carries_hidden_language_as_hidden_input(user_client, app_module, monkeypatch):
     monkeypatch.setattr(
         app_module, "lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "noun", "topic": topic,
              "translation_ukr": "дім", "translation_rus": "дом"}],
     )
-    client.post("/settings", json={"show_russian": False})
-    body = client.post("/", data={"action": "parse_word", "word": "house"})\
+    user_client.post("/settings", json={"show_russian": False})
+    body = user_client.post("/", data={"action": "parse_word", "word": "house"})\
         .get_data(as_text=True)
     # the Settings popup on every page says "Show Russian translation", so
     # target the review card's exact label markup
@@ -89,20 +89,20 @@ def test_review_popup_carries_hidden_language_as_hidden_input(client, app_module
 
 # --- Quiz (#46/#79) -----------------------------------------------------------
 
-def test_quiz_falls_back_to_visible_language(client, app_module, monkeypatch):
+def test_quiz_falls_back_to_visible_language(user_client, app_module, monkeypatch):
     _cards(app_module, monkeypatch)
-    client.post("/settings", json={"show_russian": False})
-    body = client.get("/quiz/vocab").get_data(as_text=True)   # default is rus
+    user_client.post("/settings", json={"show_russian": False})
+    body = user_client.get("/quiz/vocab").get_data(as_text=True)   # default is rus
     assert "Type the Ukrainian translation" in body
     # the language switch must not offer Russian (the word still appears in
     # the Settings popup rendered on every page, so check the switch markup)
     assert ">Russian</a>" not in body and ">Russian</span>" not in body
 
 
-def test_quiz_explains_itself_when_all_languages_hidden(client, app_module, monkeypatch):
+def test_quiz_explains_itself_when_all_languages_hidden(user_client, app_module, monkeypatch):
     _cards(app_module, monkeypatch)
-    client.post("/settings", json={"show_russian": False, "show_ukrainian": False})
-    body = client.get("/quiz/vocab").get_data(as_text=True)
+    user_client.post("/settings", json={"show_russian": False, "show_ukrainian": False})
+    body = user_client.get("/quiz/vocab").get_data(as_text=True)
     assert "hidden in Settings" in body
     assert "Check answers" not in body
 
@@ -128,9 +128,9 @@ def _chat(client, app_module, monkeypatch):
     assert r.status_code == 200, r.get_data(as_text=True)
     return agent.calls[-1]
 
-def test_agent_receives_hidden_languages(client, app_module, monkeypatch):
-    client.post("/settings", json={"show_russian": False})
-    call = _chat(client, app_module, monkeypatch)
+def test_agent_receives_hidden_languages(user_client, app_module, monkeypatch):
+    user_client.post("/settings", json={"show_russian": False})
+    call = _chat(user_client, app_module, monkeypatch)
     assert call["hidden_languages"] == ["Russian"]
 
 
