@@ -33,8 +33,8 @@ def test_corrupt_config_falls_back_without_being_overwritten(settings_dir):
 
 # --- POST /settings (#13, #20) ------------------------------------------------
 
-def test_settings_endpoint_saves_and_validates(client, settings_dir):
-    r = client.post("/settings", json={
+def test_settings_endpoint_saves_and_validates(user_client, settings_dir):
+    r = user_client.post("/settings", json={
         "cards_automatically": True,
         "translator": "bing",
         "explanatory_dictionary": "no-such-dictionary",   # invalid -> default
@@ -48,26 +48,54 @@ def test_settings_endpoint_saves_and_validates(client, settings_dir):
     assert "unknown_key" not in stored
 
     on_disk = json.loads(
-        (settings_dir / "config-default.json").read_text(encoding="utf-8"))
+        (settings_dir / "config-test.user.json").read_text(encoding="utf-8"))
     assert on_disk == stored
 
 
-def test_settings_saved_per_identity(client, settings_dir):
-    client.post("/settings", json={"translator": "bing"})
-
-    with client.session_transaction() as sess:
-        sess["user"] = {"name": "Anton", "email": "anton.test@gmail.com"}
-    client.post("/settings", json={"translator": "google",
-                                   "cards_automatically": True})
-
-    default = json.loads(
-        (settings_dir / "config-default.json").read_text(encoding="utf-8"))
+def test_settings_saved_per_identity(user_client, settings_dir):
+    """A signed-in save lands in that user's own file only."""
+    user_client.post("/settings", json={"translator": "bing",
+                                        "cards_automatically": True})
     personal = json.loads(
-        (settings_dir / "config-anton.test.json").read_text(encoding="utf-8"))
-    assert default["translator"] == "bing"
-    assert default["cards_automatically"] is False
-    assert personal["translator"] == "google"
+        (settings_dir / "config-test.user.json").read_text(encoding="utf-8"))
+    assert personal["translator"] == "bing"
     assert personal["cards_automatically"] is True
+    # nothing leaked into the shared default config
+    default_path = settings_dir / "config-default.json"
+    if default_path.exists():
+        default = json.loads(default_path.read_text(encoding="utf-8"))
+        assert default["translator"] == "google"
+        assert default["cards_automatically"] is False
+
+
+# --- Anonymous settings are read-only (#102) ------------------------------------
+
+def test_anonymous_settings_post_is_rejected(client, settings_dir):
+    r = client.post("/settings", json={"translator": "bing"})
+    assert r.status_code == 403
+    data = r.get_json()
+    assert data["ok"] is False and "Sign in" in data["error"]
+    # the endpoint refused before touching the store — no file was written
+    assert not (settings_dir / "config-default.json").exists()
+
+
+def test_settings_popup_read_only_for_anonymous(client):
+    body = client.get("/").get_data(as_text=True)
+    modal = body.split('id="settings-modal"')[1].split("</form>")[0]
+    # every control is disabled: 3 checkboxes + 6 radios, plus the Save button
+    assert modal.count("disabled") >= 10
+    assert "read-only for anonymous visitors" in modal
+    save = re.search(r'<button type="submit" id="settings-save"[^>]*>', modal)
+    assert "disabled" in save.group(0)
+
+
+def test_settings_popup_editable_for_signed_in(user_client):
+    body = user_client.get("/").get_data(as_text=True)
+    modal = body.split('id="settings-modal"')[1].split("</form>")[0]
+    assert "read-only" not in modal
+    assert "Saved for test.user@gmail.com" in modal
+    # signed in, both languages visible: nothing in the popup is disabled
+    assert "disabled" not in modal
 
 
 # --- The Settings popup (#13, #20) --------------------------------------------
@@ -81,10 +109,10 @@ def test_settings_popup_markup(client):
         assert f'value="{value}"' in body          # #20 radio families
 
 
-def test_settings_popup_prefilled_from_store(client):
-    client.post("/settings", json={"translator": "bing",
+def test_settings_popup_prefilled_from_store(user_client):
+    user_client.post("/settings", json={"translator": "bing",
                                    "cards_automatically": True})
-    body = client.get("/").get_data(as_text=True)
+    body = user_client.get("/").get_data(as_text=True)
     assert re.search(r'value="bing"\s+checked', body)
     assert re.search(r'name="cards_automatically"\s+checked', body)
     # the lookup panel title follows the translator choice (#20)
@@ -93,24 +121,25 @@ def test_settings_popup_prefilled_from_store(client):
 
 # --- Quiz language toggle (#113) ----------------------------------------------
 
-def test_quiz_lang_defaults_to_ukrainian_and_validates(client, settings_dir):
-    r = client.post("/settings", json={"quiz_lang": "no-such-language"})
+def test_quiz_lang_defaults_to_ukrainian_and_validates(user_client, settings_dir):
+    r = user_client.post("/settings", json={"quiz_lang": "no-such-language"})
     assert r.get_json()["settings"]["quiz_lang"] == "ukrainian"  # invalid -> default
-    r = client.post("/settings", json={"quiz_lang": "russian"})
+    r = user_client.post("/settings", json={"quiz_lang": "russian"})
     assert r.get_json()["settings"]["quiz_lang"] == "russian"
 
 
-def test_quiz_lang_toggle_enabled_when_both_languages_visible(client):
-    body = client.get("/").get_data(as_text=True)
+def test_quiz_lang_toggle_enabled_when_both_languages_visible(user_client):
+    # signed in — the anonymous popup is fully read-only since #102
+    body = user_client.get("/").get_data(as_text=True)
     assert re.search(r'name="quiz_lang"\s+value="ukrainian"\s+checked', body)
     assert "quiz-lang-hint" in body
     match = re.search(r'name="quiz_lang"[^>]*value="ukrainian"[^>]*', body)
     assert "disabled" not in match.group(0)
 
 
-def test_quiz_lang_toggle_disabled_when_one_language_hidden(client):
-    client.post("/settings", json={"show_russian": False})
-    body = client.get("/").get_data(as_text=True)
+def test_quiz_lang_toggle_disabled_when_one_language_hidden(user_client):
+    user_client.post("/settings", json={"show_russian": False})
+    body = user_client.get("/").get_data(as_text=True)
     for value in ("ukrainian", "russian"):
         section = re.search(
             r'name="quiz_lang"\s+value="%s"[\s\S]{0,120}?>' % value, body)
@@ -135,10 +164,10 @@ def _stub_lookup(app_module, monkeypatch):
     )
 
 
-def test_auto_add_saves_without_review_popup(client, app_module, monkeypatch, saved):
+def test_auto_add_saves_without_review_popup(user_client, app_module, monkeypatch, saved):
     _stub_lookup(app_module, monkeypatch)
-    client.post("/settings", json={"cards_automatically": True})
-    r = client.post("/", data={"action": "parse_word", "word": "resilient",
+    user_client.post("/settings", json={"cards_automatically": True})
+    r = user_client.post("/", data={"action": "parse_word", "word": "resilient",
                                "topic": "character"}, follow_redirects=True)
     body = r.get_data(as_text=True)
     assert [e["word"] for e in saved] == ["resilient", "resilient"]
@@ -147,7 +176,7 @@ def test_auto_add_saves_without_review_popup(client, app_module, monkeypatch, sa
     assert "proposal-card" not in body, "no review popup in automatic mode"
 
 
-def test_lookup_receives_the_stored_providers(client, app_module, monkeypatch, saved):
+def test_lookup_receives_the_stored_providers(user_client, app_module, monkeypatch, saved):
     calls = []
 
     def capture(word, topic=None, **providers):
@@ -155,8 +184,8 @@ def test_lookup_receives_the_stored_providers(client, app_module, monkeypatch, s
         return [{"word": word, "pos": "noun", "topic": topic}]
 
     monkeypatch.setattr(app_module, "lookup_word", capture)
-    client.post("/settings", json={"translator": "bing",
+    user_client.post("/settings", json={"translator": "bing",
                                    "explanatory_dictionary": "merriam-webster"})
-    client.post("/", data={"action": "parse_word", "word": "run"})
+    user_client.post("/", data={"action": "parse_word", "word": "run"})
     assert calls == [{"translator": "bing",
                       "explanatory_dictionary": "merriam-webster"}]

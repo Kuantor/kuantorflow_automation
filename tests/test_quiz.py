@@ -13,10 +13,12 @@ CARDS = [
 
 
 @pytest.fixture()
-def quiz_client(client, app_module, monkeypatch):
+def quiz_client(user_client, app_module, monkeypatch):
+    # Signed in, because several quiz tests save settings first — anonymous
+    # visitors can't change settings since kuantorflow#102.
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
                         lambda topic: [dict(c) for c in CARDS])
-    return client
+    return user_client
 
 
 def test_default_language_is_ukrainian(quiz_client):
