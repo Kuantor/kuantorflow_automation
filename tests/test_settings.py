@@ -109,6 +109,24 @@ def test_settings_popup_markup(client):
         assert f'value="{value}"' in body          # #20 radio families
 
 
+def test_settings_popup_two_column_layout(client):
+    """The four fieldsets sit in a two-column grid and all three action
+    buttons share one row inside the form, so nothing spills below the
+    popup (#118)."""
+    body = client.get("/").get_data(as_text=True)
+    modal = body.split('id="settings-modal"')[1].split("</form>")[0]
+    assert 'class="settings-grid"' in modal        # the 2-column wrapper
+    # a single action row holds Reset Auth, Cancel and Save
+    actions = modal.split('class="modal-actions"')[1]
+    for btn in ('id="reset-auth-btn"', 'id="settings-cancel"',
+                'id="settings-save"'):
+        assert btn in actions
+    # Reset Auth is now inside the form (was a separate row before) but must
+    # not submit it
+    assert re.search(r'id="reset-auth-btn"[^>]*type="button"', modal) \
+        or re.search(r'type="button"[^>]*id="reset-auth-btn"', modal)
+
+
 def test_settings_popup_prefilled_from_store(user_client):
     user_client.post("/settings", json={"translator": "bing",
                                    "cards_automatically": True})
