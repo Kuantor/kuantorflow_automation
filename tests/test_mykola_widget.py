@@ -12,13 +12,19 @@ def _widget(resp_client, app_module, monkeypatch):
     return resp_client.get("/").get_data(as_text=True)
 
 
-def test_new_chat_button_rendered(client, app_module, monkeypatch):
+def test_new_chat_button_and_confirm_dialog(client, app_module, monkeypatch):
     body = _widget(client, app_module, monkeypatch)
-    assert 'class="mykola-new"' in body                 # the button itself
+    assert 'class="mykola-new"' in body                 # the pencil button
     assert 'aria-label="New chat"' in body
     assert 'title="New chat' in body
-    assert "function newChat()" in body                 # its handler
-    assert 'newBtn.addEventListener("click", newChat)' in body  # wired up
+    # the pencil opens a confirmation dialog (ai_agent#55) rather than
+    # resetting immediately
+    assert 'id="new-chat-modal"' in body
+    assert "Do you really want to start a new conversation?" in body
+    assert 'id="new-chat-yes"' in body and 'id="new-chat-no"' in body
+    assert "newChatModal.hidden = false" in body        # pencil -> open confirm
+    assert "function newChat()" in body                 # the reset handler
+    assert "newChat();" in body                          # invoked from the Yes button
 
 
 def test_new_chat_reruns_recap_for_signed_in(user_client, app_module, monkeypatch):
