@@ -1,0 +1,35 @@
+"""Mykola chat widget markup — the 'New Chat' button (ai_agent#55).
+
+The widget only renders when Mykola is available, so these force
+MYKOLA_AVAILABLE. The button's reset is client-side JS (not exercised by the
+test client); here we lock in that the button and its wiring are present, and
+that the welcome-back recap is re-run only for signed-in visitors.
+"""
+
+
+def _widget(resp_client, app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    return resp_client.get("/").get_data(as_text=True)
+
+
+def test_new_chat_button_rendered(client, app_module, monkeypatch):
+    body = _widget(client, app_module, monkeypatch)
+    assert 'class="mykola-new"' in body                 # the button itself
+    assert 'aria-label="New chat"' in body
+    assert 'title="New chat' in body
+    assert "function newChat()" in body                 # its handler
+    assert 'newBtn.addEventListener("click", newChat)' in body  # wired up
+
+
+def test_new_chat_reruns_recap_for_signed_in(user_client, app_module, monkeypatch):
+    body = _widget(user_client, app_module, monkeypatch)
+    new_chat = body.split("function newChat()")[1].split("\n            function ")[0]
+    assert "requestRecap();" in new_chat, \
+        "signed-in New Chat must re-run Mykola's welcome-back recap"
+
+
+def test_new_chat_no_recap_for_anonymous(client, app_module, monkeypatch):
+    body = _widget(client, app_module, monkeypatch)
+    new_chat = body.split("function newChat()")[1].split("\n            function ")[0]
+    assert "requestRecap" not in new_chat, \
+        "anonymous visitors have no recap, so New Chat must not call it"
