@@ -46,6 +46,30 @@ def test_add_card_saves_edited_values(client, saved):
     assert saved[0]["topic"] == "character"
 
 
+def test_add_card_preserves_examples_json(client, saved):
+    """Examples (e.g. from the Reverso parser, kuantorflow#134) ride along as
+    hidden JSON and must survive the review popup into the saved card."""
+    import json
+    r = client.post("/cards/add", data={
+        "word": "inquisitive", "pos": "adjective", "topic": "vocab",
+        "explanation_en": "eager to learn",
+        "translation_rus": "любознательный, пытливый",
+        "examples_en": json.dumps(["Her inquisitive mind sought new info."]),
+        "examples_rus": json.dumps(["Её любознательный ум..."]),
+    })
+    assert r.status_code == 200 and r.get_json()["saved"] is True
+    assert saved[0]["examples_en"] == ["Her inquisitive mind sought new info."]
+    assert saved[0]["examples_rus"] == ["Её любознательный ум..."]
+    assert saved[0]["examples_ukr"] is None          # absent field stays NULL
+
+
+def test_add_card_ignores_malformed_examples(client, saved):
+    r = client.post("/cards/add", data={
+        "word": "x", "pos": "noun", "examples_en": "not json"})
+    assert r.status_code == 200
+    assert saved[0]["examples_en"] is None           # bad JSON -> NULL, no crash
+
+
 def test_add_card_requires_word(client, saved):
     r = client.post("/cards/add", data={"word": "   "})
     assert r.status_code == 400
