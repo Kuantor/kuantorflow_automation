@@ -18,6 +18,53 @@ def _stub_lookup(app_module, monkeypatch):
     )
 
 
+# --- early duplicate-word warning (#145) --------------------------------------
+
+def test_existing_word_warns_before_lookup(client, app_module, monkeypatch):
+    """Looking up a word that already has cards shows a warning modal and does
+    not run the (slow) lookup or open the review popup yet."""
+    monkeypatch.setattr(app_module, "flashcard_word_exists", lambda w: True)
+    called = []
+    monkeypatch.setattr(app_module, "lookup_word",
+                        lambda *a, **k: called.append(1) or [])
+    body = client.post("/", data={"action": "parse_word", "word": "resilient",
+                                  "topic": "vocab"}).get_data(as_text=True)
+    assert 'id="dup-warning-modal"' in body
+    assert "already have card(s) for" in body and "resilient" in body
+    assert 'id="proposal-modal"' not in body
+    assert called == [], "the lookup must wait for the user to confirm"
+
+
+def test_look_up_anyway_bypasses_the_warning(client, app_module, monkeypatch, saved):
+    monkeypatch.setattr(app_module, "flashcard_word_exists", lambda w: True)
+    _stub_lookup(app_module, monkeypatch)
+    body = client.post("/", data={"action": "parse_word", "word": "resilient",
+                                  "topic": "vocab", "force_lookup": "1"}).get_data(as_text=True)
+    assert 'id="proposal-modal"' in body
+    assert 'id="dup-warning-modal"' not in body
+
+
+def test_new_word_skips_the_warning(client, app_module, monkeypatch, saved):
+    # flashcard_word_exists defaults to False via the app_module fixture
+    _stub_lookup(app_module, monkeypatch)
+    body = client.post("/", data={"action": "parse_word", "word": "novelword",
+                                  "topic": "vocab"}).get_data(as_text=True)
+    assert 'id="proposal-modal"' in body
+    assert 'id="dup-warning-modal"' not in body
+
+
+def test_warning_check_degrades_on_db_error(client, app_module, monkeypatch, saved):
+    def boom(word):
+        raise RuntimeError("db unreachable")
+    monkeypatch.setattr(app_module, "flashcard_word_exists", boom)
+    _stub_lookup(app_module, monkeypatch)
+    body = client.post("/", data={"action": "parse_word", "word": "resilient",
+                                  "topic": "vocab"}).get_data(as_text=True)
+    # a DB error means 'unknown' -> proceed to the review popup, no warning
+    assert 'id="proposal-modal"' in body
+    assert 'id="dup-warning-modal"' not in body
+
+
 def test_lookup_shows_review_popup_without_saving(client, app_module, monkeypatch, saved):
     _stub_lookup(app_module, monkeypatch)
     r = client.post("/", data={"action": "parse_word", "word": "resilient",
