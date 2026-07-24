@@ -54,6 +54,10 @@ def app_module(monkeypatch):
 
     monkeypatch.setattr(app_mod, "ACCESS_KEYWORD", TEST_KEYWORD)
     monkeypatch.setattr(app_mod, "get_topics", lambda: [])
+    # Default: no word already exists, so lookup tests reach the review popup
+    # without touching a real DB (#145). Tests opt in by re-patching this.
+    monkeypatch.setattr(app_mod, "flashcard_word_exists", lambda word: False,
+                        raising=False)
     return app_mod
 
 

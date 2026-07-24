@@ -85,6 +85,22 @@ def test_duplicate_check_is_null_safe_on_pos(monkeypatch):
     assert params == ("ubiquitous", None)
 
 
+# --- flashcard_word_exists (the early-warning check, #145) ---------------------
+
+def test_flashcard_word_exists_true(monkeypatch):
+    cursor = FakeCursor(existing_row=(1,))
+    _fake_db(monkeypatch, cursor)
+    assert utils.flashcard_word_exists("run") is True
+    query, params = cursor.queries[0]
+    assert "SELECT 1 FROM flashcards WHERE word = %s" in query
+    assert params == ("run",)
+
+
+def test_flashcard_word_exists_false(monkeypatch):
+    _fake_db(monkeypatch, FakeCursor(existing_row=None))
+    assert utils.flashcard_word_exists("nope") is False
+
+
 # --- the save routes report duplicates ----------------------------------------
 
 def test_add_card_reports_duplicate(client, app_module, monkeypatch):
