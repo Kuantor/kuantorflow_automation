@@ -41,6 +41,20 @@ def settings_dir(tmp_path, monkeypatch):
     return directory
 
 
+@pytest.fixture(autouse=True)
+def action_logs(tmp_path, monkeypatch):
+    """Redirect the action logs (kuantorflow#30) to a per-test temp directory.
+
+    Autouse for the same reason as settings_dir: any test that saves a card,
+    looks a word up or uploads a file writes a log line, which would otherwise
+    land in the real kuantorflow checkout's logs/ directory."""
+    import applog
+
+    directory = tmp_path / "logs"
+    monkeypatch.setattr(applog, "LOGS_DIR", directory)
+    return directory
+
+
 @pytest.fixture()
 def keyword():
     return TEST_KEYWORD
