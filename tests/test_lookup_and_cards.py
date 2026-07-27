@@ -80,6 +80,21 @@ def test_lookup_shows_review_popup_without_saving(client, app_module, monkeypatc
     assert ">Add</button>" in body and "proposal-remove" in body
 
 
+def test_review_popup_has_one_close_cross_for_the_whole_popup(
+        client, app_module, monkeypatch, saved):
+    """#146: besides the per-card crosses there is a single cross that closes
+    the popup and drops every card that wasn't added individually."""
+    _stub_lookup(app_module, monkeypatch)
+    body = client.post("/", data={"action": "parse_word", "word": "resilient",
+                                  "topic": "character"}).get_data(as_text=True)
+    assert body.count('id="proposal-close"') == 1
+    # it must stay distinct from the two per-card crosses
+    assert body.count('class="proposal-card"') == 2
+    assert body.count('card-delete proposal-remove') == 2
+    # closing is client-side only — nothing is saved by rendering the popup
+    assert saved == []
+
+
 def test_add_card_saves_edited_values(client, saved):
     r = client.post("/cards/add", data={
         "word": "resilient", "pos": "adjective", "topic": "character",
