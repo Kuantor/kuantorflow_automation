@@ -98,3 +98,33 @@ def test_page_specific_titles_in_og_title(client, app_module, monkeypatch):
 def test_favicon_and_preview_image_served(client):
     for path in ("/static/img/icon.jpg", "/static/img/preview.jpg"):
         assert client.get(path).status_code == 200, f"{path} not served"
+
+
+# --- the Allura welcome heading (kuantorflow#104) ---------------------------
+
+def test_welcome_heading_uses_the_script_face(client):
+    body = client.get("/").get_data(as_text=True)
+    assert 'class="page-title page-title--welcome"' in body
+    assert "Welcome to KuantorFlow" in body
+
+
+def test_other_page_titles_keep_the_body_face(client, app_module, monkeypatch):
+    """Only the welcome line is script (#104) — topic and quiz titles are not."""
+    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic: [])
+    body = client.get("/flashcards/basics").get_data(as_text=True)
+    assert "page-title--welcome" not in body
+
+
+def test_allura_is_self_hosted_and_served(client):
+    """The font ships with the site: no third-party request, and it works
+    behind the keyword gate with no internet."""
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    assert "@font-face" in css and 'font-family: "Allura"' in css
+    assert "fonts.googleapis.com" not in css and "fonts.gstatic.com" not in css
+    assert "font-display: swap" in css          # heading readable while loading
+    for path in ("/static/fonts/Allura-Regular.woff2",
+                 "/static/fonts/Allura-Regular.woff"):
+        resp = client.get(path)
+        assert resp.status_code == 200, f"{path} not served"
+    # both formats declared, newest first
+    assert css.index("Allura-Regular.woff2") < css.index('Allura-Regular.woff"')
