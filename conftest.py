@@ -55,6 +55,22 @@ def action_logs(tmp_path, monkeypatch):
     return directory
 
 
+@pytest.fixture(autouse=True)
+def chat_logs(tmp_path, monkeypatch):
+    """Redirect Mykola's chat logs to a per-test temp directory.
+
+    Same reason as settings_dir and action_logs: the chat endpoint appends a
+    log file per exchange, and a restarted chat (ai_agent#54) opens one — all
+    of which otherwise pile up in the real kuantorflow checkout's
+    mykola_logs/. Tests that need a pre-existing conversation write it here."""
+    import app as app_mod
+
+    directory = tmp_path / "mykola_logs"
+    directory.mkdir()
+    monkeypatch.setattr(app_mod, "LOG_DIR", directory)
+    return directory
+
+
 @pytest.fixture()
 def keyword():
     return TEST_KEYWORD
