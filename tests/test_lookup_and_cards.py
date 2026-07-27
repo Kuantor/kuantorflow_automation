@@ -162,8 +162,8 @@ Content-Transfer-Encoding: 8bit
 """
     r = client.post(
         "/",
-        data={"action": "upload_mht", "topic": "vocab",
-              "mht_file": (io.BytesIO(mht), "notes.mht")},
+        data={"action": "upload_notes", "topic": "vocab",
+              "notes_file": (io.BytesIO(mht), "notes.mht")},
         content_type="multipart/form-data",
         follow_redirects=True,
     )
