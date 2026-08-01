@@ -10,7 +10,7 @@ another tab, or an identity dropped server-side.
 
 import re
 
-from conftest import TEST_USER_EMAIL
+from conftest import TEST_USER_EMAIL, TEST_USER_ID
 
 
 def _token(app_module, user=None):
@@ -85,7 +85,11 @@ def test_the_page_declares_null_for_anonymous(client, app_module, monkeypatch):
 def test_the_page_declares_the_token_when_signed_in(user_client, app_module,
                                                     monkeypatch):
     body = _widget(user_client, app_module, monkeypatch)
-    token = _token(app_module, {"name": "Test User", "email": TEST_USER_EMAIL})
+    # The whole identity the fixture signs in as, not just its email: the
+    # token follows the user id where there is one, and user_client has
+    # carried one since kuantorflow#89 added it.
+    token = _token(app_module, {"id": TEST_USER_ID, "name": "Test User",
+                                "email": TEST_USER_EMAIL})
     assert f'var MYKOLA_IDENTITY = "{token}";' in body
 
 
