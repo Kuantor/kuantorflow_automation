@@ -84,6 +84,11 @@ def app_module(monkeypatch):
 
     monkeypatch.setattr(app_mod, "ACCESS_KEYWORD", TEST_KEYWORD)
     monkeypatch.setattr(app_mod, "get_topics", lambda: [])
+    # Any anonymous chat message counts itself against the daily ceiling
+    # (kuantorflow#164) — a real database write. Stub it here so the whole
+    # suite stays offline; the tests that care patch it themselves.
+    monkeypatch.setattr(app_mod, "claim_anonymous_message",
+                        lambda limit: (True, 0), raising=False)
     # Default: no word already exists, so lookup tests reach the review popup
     # without touching a real DB (#145). Tests opt in by re-patching this.
     monkeypatch.setattr(app_mod, "flashcard_word_exists", lambda word: False,
