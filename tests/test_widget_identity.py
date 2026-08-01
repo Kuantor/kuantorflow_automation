@@ -107,6 +107,22 @@ def test_a_mismatched_thread_is_dropped_on_load(client, app_module, monkeypatch)
     assert "return null" in load_state
 
 
+def test_an_unstamped_thread_is_dropped_rather_than_read_as_anonymous(
+        client, app_module, monkeypatch):
+    """The case that made the bug survive its own fix: a thread written before
+    the stamp existed has no `identity` key, and `state.identity || null`
+    turns that into the same null an anonymous visitor carries. The two must
+    be told apart, or the signed-in transcript stays on screen for exactly the
+    anonymous visitor a sign-out just created."""
+    body = _widget(client, app_module, monkeypatch)
+    load_state = body.split("function loadWidgetState()")[1] \
+                     .split("\n            function ")[0]
+    assert 'hasOwnProperty.call(state, "identity")' in load_state, \
+        "an absent identity key must be distinguished from an explicit null"
+    assert "state.identity || null" not in load_state, \
+        "|| null collapses the unstamped case into the anonymous one"
+
+
 def test_the_greeting_is_still_anonymous_for_a_signed_out_visitor(
         client, app_module, monkeypatch):
     """The server-rendered greeting was never the problem — this locks in that
