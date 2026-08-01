@@ -96,13 +96,29 @@ def app_module(monkeypatch):
     return app_mod
 
 
+class SavedCards(list):
+    """Cards captured from save_flashcard(), and who each was attributed to.
+
+    Still a plain list of entries, so `saved[0]["word"]` keeps working; the
+    owner ids (kuantorflow#89) ride alongside in `owner_ids`, index for index.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.owner_ids = []
+
+
 @pytest.fixture()
 def saved(app_module, monkeypatch):
     """Capture save_flashcard() calls instead of writing to MySQL."""
-    captured = []
-    monkeypatch.setattr(
-        app_module, "save_flashcard", lambda entry: captured.append(entry) or 1
-    )
+    captured = SavedCards()
+
+    def fake_save(entry, added_by_user_id=None):
+        captured.append(entry)
+        captured.owner_ids.append(added_by_user_id)
+        return 1
+
+    monkeypatch.setattr(app_module, "save_flashcard", fake_save)
     return captured
 
 
@@ -122,6 +138,7 @@ def fresh_client(app_module):
 
 
 TEST_USER_EMAIL = "test.user@gmail.com"
+TEST_USER_ID = 7
 
 
 @pytest.fixture()
@@ -131,7 +148,11 @@ def user_client(client):
     Changing settings requires a signed-in user since kuantorflow#102 —
     anonymous visitors share config-default.json, which is read-only for
     them. Settings saved through this client land in
-    config-test.user.json."""
+    config-test.user.json.
+
+    The session carries an `id` as a real one does since kuantorflow#148 —
+    that is the id cards are attributed to (#89)."""
     with client.session_transaction() as sess:
-        sess["user"] = {"name": "Test User", "email": TEST_USER_EMAIL}
+        sess["user"] = {"id": TEST_USER_ID, "name": "Test User",
+                        "email": TEST_USER_EMAIL}
     return client
