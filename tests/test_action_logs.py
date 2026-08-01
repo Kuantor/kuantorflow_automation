@@ -79,17 +79,20 @@ def test_automatic_add_is_logged_with_its_own_source(client, saved, app_module,
     assert "source='automatic add'" in _find(action_logs, "cards", "CREATE")[0]
 
 
-def test_card_deletion_is_logged(client, app_module, monkeypatch, action_logs):
-    monkeypatch.setattr(app_module, "delete_flashcard", lambda card_id: "resilient")
-    client.post("/flashcards/character/delete/42")
+def test_card_deletion_is_logged(user_client, app_module, monkeypatch,
+                                 action_logs):
+    monkeypatch.setattr(app_module, "delete_flashcard",
+                        lambda card_id, **kw: ("resilient", "deleted"))
+    user_client.post("/flashcards/character/delete/42")
     line = _find(action_logs, "cards", "DELETE")[0]
     assert "id=42" in line and "word=resilient" in line and "topic=character" in line
 
 
-def test_deleting_a_missing_card_is_logged_too(client, app_module, monkeypatch,
-                                               action_logs):
-    monkeypatch.setattr(app_module, "delete_flashcard", lambda card_id: None)
-    client.post("/flashcards/character/delete/99")
+def test_deleting_a_missing_card_is_logged_too(user_client, app_module,
+                                               monkeypatch, action_logs):
+    monkeypatch.setattr(app_module, "delete_flashcard",
+                        lambda card_id, **kw: (None, "missing"))
+    user_client.post("/flashcards/character/delete/99")
     assert _find(action_logs, "cards", "DELETE-MISS")
     assert not _find(action_logs, "cards", "DELETE")
 

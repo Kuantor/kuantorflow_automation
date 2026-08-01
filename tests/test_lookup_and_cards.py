@@ -193,20 +193,23 @@ def test_flashcards_page_has_delete_cross_and_modal(client, app_module, monkeypa
     assert "Do you really want to delete the card" in body
 
 
-def test_delete_card_flow(client, app_module, monkeypatch):
+def test_delete_card_flow(user_client, app_module, monkeypatch):
+    """Deleting needs an identity since kuantorflow#162, hence user_client."""
     deleted = []
-    monkeypatch.setattr(app_module, "delete_flashcard",
-                        lambda card_id: deleted.append(card_id) or "resilient")
-    r = client.post("/flashcards/vocab/delete/7", follow_redirects=True)
+    monkeypatch.setattr(
+        app_module, "delete_flashcard",
+        lambda card_id, **kw: deleted.append(card_id) or ("resilient", "deleted"))
+    r = user_client.post("/flashcards/vocab/delete/7", follow_redirects=True)
     body = r.get_data(as_text=True)
     assert deleted == [7]
     assert "Deleted card" in body and "resilient" in body
 
 
-def test_delete_missing_card_is_friendly(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "delete_flashcard", lambda card_id: None)
-    body = client.post("/flashcards/vocab/delete/999",
-                       follow_redirects=True).get_data(as_text=True)
+def test_delete_missing_card_is_friendly(user_client, app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "delete_flashcard",
+                        lambda card_id, **kw: (None, "missing"))
+    body = user_client.post("/flashcards/vocab/delete/999",
+                            follow_redirects=True).get_data(as_text=True)
     assert "Card not found" in body
 
 
