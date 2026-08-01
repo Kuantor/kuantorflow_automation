@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import pytest
 
 import settings_store
+from conftest import TEST_USER_ID
 
 
 # --- the setting ------------------------------------------------------------
@@ -38,7 +39,7 @@ def test_never_restart_is_saved_as_zero(user_client, settings_dir):
     resp = user_client.post("/settings", json={"restart_chat_interval": 0})
     assert resp.status_code == 200
     assert resp.get_json()["settings"]["restart_chat_interval"] == 0
-    stored = json.loads(next(settings_dir.glob("config-test.user.json"))
+    stored = json.loads(next(settings_dir.glob("config-7.json"))
                         .read_text(encoding="utf-8"))
     assert stored["restart_chat_interval"] == 0
 
@@ -119,8 +120,10 @@ EXCHANGES = "".join(
 
 
 def _user_log(chat_logs, text=EXCHANGES, hours_ago=5):
-    """Give the signed-in user one old chat log (in the autouse temp log dir)."""
-    user_dir = chat_logs / "test.user"
+    """Give the signed-in user one old chat log (in the autouse temp log dir).
+
+    Keyed on the user id since kuantorflow#174, matching user_client."""
+    user_dir = chat_logs / str(TEST_USER_ID)
     user_dir.mkdir(parents=True, exist_ok=True)
     path = user_dir / "chat_2026-07-20_11-00-00_aaaa.txt"
     path.write_text(text, encoding="utf-8")
