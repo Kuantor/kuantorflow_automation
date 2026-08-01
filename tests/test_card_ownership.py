@@ -146,6 +146,70 @@ def test_mykola_chat_saver_records_the_owner(app_module, saved, identity,
     assert saved.owner_ids == [expected]
 
 
+# --- sessions from before the users table -------------------------------------
+
+PRE_148_SESSION = {"name": "Test User", "email": "test.user@gmail.com",
+                   "picture": "https://example.com/a.jpg"}
+
+
+def test_a_session_without_an_id_key_is_signed_out(client):
+    """A session created before kuantorflow#148 has no `id` and no users row
+    behind it, so it would attribute every card to nobody while still looking
+    signed in. It is dropped once; the next sign-in repairs it."""
+    with client.session_transaction() as sess:
+        sess["user"] = dict(PRE_148_SESSION)
+    client.get("/")
+    with client.session_transaction() as sess:
+        assert "user" not in sess
+
+
+def test_dropping_the_identity_keeps_the_gate_pass(client):
+    """Only the identity goes — being sent back to the keyword gate as well
+    would make an invisible repair very visible."""
+    with client.session_transaction() as sess:
+        sess["user"] = dict(PRE_148_SESSION)
+    assert client.get("/").status_code == 200
+    with client.session_transaction() as sess:
+        assert sess.get("access_granted") is True
+
+
+def test_a_gated_request_is_repaired_too(fresh_client):
+    """The check runs before the gate, which short-circuits the chain."""
+    with fresh_client.session_transaction() as sess:
+        sess["user"] = dict(PRE_148_SESSION)
+    assert fresh_client.get("/").status_code == 302      # still gated
+    with fresh_client.session_transaction() as sess:
+        assert "user" not in sess
+
+
+def test_an_id_of_none_is_left_alone(client, saved):
+    """A sign-in whose users row could not be written stores id=None (#148).
+    That is tolerated by design — signing in again would fail the same way —
+    so the identity must survive."""
+    with client.session_transaction() as sess:
+        sess["user"] = dict(PRE_148_SESSION, id=None)
+    client.get("/")
+    with client.session_transaction() as sess:
+        assert sess["user"]["email"] == "test.user@gmail.com"
+
+
+def test_a_current_session_is_untouched(user_client, saved):
+    user_client.get("/")
+    with user_client.session_transaction() as sess:
+        assert sess["user"]["id"] == TEST_USER_ID
+
+
+def test_the_dropped_session_no_longer_owns_its_cards(client, saved):
+    """The symptom this repairs: the card was saved unattributed while the
+    visitor looked signed in."""
+    with client.session_transaction() as sess:
+        sess["user"] = dict(PRE_148_SESSION)
+    client.post("/cards/add", data=dict(CARD_FORM))
+    assert saved.owner_ids == [None]
+    with client.session_transaction() as sess:
+        assert "user" not in sess, "and the next request signs them in again"
+
+
 def test_a_sign_in_without_a_row_saves_anonymously(client, saved):
     """A users row that could not be written leaves id None in the session
     (kuantorflow#148) — the card is saved, just without an owner."""
