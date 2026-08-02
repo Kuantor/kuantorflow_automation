@@ -305,3 +305,60 @@ def test_the_browser_state_is_cleared_on_submit(user_client):
     body = user_client.get("/").get_data(as_text=True)
     handler = body.split('getElementById("delete-account-form")')[1][:400]
     assert "kf_mykola_widget_state_v1" in handler
+
+
+# --- the admin account cannot delete itself (#165) ----------------------------
+
+ADMIN = "admin@example.com"
+
+
+@pytest.fixture()
+def admin_client(client, app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "ADMIN_EMAILS",
+                        app_module._admin_emails(ADMIN))
+    with client.session_transaction() as sess:
+        sess["user"] = {"id": 1, "name": "Admin", "email": ADMIN,
+                        "email_verified": True}
+    return client
+
+
+def test_the_admin_account_cannot_be_deleted(admin_client, deletions,
+                                             app_module):
+    """Enforced by the route — greying the button is presentation, and a
+    hand-made POST goes straight past it (#162)."""
+    r = admin_client.post("/account/delete", data={"cards": "delete"})
+    assert r.status_code == 403
+    assert "Admin account cannot be deleted" in r.get_json()["error"]
+    assert deletions == [], "nothing may be touched"
+
+
+def test_the_refusal_says_how_to_actually_do_it(app_module):
+    """A dead end is worse than a signpost: admin-ness lives in ADMIN_EMAILS
+    (#158), so that is the way out."""
+    assert "ADMIN_EMAILS" in app_module.ADMIN_ACCOUNT_UNDELETABLE
+
+
+def test_the_admins_control_is_greyed_with_the_reason(admin_client):
+    body = admin_client.get("/").get_data(as_text=True)
+    control = body.split('id="delete-account-btn"')[1].split("</button>")[0]
+    assert 'aria-disabled="true"' in control
+    assert "Admin account cannot be deleted" in control
+
+
+def test_a_regular_user_keeps_a_live_control(user_client):
+    body = user_client.get("/").get_data(as_text=True)
+    control = body.split('id="delete-account-btn"')[1].split("</button>")[0]
+    assert "aria-disabled" not in control
+
+
+def test_the_greyed_control_explains_itself_on_tap(admin_client):
+    """Touch devices never see the title tooltip."""
+    body = admin_client.get("/").get_data(as_text=True)
+    assert 'id="delete-account-refused-modal"' in body
+    assert 'aria-disabled") === "true"' in body
+    assert 'id="delete-account-refused-ok"' in body
+
+
+def test_the_greyed_control_has_no_hover_state(client):
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    assert '.settings-reset[aria-disabled="true"]:hover' in css

@@ -66,6 +66,8 @@ def main(argv=None) -> int:
                         help="list accounts and exit")
     parser.add_argument("--yes", action="store_true",
                         help="skip the confirmation prompt")
+    parser.add_argument("--force", action="store_true",
+                        help="allow deleting an ADMIN_EMAILS account")
     args = parser.parse_args(argv)
 
     if args.list:
@@ -87,7 +89,16 @@ def main(argv=None) -> int:
         print(f"no account with id {args.user_id}", file=sys.stderr)
         return 1
 
+    import app  # imported here too: ADMIN_EMAILS is resolved at import
+
     _, email, _, cards = rows[args.user_id]
+    if email.strip().lower() in app.ADMIN_EMAILS and not args.force:
+        print(f"{email} is in ADMIN_EMAILS; the app refuses to delete an admin "
+              f"account (kuantorflow#165).", file=sys.stderr)
+        print("Remove the address from ADMIN_EMAILS first, or pass --force if "
+              "you really mean it.", file=sys.stderr)
+        return 1
+
     fate = "kept for other learners" if args.keep_cards else "DELETED"
     print(f"About to delete account {args.user_id} <{email}>.")
     print(f"  {cards} card(s) will be {fate}.")
@@ -95,8 +106,6 @@ def main(argv=None) -> int:
     if not args.yes and input("Type the email to confirm: ").strip() != email:
         print("aborted")
         return 1
-
-    import app  # imported late: it loads the agent and the Flask app
 
     result = app.delete_account(args.user_id, keep_cards=args.keep_cards)
     print(f"cards {'kept' if result['kept'] else 'deleted'}: {result['cards']}")
