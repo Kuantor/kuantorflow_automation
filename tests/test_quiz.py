@@ -17,7 +17,7 @@ def quiz_client(user_client, app_module, monkeypatch):
     # Signed in, because several quiz tests save settings first — anonymous
     # visitors can't change settings since kuantorflow#102.
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic: [dict(c) for c in CARDS])
+                        lambda topic, owner_id=None: [dict(c) for c in CARDS])
     return user_client
 
 
@@ -88,6 +88,6 @@ def test_wrong_answers_reveal_expected(quiz_client):
 
 
 def test_empty_topic_message(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic: [])
+    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic, owner_id=None: [])
     body = client.get("/quiz/empty").get_data(as_text=True)
     assert "nothing to quiz on" in body

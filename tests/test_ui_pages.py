@@ -10,7 +10,7 @@ def _meta(body, prop, attr="property"):
 
 def test_topic_chips(client, app_module, monkeypatch):
     monkeypatch.setattr(app_module, "get_topics",
-                        lambda: [("basics", 12), ("it-vocab", 5)])
+                        lambda owner_id=None: [("basics", 12), ("it-vocab", 5)])
     body = client.get("/").get_data(as_text=True)
     assert "/flashcards/basics" in body and "(12)" in body
     assert "/flashcards/it-vocab" in body
@@ -90,7 +90,7 @@ def test_proxyfix_makes_absolute_https_urls(client):
 
 
 def test_page_specific_titles_in_og_title(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic: [])
+    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic, owner_id=None: [])
     body = client.get("/flashcards/basics").get_data(as_text=True)
     assert "basics" in _meta(body, "og:title")
 
