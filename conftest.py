@@ -83,7 +83,7 @@ def app_module(monkeypatch):
     import app as app_mod
 
     monkeypatch.setattr(app_mod, "ACCESS_KEYWORD", TEST_KEYWORD)
-    monkeypatch.setattr(app_mod, "get_topics", lambda: [])
+    monkeypatch.setattr(app_mod, "get_topics", lambda owner_id=None: [])
     # Any anonymous chat message counts itself against the daily ceiling
     # (kuantorflow#164) — a real database write. Stub it here so the whole
     # suite stays offline; the tests that care patch it themselves.

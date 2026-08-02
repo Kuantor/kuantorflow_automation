@@ -18,7 +18,7 @@ CARD = {
 
 def _cards(app_module, monkeypatch):
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic: [dict(CARD)])
+                        lambda topic, owner_id=None: [dict(CARD)])
 
 
 # --- Settings popup (#111) ----------------------------------------------------

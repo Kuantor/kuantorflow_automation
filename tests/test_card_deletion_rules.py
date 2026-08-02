@@ -248,7 +248,7 @@ CARD = {
 
 def _page(c, app_module, monkeypatch, owner):
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic: [dict(CARD, added_by_user_id=owner)])
+                        lambda topic, owner_id=None: [dict(CARD, added_by_user_id=owner)])
     return c.get("/flashcards/vocab").get_data(as_text=True)
 
 
