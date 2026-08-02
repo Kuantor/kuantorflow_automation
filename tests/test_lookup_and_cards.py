@@ -95,8 +95,8 @@ def test_review_popup_has_one_close_cross_for_the_whole_popup(
     assert saved == []
 
 
-def test_add_card_saves_edited_values(client, saved):
-    r = client.post("/cards/add", data={
+def test_add_card_saves_edited_values(user_client, saved):
+    r = user_client.post("/cards/add", data={
         "word": "resilient", "pos": "adjective", "topic": "character",
         "explanation_en": "my edited explanation",
         "translation_ukr": "стійкий", "translation_rus": "",
@@ -108,11 +108,11 @@ def test_add_card_saves_edited_values(client, saved):
     assert saved[0]["topic"] == "character"
 
 
-def test_add_card_preserves_examples_json(client, saved):
+def test_add_card_preserves_examples_json(user_client, saved):
     """Examples (e.g. from the Reverso parser, kuantorflow#134) ride along as
     hidden JSON and must survive the review popup into the saved card."""
     import json
-    r = client.post("/cards/add", data={
+    r = user_client.post("/cards/add", data={
         "word": "inquisitive", "pos": "adjective", "topic": "vocab",
         "explanation_en": "eager to learn",
         "translation_rus": "любознательный, пытливый",
@@ -125,8 +125,8 @@ def test_add_card_preserves_examples_json(client, saved):
     assert saved[0]["examples_ukr"] is None          # absent field stays NULL
 
 
-def test_add_card_ignores_malformed_examples(client, saved):
-    r = client.post("/cards/add", data={
+def test_add_card_ignores_malformed_examples(user_client, saved):
+    r = user_client.post("/cards/add", data={
         "word": "x", "pos": "noun", "examples_en": "not json"})
     assert r.status_code == 200
     assert saved[0]["examples_en"] is None           # bad JSON -> NULL, no crash
