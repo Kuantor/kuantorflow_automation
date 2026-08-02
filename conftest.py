@@ -122,6 +122,35 @@ def saved(app_module, monkeypatch):
     return captured
 
 
+@pytest.fixture(autouse=True)
+def block_state(app_module, monkeypatch):
+    """No account is blocked unless a test says so (kuantorflow#126).
+
+    Autouse because `app.current_block()` runs on every signed-in request —
+    the widget, the card pages and every save route ask it. Without this the
+    offline suite would open a real connection to whatever `DB_*` points at:
+    the same trap the `saved` fixture exists for, since local MySQL *is*
+    reachable and "offline" is a property of the fixtures, not the network.
+
+    A test that wants a blocked account calls `block_state.block(...)`.
+    """
+    class BlockState:
+        def __init__(self):
+            self.value = None
+
+        def block(self, reason="spam in chat", at="2026-08-02 10:00:00"):
+            """Block whoever the request is signed in as."""
+            self.value = (at, reason)
+            return self.value
+
+    state = BlockState()
+    # Keyed on there being a user id at all: an anonymous visitor has no
+    # account to block, exactly as get_user_block() answers None for one.
+    monkeypatch.setattr(app_module, "get_user_block",
+                        lambda user_id: state.value if user_id else None)
+    return state
+
+
 @pytest.fixture()
 def client(app_module):
     """A test client already through the keyword gate."""
