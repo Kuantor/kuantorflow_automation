@@ -173,10 +173,11 @@ def test_a_fresh_database_gets_its_tables_and_needs_no_migrations(schema_sql):
     assert (created, present) == (3, 0)
 
     # Every migration is already satisfied by the CREATE TABLE statements —
-    # the two halves of the schema describe the same database.
+    # the two halves of the schema describe the same database. Counted from
+    # MIGRATIONS rather than a literal, so adding one does not fail this.
     applied, skipped = apply_schema.run(
         apply_schema.MIGRATIONS, apply_schema.Schema(db), db)
-    assert (applied, skipped) == (0, 4)
+    assert (applied, skipped) == (0, len(apply_schema.MIGRATIONS))
 
 
 def test_a_pre_89_database_gets_the_column_index_and_key(schema_sql):
@@ -187,7 +188,7 @@ def test_a_pre_89_database_gets_the_column_index_and_key(schema_sql):
 
     applied, skipped = apply_schema.run(
         apply_schema.MIGRATIONS, apply_schema.Schema(db), db)
-    assert (applied, skipped) == (4, 0)
+    assert (applied, skipped) == (len(apply_schema.MIGRATIONS), 0)
     assert Column("flashcards", "added_by_user_id") in db.objects
     assert Index("flashcards", "idx_added_by") in db.objects
     assert Constraint("flashcards", "fk_flashcards_user") in db.objects
@@ -211,14 +212,14 @@ def test_a_half_applied_database_finishes_the_rest():
     db = FakeDatabase(objects)
     applied, skipped = apply_schema.run(
         apply_schema.MIGRATIONS, apply_schema.Schema(db), db)
-    assert (applied, skipped) == (3, 1)
+    assert (applied, skipped) == (len(apply_schema.MIGRATIONS) - 1, 1)
 
 
 def test_dry_run_reports_without_touching_anything(schema_sql, capsys):
     db = FakeDatabase(_pre_89_objects())
     changed, skipped = apply_schema.run(
         apply_schema.MIGRATIONS, apply_schema.Schema(db), db, dry_run=True)
-    assert (changed, skipped) == (4, 0)
+    assert (changed, skipped) == (len(apply_schema.MIGRATIONS), 0)
     assert db.executed == []
     assert db.commits == 0
     assert "would be applied" in capsys.readouterr().out
