@@ -17,8 +17,8 @@ def test_first_load_creates_default_config_file(settings_dir):
 
 
 def test_first_load_creates_per_user_config_file(settings_dir):
-    settings_store.load("Anton.Kuznietsov@gmail.com")
-    assert (settings_dir / "config-anton.kuznietsov.json").exists()
+    settings_store.load(7, "Anton.Kuznietsov@gmail.com")
+    assert (settings_dir / "config-7.json").exists()
     assert not (settings_dir / "config-default.json").exists()
 
 
@@ -48,7 +48,10 @@ def test_settings_endpoint_saves_and_validates(user_client, settings_dir):
     assert "unknown_key" not in stored
 
     on_disk = json.loads(
-        (settings_dir / "config-test.user.json").read_text(encoding="utf-8"))
+        (settings_dir / "config-7.json").read_text(encoding="utf-8"))
+    # The file also records who it belongs to (kuantorflow#174); that key is
+    # metadata, not a setting, so it never appears in the response.
+    assert on_disk.pop("_email") == "test.user@gmail.com"
     assert on_disk == stored
 
 
@@ -57,7 +60,7 @@ def test_settings_saved_per_identity(user_client, settings_dir):
     user_client.post("/settings", json={"translator": "bing",
                                         "cards_automatically": True})
     personal = json.loads(
-        (settings_dir / "config-test.user.json").read_text(encoding="utf-8"))
+        (settings_dir / "config-7.json").read_text(encoding="utf-8"))
     assert personal["translator"] == "bing"
     assert personal["cards_automatically"] is True
     # nothing leaked into the shared default config

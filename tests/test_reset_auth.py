@@ -36,7 +36,7 @@ def test_reset_preserves_the_settings_file(user_client, settings_dir):
     user_client.post("/settings", json={"translator": "bing"})
     user_client.post("/auth/reset")
     stored = json.loads(
-        (settings_dir / "config-test.user.json").read_text(encoding="utf-8"))
+        (settings_dir / "config-7.json").read_text(encoding="utf-8"))
     assert stored["translator"] == "bing", \
         "a reset must not delete preferences — signing back in restores them"
 
