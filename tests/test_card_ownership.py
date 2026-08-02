@@ -1,9 +1,16 @@
 """Who added a card: the added_by_user_id column (kuantorflow#89).
 
-Every card the app writes records the id of the signed-in user who saved it,
-or NULL for an anonymous visitor. The id comes from the server-side session
-only — the review popup posts hidden fields, so anything the browser sends
-about ownership has to be ignored. The field is stored, never displayed.
+Every card the app writes records the id of the signed-in user who saved it.
+The id comes from the server-side session only — the review popup posts hidden
+fields, so anything the browser sends about ownership has to be ignored. The
+field is stored, never displayed.
+
+Since kuantorflow#125 a visitor with no account cannot write at all, so the
+app no longer produces an unowned card: NULL now means "saved before #89", and
+the storage layer's NULL path (exercised directly against `utils` below) is
+reachable only by the maintenance scripts. The refusal itself is
+test_anonymous_writes.py; what is checked here is that nothing slips through
+it into the database with no owner.
 """
 
 import pytest
@@ -100,9 +107,11 @@ def test_review_popup_records_the_signed_in_user(user_client, saved):
     assert saved.owner_ids == [TEST_USER_ID]
 
 
-def test_review_popup_records_nothing_for_anonymous(client, saved):
-    client.post("/cards/add", data=dict(CARD_FORM))
-    assert saved.owner_ids == [None]
+def test_the_review_popup_writes_nothing_for_anonymous(client, saved):
+    """Before #125 this saved a card with no owner; now it saves nothing."""
+    resp = client.post("/cards/add", data=dict(CARD_FORM))
+    assert resp.status_code == 403
+    assert saved.owner_ids == []
 
 
 def _stub_automatic_add(app_module, monkeypatch):
@@ -122,28 +131,22 @@ def test_automatic_add_records_the_signed_in_user(user_client, app_module,
     assert saved.owner_ids == [TEST_USER_ID]
 
 
-def test_automatic_add_records_nothing_for_anonymous(client, app_module,
-                                                     monkeypatch, saved):
+def test_automatic_add_writes_nothing_for_anonymous(client, app_module,
+                                                    monkeypatch, saved):
     _stub_automatic_add(app_module, monkeypatch)
     client.post("/", data={"action": "parse_word", "word": "resilient",
                            "topic": "vocab"})
-    assert saved.owner_ids == [None]
+    assert saved.owner_ids == []
 
 
-@pytest.mark.parametrize("identity, expected", [
-    ({"id": TEST_USER_ID, "email": "test.user@gmail.com"}, TEST_USER_ID),
-    (None, None),
-])
-def test_mykola_chat_saver_records_the_owner(app_module, saved, identity,
-                                             expected):
+def test_mykola_chat_saver_records_the_owner(app_module, saved):
     """Mykola's card saver runs inside the chat request, so it sees the same
     session as every other save path (ai_agent#20)."""
     with app_module.app.test_request_context("/mykola/chat"):
-        if identity is not None:
-            session["user"] = identity
+        session["user"] = {"id": TEST_USER_ID, "email": "test.user@gmail.com"}
         app_module._save_card_from_chat(
             {"word": "resilient", "pos": "adjective", "topic": "vocab"})
-    assert saved.owner_ids == [expected]
+    assert saved.owner_ids == [TEST_USER_ID]
 
 
 # --- sessions from before the users table -------------------------------------
@@ -199,34 +202,39 @@ def test_a_current_session_is_untouched(user_client, saved):
         assert sess["user"]["id"] == TEST_USER_ID
 
 
-def test_the_dropped_session_no_longer_owns_its_cards(client, saved):
+def test_the_dropped_session_cannot_save_a_card(client, saved):
     """The symptom this repairs: the card was saved unattributed while the
-    visitor looked signed in."""
+    visitor looked signed in. Dropping the identity now also stops the save
+    outright (#125), which is the louder and more honest failure."""
     with client.session_transaction() as sess:
         sess["user"] = dict(PRE_148_SESSION)
-    client.post("/cards/add", data=dict(CARD_FORM))
-    assert saved.owner_ids == [None]
+    assert client.post("/cards/add", data=dict(CARD_FORM)).status_code == 403
+    assert saved.owner_ids == []
     with client.session_transaction() as sess:
         assert "user" not in sess, "and the next request signs them in again"
 
 
-def test_a_sign_in_without_a_row_saves_anonymously(client, saved):
+def test_a_sign_in_without_a_row_cannot_save(client, saved):
     """A users row that could not be written leaves id None in the session
-    (kuantorflow#148) — the card is saved, just without an owner."""
+    (kuantorflow#148). Before #125 the card was saved without an owner; now it
+    is refused — the fail-closed direction, because an unowned card cannot be
+    deleted by the person who added it (#162)."""
     with client.session_transaction() as sess:
         sess["user"] = {"id": None, "name": "Test User",
                         "email": "test.user@gmail.com"}
     resp = client.post("/cards/add", data=dict(CARD_FORM))
-    assert resp.get_json()["saved"] is True
-    assert saved.owner_ids == [None]
+    assert resp.status_code == 403
+    assert saved.owner_ids == []
 
 
 # --- ownership cannot be forged from the browser ------------------------------
 
-def test_a_forged_id_from_an_anonymous_visitor_is_ignored(client, saved):
-    client.post("/cards/add", data=dict(CARD_FORM, added_by_user_id="7"))
-    assert saved.owner_ids == [None], \
-        "a posted id must never become the card's owner"
+def test_a_forged_id_from_an_anonymous_visitor_buys_nothing(client, saved):
+    """Posting an id does not make the visitor signed in: #125 refuses the
+    save, and the id never reaches the database either way."""
+    resp = client.post("/cards/add", data=dict(CARD_FORM, added_by_user_id="7"))
+    assert resp.status_code == 403
+    assert saved.owner_ids == []
 
 
 def test_a_signed_in_user_cannot_attribute_a_card_to_someone_else(user_client,
@@ -235,8 +243,8 @@ def test_a_signed_in_user_cannot_attribute_a_card_to_someone_else(user_client,
     assert saved.owner_ids == [TEST_USER_ID]
 
 
-def test_the_posted_field_does_not_reach_the_card_either(client, saved):
-    client.post("/cards/add", data=dict(CARD_FORM, added_by_user_id="7"))
+def test_the_posted_field_does_not_reach_the_card_either(user_client, saved):
+    user_client.post("/cards/add", data=dict(CARD_FORM, added_by_user_id="7"))
     assert "added_by_user_id" not in saved[0]
 
 

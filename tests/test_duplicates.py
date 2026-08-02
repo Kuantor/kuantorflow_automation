@@ -103,10 +103,10 @@ def test_flashcard_word_exists_false(monkeypatch):
 
 # --- the save routes report duplicates ----------------------------------------
 
-def test_add_card_reports_duplicate(client, app_module, monkeypatch):
+def test_add_card_reports_duplicate(user_client, app_module, monkeypatch):
     monkeypatch.setattr(app_module, "save_flashcard",
                         lambda entry, added_by_user_id=None: None)
-    r = client.post("/cards/add", data={"word": "resilient", "pos": "adjective"})
+    r = user_client.post("/cards/add", data={"word": "resilient", "pos": "adjective"})
     assert r.status_code == 200
     assert r.get_json() == {"ok": True, "saved": False, "duplicate": True}
 

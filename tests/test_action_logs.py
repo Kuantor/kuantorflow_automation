@@ -37,8 +37,9 @@ def _card_form(**overrides):
 
 # --- cards.log --------------------------------------------------------------
 
-def test_card_creation_is_logged(client, saved, action_logs):
-    client.post("/cards/add", data=_card_form())
+def test_card_creation_is_logged(user_client, saved, action_logs):
+    # Signed in because only an account may write since kuantorflow#125.
+    user_client.post("/cards/add", data=_card_form())
     created = _find(action_logs, "cards", "CREATE")
     assert len(created) == 1 and saved
     line = created[0]
@@ -48,7 +49,7 @@ def test_card_creation_is_logged(client, saved, action_logs):
     assert "id=1" in line                        # the row id save_flashcard gave
     assert "langs=ukr" in line                   # which translations it carries
     assert "source='review popup'" in line
-    assert "user=anonymous" in line
+    assert "user=test.user@gmail.com" in line
 
 
 def test_signed_in_user_is_named(user_client, saved, action_logs):
@@ -56,26 +57,27 @@ def test_signed_in_user_is_named(user_client, saved, action_logs):
     assert "user=test.user@gmail.com" in _find(action_logs, "cards", "CREATE")[0]
 
 
-def test_duplicate_card_is_logged_as_skipped(client, app_module, monkeypatch,
-                                             action_logs):
+def test_duplicate_card_is_logged_as_skipped(user_client, app_module,
+                                             monkeypatch, action_logs):
     monkeypatch.setattr(app_module, "save_flashcard",
                         lambda entry, added_by_user_id=None: None)
-    resp = client.post("/cards/add", data=_card_form())
+    resp = user_client.post("/cards/add", data=_card_form())
     assert resp.get_json()["duplicate"] is True
     line = _find(action_logs, "cards", "SKIP")[0]
     assert "word=resilient" in line and "reason=duplicate" in line
 
 
-def test_automatic_add_is_logged_with_its_own_source(client, saved, app_module,
-                                                     monkeypatch, action_logs):
+def test_automatic_add_is_logged_with_its_own_source(user_client, saved,
+                                                     app_module, monkeypatch,
+                                                     action_logs):
     monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
         {"word": "resilient", "pos": "adjective", "topic": "vocab"}])
     monkeypatch.setattr(app_module, "current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
         cards_automatically=True, show_ukrainian=True, show_russian=True,
         quiz_lang="ukr"))
-    client.post("/", data={"action": "parse_word", "word": "resilient",
-                           "topic": "vocab"})
+    user_client.post("/", data={"action": "parse_word", "word": "resilient",
+                                "topic": "vocab"})
     assert "source='automatic add'" in _find(action_logs, "cards", "CREATE")[0]
 
 
@@ -228,12 +230,12 @@ def test_values_with_spaces_are_quoted(action_logs):
     assert "word='lucid dream'" in line and "topic='my topic'" in line
 
 
-def test_a_broken_log_never_breaks_the_action(client, saved, monkeypatch,
+def test_a_broken_log_never_breaks_the_action(user_client, saved, monkeypatch,
                                               action_logs):
     def boom(name):
         raise OSError("read-only file system")
     monkeypatch.setattr(applog, "_logger", boom)
-    resp = client.post("/cards/add", data=_card_form())
+    resp = user_client.post("/cards/add", data=_card_form())
     assert resp.status_code == 200 and resp.get_json()["saved"] is True
     assert saved, "the card must still be saved when logging fails"
 
