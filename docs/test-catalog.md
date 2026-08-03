@@ -1,6 +1,6 @@
 # KuantorFlow Automation — Test Catalog
 
-**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **560 test cases in 37 files**
+**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **564 test cases in 37 files**
 
 Every test in the suite, with a one-sentence description of what it checks, grounded in the test body rather than its name. One section per file, in alphabetical order.
 
@@ -12,8 +12,8 @@ The suite lives in `tests/` and runs with the repo's own virtualenv:
 
 | Command | What runs |
 | --- | --- |
-| `.\venv\Scripts\pytest` | Everything — **560 cases: 550 pass, 10 skip.** |
-| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 554 cases, of which 544 pass and 10 skip. About 18 seconds, no network. |
+| `.\venv\Scripts\pytest` | Everything — **564 cases: 554 pass, 10 skip.** |
+| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 558 cases, of which 548 pass and 10 skip. About 18 seconds, no network. |
 | `.\venv\Scripts\pytest -m live` | **6 read-only smoke tests** against the deployed site. |
 
 The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFLOW_PATH` in the gitignored `.env`, defaulting to a sibling directory) with the database and every external service stubbed.
@@ -27,7 +27,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 
 ### Counting
 
-The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 511 test functions expand to 560 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
+The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 515 test functions expand to 564 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
 
 ---
 
@@ -911,7 +911,7 @@ The core word-lookup flow: look a word up, review the proposed cards, add the on
 | `test_delete_missing_card_is_friendly` | A card that is not there says "Card not found" rather than failing. |
 | `test_delete_rejects_get` | `GET` on the delete URL answers 405 — deletion is not reachable by following a link. |
 
-## test_main_page_layout.py — the main page reordered (17 cases)
+## test_main_page_layout.py — the main page reordered (21 cases)
 
 kuantorflow#184. Three changes with one thread between them: the page should lead with what a returning learner came for. Browsing sat below two forms they only need when adding something new; the topics were pills, which have nowhere to put the picture #185 will give them; and a whole section was spent on a diagnostic.
 
@@ -946,6 +946,15 @@ kuantorflow#184. Three changes with one thread between them: the page should lea
 | `test_an_unreachable_database_answers_why` | A failure is an answer to the question that was asked, not a server error — still 200, with the reason, so the popup can show it. |
 | `test_the_check_never_redirects` | The whole reason it is JSON: the popup opens on every page, and a redirect would drop the visitor onto the index from wherever they were. |
 | `test_the_check_rejects_get` | `GET /db/test` answers 405. |
+
+**The page steps aside for the widget**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_page_moves_only_while_the_panel_is_open` | The shift is tied to the open state, so a closed widget leaves no empty strip where the panel is not — and it moves the content, never the header, which a bottom-anchored panel does not cover. |
+| `test_the_shift_is_off_where_there_is_no_room` | 860px of page plus a 340px panel do not fit under about 1240px, so below that the page stays put; the clamp keeps it on screen at the narrow end of the range. |
+| `test_every_place_that_opens_or_closes_the_panel_syncs_the_space` | Three call sites set `panel.hidden` — open, close, and restoring a stored thread on load. A missed one leaves the page shifted with nothing beside it, or the panel back on top of the content. |
+| `test_the_class_lands_on_the_body` | The rule is `body.mykola-open .page`, so the toggle has to be on the body — on the panel it would style nothing. |
 
 ## test_mykola_widget.py — the New Chat button (3 cases)
 
@@ -1254,5 +1263,5 @@ When it complains:
 
 Normally all of that belongs in the same pull request as the tests themselves.
 
-**Totals as of this revision: 37 files, 511 test functions, 560 collected
-cases** (550 passing, 10 opt-in `db` skips).
+**Totals as of this revision: 37 files, 515 test functions, 564 collected
+cases** (554 passing, 10 opt-in `db` skips).
