@@ -1,6 +1,6 @@
 # KuantorFlow Automation — Test Catalog
 
-**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **545 test cases in 36 files**
+**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **560 test cases in 37 files**
 
 Every test in the suite, with a one-sentence description of what it checks, grounded in the test body rather than its name. One section per file, in alphabetical order.
 
@@ -12,8 +12,8 @@ The suite lives in `tests/` and runs with the repo's own virtualenv:
 
 | Command | What runs |
 | --- | --- |
-| `.\venv\Scripts\pytest` | Everything — **545 cases: 535 pass, 10 skip.** |
-| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 539 cases, of which 529 pass and 10 skip. About 18 seconds, no network. |
+| `.\venv\Scripts\pytest` | Everything — **560 cases: 550 pass, 10 skip.** |
+| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 554 cases, of which 544 pass and 10 skip. About 18 seconds, no network. |
 | `.\venv\Scripts\pytest -m live` | **6 read-only smoke tests** against the deployed site. |
 
 The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFLOW_PATH` in the gitignored `.env`, defaulting to a sibling directory) with the database and every external service stubbed.
@@ -27,7 +27,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 
 ### Counting
 
-The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 496 test functions expand to 545 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
+The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 511 test functions expand to 560 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
 
 ---
 
@@ -911,6 +911,42 @@ The core word-lookup flow: look a word up, review the proposed cards, add the on
 | `test_delete_missing_card_is_friendly` | A card that is not there says "Card not found" rather than failing. |
 | `test_delete_rejects_get` | `GET` on the delete URL answers 405 — deletion is not reachable by following a link. |
 
+## test_main_page_layout.py — the main page reordered (17 cases)
+
+kuantorflow#184. Three changes with one thread between them: the page should lead with what a returning learner came for. Browsing sat below two forms they only need when adding something new; the topics were pills, which have nowhere to put the picture #185 will give them; and a whole section was spent on a diagnostic.
+
+**The order of the page**
+
+| Test | What it checks |
+| --- | --- |
+| `test_browsing_comes_before_looking_up` | The three sections render as Browse flashcards, Look up a word, Upload notes — in that order. |
+| `test_browsing_comes_straight_after_the_welcome_caption` | Nothing is inserted between the title and the deck. |
+| `test_the_database_section_is_gone` | No Database heading, and the old `test_db` form does not linger behind it. |
+
+**The tiles**
+
+| Test | What it checks |
+| --- | --- |
+| `test_each_topic_is_a_tile_linking_to_it` | One tile per topic inside the grid, each linking to its page. |
+| `test_a_tile_carries_the_name_and_the_count` | The name and the card count are both on the tile. |
+| `test_one_card_is_not_one_cards` | The count is read on the tile, so it has to be grammatical in the singular. |
+| `test_the_pill_markup_is_gone` | No leftover `chip` class — a cached stylesheet would still render one as a pill, and it would not be square. |
+| `test_the_empty_states_are_unchanged` | The tiles replaced the chips; they did not replace the explanations for having none (#127). |
+| `test_the_widget_rebuilds_tiles_not_chips` | Mykola refreshes this section in place after saving a card from chat (ai_agent#53), building the markup in JavaScript — so it has to change alongside the template, or a chat save quietly restores the old pills. |
+
+**The database check, now in Settings**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_button_is_in_the_settings_popup` | The button and its label are inside the settings modal. |
+| `test_the_button_never_submits_the_settings_form` | It sits inside `#settings-form`, so a default-type button would save the settings as a side effect of asking about the database. |
+| `test_the_button_works_for_anonymous_visitors` | Read-only settings (#102) freeze the *settings*; this changes nothing, so it stays usable — the same reasoning as Reset Auth. |
+| `test_the_button_is_on_every_page_not_just_the_index` | It is in the popup, and the popup is in the base template. |
+| `test_a_reachable_database_answers_ok` | `POST /db/test` answers `{"ok": true}`. |
+| `test_an_unreachable_database_answers_why` | A failure is an answer to the question that was asked, not a server error — still 200, with the reason, so the popup can show it. |
+| `test_the_check_never_redirects` | The whole reason it is JSON: the popup opens on every page, and a redirect would drop the visitor onto the index from wherever they were. |
+| `test_the_check_rejects_get` | `GET /db/test` answers 405. |
+
 ## test_mykola_widget.py — the New Chat button (3 cases)
 
 ai_agent#55. The widget only renders when Mykola is available, so these force it. The reset itself is client-side JS the test client does not run; what is pinned here is that the button and its wiring are present.
@@ -1120,17 +1156,15 @@ kuantorflow#86, #13, #20.
 | `test_auto_add_saves_without_review_popup` | With the setting on, both cards are saved directly, the banner reports the count, and no review popup is rendered. |
 | `test_lookup_receives_the_stored_providers` | The lookup is called with exactly the stored translator and dictionary, so the settings actually reach the network layer. |
 
-## test_ui_pages.py — pages, banners and link previews (12 cases)
+## test_ui_pages.py — pages, banners and link previews (10 cases)
 
 | Test | What it checks |
 | --- | --- |
-| `test_topic_chips` | Each topic renders as a link with its card count. |
+| `test_topic_tiles` | Each topic renders as a tile linking to it, with its card count (#184). |
 | `test_no_topics_hint` | An empty deck says "No topics yet" rather than showing nothing. |
 | `test_page_survives_db_failure` | A database failure still renders the page with that hint — the home page never 500s over it. |
 | `test_submit_buttons_have_loading_feedback` | The lookup button shows a working state and disables itself, so a slow lookup is not clicked twice. |
 | `test_about_modal_markup` | The About link, its image and the modal with its close control. |
-| `test_db_success_banner_is_green` | A successful connection test lands in the green confirmation banner. |
-| `test_db_failure_banner_is_red` | A failure lands in the red error banner with the reason. |
 | `test_preview_meta_on_gate_page` | Crawlers are redirected to the gate, so it carries the Open Graph image, title and description. |
 | `test_preview_meta_on_index` | The index carries the full set of OG tags, an absolute image URL and the Twitter card type. |
 | `test_proxyfix_makes_absolute_https_urls` | Behind the proxy's forwarded headers the preview URL is absolute and https — otherwise the shared link previews a localhost path. |
@@ -1220,5 +1254,5 @@ When it complains:
 
 Normally all of that belongs in the same pull request as the tests themselves.
 
-**Totals as of this revision: 36 files, 496 test functions, 545 collected
-cases** (535 passing, 10 opt-in `db` skips).
+**Totals as of this revision: 37 files, 511 test functions, 560 collected
+cases** (550 passing, 10 opt-in `db` skips).
