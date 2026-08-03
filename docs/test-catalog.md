@@ -1,6 +1,6 @@
 # KuantorFlow Automation — Test Catalog
 
-**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **564 test cases in 37 files**
+**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **576 test cases in 38 files**
 
 Every test in the suite, with a one-sentence description of what it checks, grounded in the test body rather than its name. One section per file, in alphabetical order.
 
@@ -12,8 +12,8 @@ The suite lives in `tests/` and runs with the repo's own virtualenv:
 
 | Command | What runs |
 | --- | --- |
-| `.\venv\Scripts\pytest` | Everything — **564 cases: 554 pass, 10 skip.** |
-| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 558 cases, of which 548 pass and 10 skip. About 18 seconds, no network. |
+| `.\venv\Scripts\pytest` | Everything — **576 cases: 566 pass, 10 skip.** |
+| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 570 cases, of which 560 pass and 10 skip. About 18 seconds, no network. |
 | `.\venv\Scripts\pytest -m live` | **6 read-only smoke tests** against the deployed site. |
 
 The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFLOW_PATH` in the gitignored `.env`, defaulting to a sibling directory) with the database and every external service stubbed.
@@ -27,7 +27,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 
 ### Counting
 
-The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 515 test functions expand to 564 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
+The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 525 test functions expand to 576 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
 
 ---
 
@@ -1165,6 +1165,35 @@ kuantorflow#86, #13, #20.
 | `test_auto_add_saves_without_review_popup` | With the setting on, both cards are saved directly, the banner reports the count, and no review popup is rendered. |
 | `test_lookup_receives_the_stored_providers` | The lookup is called with exactly the stored translator and dictionary, so the settings actually reach the network layer. |
 
+## test_translucent_surfaces.py — half-transparent panels and widget (10 tests, 12 cases)
+
+kuantorflow#197. The site sits on a photograph and almost none of it was visible. The content panels are translucent now, and Mykola's panel is too — but less so, because it holds a whole conversation rather than a short form. The opacity is a pair of CSS variables rather than literal alphas, because the values are meant to be tuned by eye.
+
+**The knobs**
+
+| Test | What it checks |
+| --- | --- |
+| `test_both_opacities_are_variables` | Both are custom properties in a sane range — literals scattered through the stylesheet would make tuning a hunt. |
+| `test_the_panels_use_the_panel_variable` | `.panel` reads its alpha from `--panel-alpha`. |
+| `test_the_widget_uses_its_own_variable` | `#mykola-panel` reads its own, not the panels'. |
+| `test_the_widget_is_the_more_opaque_of_the_two` | The actual requirement: a conversation is the most reading-heavy surface on the site, so it gets more white behind it than a panel holding a short form. |
+| `test_neither_surface_is_blurred` | A backdrop blur hides the background, which is the thing being revealed. |
+
+**The part that fails silently**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_widgets_inner_panes_do_not_cover_it` | Three cases — the message list, the composer and the auth strip. Each used to be a solid fill spanning the panel; with any one of them opaque again `--widget-alpha` stops meaning anything, and nothing looks wrong: the CSS is valid, the variable is there, the widget just stays opaque. |
+| `test_the_message_bubbles_keep_their_fills` | They are content, not the surface behind it — a transparent bubble would leave the two speakers indistinguishable. |
+
+**What must not change**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_top_bar_is_untouched` | Excluded from #197 by name. |
+| `test_the_settings_dialog_stays_solid` | Dropped from #197: through a translucent dialog you would see the dimmed page rather than the background, which is not the effect. |
+| `test_the_topic_tiles_stay_solid` | #185 will put a picture on each; a translucent tile showing the background behind a photograph inside it would be a mess. |
+
 ## test_ui_pages.py — pages, banners and link previews (10 cases)
 
 | Test | What it checks |
@@ -1263,5 +1292,5 @@ When it complains:
 
 Normally all of that belongs in the same pull request as the tests themselves.
 
-**Totals as of this revision: 37 files, 515 test functions, 564 collected
-cases** (554 passing, 10 opt-in `db` skips).
+**Totals as of this revision: 38 files, 525 test functions, 576 collected
+cases** (566 passing, 10 opt-in `db` skips).
