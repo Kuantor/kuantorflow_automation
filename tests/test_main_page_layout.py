@@ -178,3 +178,60 @@ def test_the_check_never_redirects(client, app_module, monkeypatch):
 
 def test_the_check_rejects_get(client):
     assert client.get("/db/test").status_code == 405
+
+
+# --- the page steps aside for the widget (#184) ------------------------------
+
+def _widget_js(client, app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    return client.get("/").get_data(as_text=True)
+
+
+def test_the_page_moves_only_while_the_panel_is_open(client):
+    """Mykola's panel is fixed bottom-right and used to land on the right edge
+    of the centred page. The shift is tied to the open state, so a closed
+    widget leaves no empty strip where the panel is not."""
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    assert "body.mykola-open .page" in css
+    # ...and it is the content that moves, not the header: a panel anchored to
+    # the bottom-right never covers the menu, and shifting it would look broken.
+    assert "body.mykola-open .site-header" not in css
+
+
+def test_the_shift_is_off_where_there_is_no_room(client):
+    """860px of page plus a 340px panel do not fit under about 1240px, and
+    shifting there would push the content off the left edge instead."""
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    rule = css.split("body.mykola-open .page")[0]
+    assert "@media (min-width: 1240px)" in rule.split("/* Layout */")[1]
+    # the clamp that keeps it on screen at the narrow end of that range
+    shift = css.split("body.mykola-open .page")[1].split("}")[0]
+    assert "max(1rem" in shift
+
+
+def test_every_place_that_opens_or_closes_the_panel_syncs_the_space(
+        client, app_module, monkeypatch):
+    """Three call sites set `panel.hidden`: open, close, and restoring a
+    stored thread on load. A missed one leaves the page shifted with nothing
+    beside it, or the panel back on top of the content."""
+    body = _widget_js(client, app_module, monkeypatch)
+    assert "function syncWidgetSpace()" in body
+    assert body.count("syncWidgetSpace();") == 3
+
+    for fn, expected in (("function openPanel()", 1),
+                         ("function closePanel()", 1)):
+        block = body.split(fn)[1].split("\n            function ")[0]
+        assert block.count("syncWidgetSpace();") == expected, fn
+
+    # the third is the restore path, which is the one easily forgotten
+    restore = body.split("if (state.panelOpen)")[1][:400]
+    assert "syncWidgetSpace();" in restore
+
+
+def test_the_class_lands_on_the_body(client, app_module, monkeypatch):
+    """The rule is `body.mykola-open .page`, so the toggle has to be on body —
+    putting it on the panel would style nothing."""
+    body = _widget_js(client, app_module, monkeypatch)
+    sync = body.split("function syncWidgetSpace()")[1].split("}")[0]
+    assert "document.body.classList.toggle" in sync
+    assert '"mykola-open"' in sync
