@@ -8,12 +8,13 @@ def _meta(body, prop, attr="property"):
     return m.group(1) if m else None
 
 
-def test_topic_chips(client, app_module, monkeypatch):
+def test_topic_tiles(client, app_module, monkeypatch):
+    """Each topic is a tile linking to it, with its card count (#184)."""
     monkeypatch.setattr(app_module, "get_topics",
                         lambda owner_id=None: [("basics", 12), ("it-vocab", 5)])
     body = client.get("/").get_data(as_text=True)
-    assert "/flashcards/basics" in body and "(12)" in body
-    assert "/flashcards/it-vocab" in body
+    assert "/flashcards/basics" in body and "12 cards" in body
+    assert "/flashcards/it-vocab" in body and "5 cards" in body
 
 
 def test_no_topics_hint(client):
@@ -42,24 +43,8 @@ def test_about_modal_markup(client):
     assert 'id="about-modal"' in body and "modal-close" in body
 
 
-def test_db_success_banner_is_green(client, app_module, monkeypatch):
-    class FakeConn:
-        def close(self):
-            pass
-    monkeypatch.setattr(app_module, "get_db_connection", FakeConn)
-    r = client.post("/", data={"action": "test_db"}, follow_redirects=True)
-    body = r.get_data(as_text=True)
-    assert re.search(
-        r'<div class="banner confirmation">\s*Database connection successful!', body
-    ), "success message not in the green confirmation banner"
-
-
-def test_db_failure_banner_is_red(client, app_module, monkeypatch):
-    def boom():
-        raise RuntimeError("db down")
-    monkeypatch.setattr(app_module, "get_db_connection", boom)
-    body = client.post("/", data={"action": "test_db"}).get_data(as_text=True)
-    assert re.search(r'<div class="banner error"><strong>Error: db down', body)
+# The database check moved into the Settings popup (#184); its tests live in
+# test_main_page_layout.py with the rest of that change.
 
 
 def test_preview_meta_on_gate_page(fresh_client):
