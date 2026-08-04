@@ -145,7 +145,7 @@ def test_empty_word_shows_error_and_no_popup(client, saved):
     assert "proposal-card" not in body
 
 
-def test_mht_upload_shows_review_before_saving(client, saved):
+def test_mht_upload_shows_review_before_saving(user_client, saved):
     """MHT upload no longer auto-saves: the parsed cards go through the same
     review popup as word lookup, shown in two columns (file content beside the
     cards), and are only written when the user clicks Add / Add All."""
@@ -160,7 +160,7 @@ Content-Transfer-Encoding: 8bit
 <html><body><p>ubiquitous - present everywhere</p></body></html>
 ------=_B--
 """
-    r = client.post(
+    r = user_client.post(
         "/",
         data={"action": "upload_notes", "topic": "vocab",
               "notes_file": (io.BytesIO(mht), "notes.mht")},

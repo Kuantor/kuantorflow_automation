@@ -190,30 +190,30 @@ def _upload(client, data, filename):
     ).get_data(as_text=True)
 
 
-def test_txt_upload_shows_the_review_popup(client, saved):
-    body = _upload(client, LUCID_TXT.encode("utf-8"), "notes.txt")
+def test_txt_upload_shows_the_review_popup(user_client, saved):
+    body = _upload(user_client, LUCID_TXT.encode("utf-8"), "notes.txt")
     assert saved == [], "an upload must not save anything before review"
     assert "Review the cards parsed from your file" in body
     assert body.count('class="proposal-card"') == 1
     assert 'name="word" value="lucid dream"' in body
 
 
-def test_docx_upload_shows_the_review_popup(client, saved):
-    body = _upload(client, REVERSO_DOCX, "notes.docx")
+def test_docx_upload_shows_the_review_popup(user_client, saved):
+    body = _upload(user_client, REVERSO_DOCX, "notes.docx")
     assert saved == []
     assert body.count('class="proposal-card"') == 2
     assert 'name="word" value="fount"' in body
 
 
-def test_unsupported_upload_is_reported(client, saved):
-    body = _upload(client, b"anything", "notes.pdf")
+def test_unsupported_upload_is_reported(user_client, saved):
+    body = _upload(user_client, b"anything", "notes.pdf")
     assert saved == []
     assert "Unsupported notes format" in body
     assert 'id="proposal-modal"' not in body
 
 
-def test_empty_upload_reports_no_entries(client, saved):
-    body = _upload(client, b"nothing parseable here", "notes.txt")
+def test_empty_upload_reports_no_entries(user_client, saved):
+    body = _upload(user_client, b"nothing parseable here", "notes.txt")
     assert "No vocabulary entries found in that file." in body
     assert 'id="proposal-modal"' not in body
 
