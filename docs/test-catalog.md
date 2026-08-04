@@ -1,6 +1,6 @@
 # KuantorFlow Automation — Test Catalog
 
-**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **576 test cases in 38 files**
+**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **579 test cases in 38 files**
 
 Every test in the suite, with a one-sentence description of what it checks, grounded in the test body rather than its name. One section per file, in alphabetical order.
 
@@ -12,8 +12,8 @@ The suite lives in `tests/` and runs with the repo's own virtualenv:
 
 | Command | What runs |
 | --- | --- |
-| `.\venv\Scripts\pytest` | Everything — **576 cases: 566 pass, 10 skip.** |
-| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 570 cases, of which 560 pass and 10 skip. About 18 seconds, no network. |
+| `.\venv\Scripts\pytest` | Everything — **579 cases: 569 pass, 10 skip.** |
+| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 573 cases, of which 563 pass and 10 skip. About 18 seconds, no network. |
 | `.\venv\Scripts\pytest -m live` | **6 read-only smoke tests** against the deployed site. |
 
 The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFLOW_PATH` in the gitignored `.env`, defaulting to a sibling directory) with the database and every external service stubbed.
@@ -27,7 +27,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 
 ### Counting
 
-The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 525 test functions expand to 576 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
+The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 528 test functions expand to 579 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
 
 ---
 
@@ -1165,7 +1165,7 @@ kuantorflow#86, #13, #20.
 | `test_auto_add_saves_without_review_popup` | With the setting on, both cards are saved directly, the banner reports the count, and no review popup is rendered. |
 | `test_lookup_receives_the_stored_providers` | The lookup is called with exactly the stored translator and dictionary, so the settings actually reach the network layer. |
 
-## test_translucent_surfaces.py — half-transparent panels and widget (10 tests, 12 cases)
+## test_translucent_surfaces.py — half-transparent panels, widget and cards (13 tests, 15 cases)
 
 kuantorflow#197. The site sits on a photograph and almost none of it was visible. The content panels are translucent now, and Mykola's panel is too — but less so, because it holds a whole conversation rather than a short form. The opacity is a pair of CSS variables rather than literal alphas, because the values are meant to be tuned by eye.
 
@@ -1178,6 +1178,14 @@ kuantorflow#197. The site sits on a photograph and almost none of it was visible
 | `test_the_widget_uses_its_own_variable` | `#mykola-panel` reads its own, not the panels'. |
 | `test_the_widget_is_the_more_opaque_of_the_two` | The actual requirement: a conversation is the most reading-heavy surface on the site, so it gets more white behind it than a panel holding a short form. |
 | `test_neither_surface_is_blurred` | A backdrop blur hides the background, which is the thing being revealed. |
+
+**The flashcards page gets a third (#201)**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_cards_have_their_own_opacity` | `--flashcard-alpha` exists and `.card` reads its background from it. |
+| `test_a_card_is_more_opaque_than_a_main_page_panel` | Why it needs a number at all: the main page has three panels, a topic page has one per card — dozens, stacked, each carrying a word, a part of speech, an explanation and two translations with their examples. |
+| `test_the_plain_panels_on_that_page_are_unaffected` | A topic page also renders an ordinary `.panel` — the empty-topic explanation (#127) — and it keeps the main page's value, because it is doing the main page's job rather than the card's. Decided, not incidental. |
 
 **The part that fails silently**
 
@@ -1292,5 +1300,5 @@ When it complains:
 
 Normally all of that belongs in the same pull request as the tests themselves.
 
-**Totals as of this revision: 38 files, 525 test functions, 576 collected
-cases** (566 passing, 10 opt-in `db` skips).
+**Totals as of this revision: 38 files, 528 test functions, 579 collected
+cases** (569 passing, 10 opt-in `db` skips).

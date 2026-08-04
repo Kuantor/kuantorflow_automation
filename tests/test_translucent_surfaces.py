@@ -1,8 +1,11 @@
-"""Half-transparent panels and chat widget (kuantorflow#197).
+"""Half-transparent panels, chat widget and cards (kuantorflow#197, #201).
 
 The site sits on a photograph and almost none of it was visible. The content
 panels are translucent now, and Mykola's panel is too — but less so, because it
-holds a whole conversation rather than a short form.
+holds a whole conversation rather than a short form. The flashcards got a third
+value again (#201): a topic page is one panel per card, dozens of them stacked,
+so what reads as a tint behind three short forms becomes a wall of
+half-transparent text there.
 
 Two things here are not obvious from looking at the page:
 
@@ -75,6 +78,28 @@ def test_neither_surface_is_blurred(css):
     revealed — asked for explicitly."""
     assert "backdrop-filter" not in _rule(css, ".panel")
     assert "backdrop-filter" not in _rule(css, "#mykola-panel")
+
+
+# --- the flashcards page gets a third (#201) ---------------------------------
+
+def test_the_cards_have_their_own_opacity(css):
+    assert 0 < _alpha(css, "flashcard") <= 1
+    assert "rgba(255, 255, 255, var(--flashcard-alpha))" in _rule(css, ".card")
+
+
+def test_a_card_is_more_opaque_than_a_main_page_panel(css):
+    """Why it needs a number at all: the main page has three panels, a topic
+    page has one per card — dozens, stacked, each carrying a word, a part of
+    speech, an explanation and two translations with their examples."""
+    assert _alpha(css, "flashcard") > _alpha(css, "panel")
+
+
+def test_the_plain_panels_on_that_page_are_unaffected(css):
+    """A topic page also renders an ordinary `.panel` — the empty-topic
+    explanation (#127). It keeps the main page's value, because it is doing
+    the main page's job rather than the card's. Decided, not incidental."""
+    assert "var(--panel-alpha)" in _rule(css, ".panel")
+    assert "--panel-alpha" not in _rule(css, ".card")
 
 
 # --- the part that fails silently --------------------------------------------
