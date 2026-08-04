@@ -33,6 +33,26 @@ The app is imported via `KUANTORFLOW_PATH` in a gitignored `.env` (defaults to
 a sibling `../../kuantorflow`). `.env` also holds `SITE_URL`, the real
 `ACCESS_KEYWORD`, and `DB_*` for the live/backup tooling.
 
+**A green default run is not the whole suite.** The `db`-marked tests — roughly
+27 of them, against a real local MySQL — are **skipped unless you opt in**:
+
+```bash
+RUN_DB_ROUNDTRIP=1 venv/Scripts/pytest -q
+```
+
+They need `DB_HOST=localhost` and `DB_*` configured, and each creates and drops
+its **own** scratch database, never touching the configured one. Run them for
+anything that touches schema, SQL or a migration: on 2026-08-04 they caught
+three genuine failures in `test_apply_schema_db.py` that the offline run could
+not see, because only a real database exercises them. The offline suite passing
+says nothing about those paths.
+
+`KUANTORFLOW_PATH` is also how you baseline. Before assuming that failures come
+from *the tests* rather than *the change*, run the unchanged suite against a
+worktree of kuantorflow `main` — copy the gitignored `.env` into it, or two
+unrelated tests fail on a missing Google sign-in link and it looks like a
+regression.
+
 ## Conventions
 
 - **Parallel PRs.** These tests are opened *alongside* a KuantorFlow feature PR
