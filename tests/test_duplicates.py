@@ -8,6 +8,7 @@ connection; the route-level tests stub save_flashcard as usual.
 """
 
 import utils
+from conftest import fake_card_db
 from maintenance.dedup_flashcards import find_duplicates
 
 
@@ -58,27 +59,44 @@ def _fake_db(monkeypatch, cursor):
 
 
 def test_duplicate_word_pos_is_skipped(monkeypatch):
-    cursor = FakeCursor(existing_row=(7,))       # the word+pos already exists
-    conn = _fake_db(monkeypatch, cursor)
+    cursor, conn = fake_card_db(monkeypatch, duplicate=(7,))  # word+pos exists
     assert utils.save_flashcard(dict(ENTRY)) is None
     assert not any("INSERT" in q for q, _ in cursor.queries), \
         "a duplicate must not be inserted"
     assert conn.committed is False
 
 
+def test_a_duplicate_leaves_no_topic_behind(monkeypatch):
+    """The topic is resolved *after* the duplicate check (kuantorflow#207).
+
+    Naming a topic that does not exist yet on a card that is about to be
+    refused must not create it — the save is the only reason the topic was
+    being asked for.
+    """
+    cursor, _ = fake_card_db(monkeypatch, duplicate=(7,), topic=None)
+    assert utils.save_flashcard(dict(ENTRY, topic="a topic never seen")) is None
+    assert not any("topics" in q for q, _ in cursor.queries), \
+        "a refused save must not so much as look the topic up"
+
+
 def test_new_card_is_inserted(monkeypatch):
-    cursor = FakeCursor(existing_row=None)
-    conn = _fake_db(monkeypatch, cursor)
+    cursor, conn = fake_card_db(monkeypatch, duplicate=None)
     assert utils.save_flashcard(dict(ENTRY)) == 42
     assert any(q.startswith("INSERT INTO flashcards") for q, _ in cursor.queries)
     assert conn.committed is True
 
 
+def test_the_duplicate_check_runs_before_anything_else(monkeypatch):
+    """Its position is the whole reason the test above holds."""
+    cursor, _ = fake_card_db(monkeypatch, duplicate=None)
+    utils.save_flashcard(dict(ENTRY))
+    assert "pos <=> %s" in cursor.queries[0][0]
+
+
 def test_duplicate_check_is_null_safe_on_pos(monkeypatch):
     """pos-less cards (.mht imports) must deduplicate too: the check uses the
     NULL-safe <=> comparison with the entry's (possibly None) pos."""
-    cursor = FakeCursor(existing_row=None)
-    _fake_db(monkeypatch, cursor)
+    cursor, _ = fake_card_db(monkeypatch, duplicate=None)
     utils.save_flashcard({"word": "ubiquitous", "topic": "vocab"})
     check_query, params = cursor.queries[0]
     assert "pos <=> %s" in check_query

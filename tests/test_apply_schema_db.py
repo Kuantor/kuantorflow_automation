@@ -128,20 +128,59 @@ def _columns(table="flashcards"):
         "ORDER BY ORDINAL_POSITION", (table,))]
 
 
+def _rewind_to_pre_207():
+    """Undo #207 on a freshly created scratch database.
+
+    Rewinding a real schema.sql table beats pasting a copy of the old CREATE
+    TABLE here: a stale copy would drift from the app's real history and quietly
+    stop testing the migration that matters. Dropping the column takes its index
+    with it.
+    """
+    _execute(["ALTER TABLE flashcards DROP FOREIGN KEY fk_flashcards_topic",
+              "ALTER TABLE flashcards DROP COLUMN topic_id",
+              "DROP TABLE topics"], SCRATCH_DB)
+
+
+STATUSES = (" would be applied", " already present", " applied")
+
+
+def _steps_in(stdout):
+    """The step names the script reported as applied or pending.
+
+    A name can contain a space ('flashcards.topic_id backfill'), so it is the
+    text between the marker and the status rather than the second word.
+    """
+    names = set()
+    for raw in stdout.splitlines():
+        line = raw.strip()
+        if not line.startswith(("+", "~")):
+            continue
+        body = line[1:].strip()
+        for status in STATUSES:
+            if body.endswith(status):
+                body = body[:-len(status)]
+                break
+        names.add(body.strip())
+    return names
+
+
 @requires_local_db
 def test_an_empty_database_gets_the_whole_schema(scratch_db):
     result = _apply()
     assert result.returncode == 0, result.stderr
     tables = sorted(r[0] for r in _query("SHOW TABLES"))
-    assert tables == ["anonymous_usage", "flashcards", "users"]
+    assert tables == ["anonymous_usage", "flashcards", "topics", "users"]
     # The tables schema.sql creates need no migrations on top of them.
-    assert "added_by_user_id" in _columns()
+    columns = _columns()
+    assert "added_by_user_id" in columns
+    assert "topic_id" in columns
     assert "nothing to do" not in result.stdout
 
 
 @requires_local_db
 def test_a_pre_89_database_is_migrated_and_keeps_its_cards(scratch_db):
     _apply()                                   # tables as they should be
+    fresh_columns = _columns()                 # what a new install looks like
     _execute(["DROP TABLE flashcards", PRE_89_FLASHCARDS,
               "INSERT INTO flashcards (word, topic) VALUES ('brittle', 'vocab')"],
              SCRATCH_DB)
@@ -149,13 +188,16 @@ def test_a_pre_89_database_is_migrated_and_keeps_its_cards(scratch_db):
 
     result = _apply()
     assert result.returncode == 0, result.stderr
-    assert "4 change(s) applied" in result.stdout
+    # Named steps rather than a count: a total goes stale on the next migration
+    # and says nothing about which work was done.
+    assert {"flashcards.pos", "flashcards.added_by_user_id",
+            "flashcards.topic_id", "flashcards.topic_id backfill"} <= \
+        _steps_in(result.stdout)
+    assert "change(s) applied" in result.stdout
 
-    columns = _columns()
-    assert "pos" in columns and "added_by_user_id" in columns
-    # Added in the right place, so a migrated table matches a fresh one.
-    assert columns.index("pos") == columns.index("word") + 1
-    assert columns.index("added_by_user_id") == columns.index("topic") + 1
+    # Every column landed where schema.sql puts it, so a database that was
+    # migrated is indistinguishable from one that was created.
+    assert _columns() == fresh_columns
     assert _query("SELECT word, pos, added_by_user_id FROM flashcards") == [
         ("brittle", None, None)], "the existing card survived untouched"
 
@@ -167,6 +209,8 @@ def test_a_pre_89_database_is_migrated_and_keeps_its_cards(scratch_db):
         "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'flashcards'")}
     assert "idx_added_by" in indexes
     assert "fk_flashcards_user" in constraints
+    assert "idx_topic_id" in indexes
+    assert "fk_flashcards_topic" in constraints
 
 
 @requires_local_db
@@ -185,8 +229,178 @@ def test_dry_run_reports_the_pending_work_without_doing_it(scratch_db):
 
     result = _apply("--dry-run")
     assert result.returncode == 0, result.stderr
-    assert "4 change(s) pending" in result.stdout
+    assert "change(s) pending" in result.stdout
+    assert {"flashcards.pos", "flashcards.added_by_user_id",
+            "flashcards.topic_id"} <= _steps_in(result.stdout)
     assert "added_by_user_id" not in _columns(), "--dry-run changed the database"
+
+
+@requires_local_db
+def test_dry_run_reports_the_backfill_it_cannot_yet_probe(scratch_db):
+    """The probe names topic_id, which --dry-run has not created (#207).
+
+    A real database rejects that query. The script has to read the rejection as
+    "nothing has been backfilled" and carry on reporting, because otherwise
+    looking before you leap would crash on exactly the deploy that needs it.
+    """
+    _apply()
+    _rewind_to_pre_207()
+    _execute(["INSERT INTO flashcards (word, topic) VALUES ('brittle', 'vocab')"],
+             SCRATCH_DB)
+
+    result = _apply("--dry-run")
+    assert result.returncode == 0, result.stderr
+    assert "flashcards.topic_id backfill" in _steps_in(result.stdout)
+    assert "topic_id" not in _columns(), "--dry-run changed the database"
+
+
+# --- #207: the backfill, against a real database ------------------------
+
+
+@requires_local_db
+def test_the_backfill_creates_one_topic_per_name_and_links_every_card(scratch_db):
+    _apply()
+    _rewind_to_pre_207()
+    _execute([
+        "INSERT INTO flashcards (word, topic) VALUES ('brittle', 'vocab')",
+        "INSERT INTO flashcards (word, topic) VALUES ('resilient', 'vocab')",
+        "INSERT INTO flashcards (word, topic) VALUES ('nosy', 'emotions')",
+        # 'no topic' is a real state, and must not become a topic named ''
+        "INSERT INTO flashcards (word, topic) VALUES ('orphan', '')",
+        "INSERT INTO flashcards (word, topic) VALUES ('stray', NULL)",
+    ], SCRATCH_DB)
+
+    assert _apply().returncode == 0
+
+    assert sorted(r[0] for r in _query("SELECT name FROM topics")) == \
+        ["emotions", "vocab"]
+    assert _query("SELECT COUNT(*) FROM flashcards WHERE topic IS NOT NULL "
+                  "AND topic <> '' AND topic_id IS NULL") == [(0,)]
+    assert _query("SELECT COUNT(*) FROM topics WHERE name = ''") == [(0,)]
+    assert sorted(_query(
+        "SELECT word, topic_id FROM flashcards WHERE topic_id IS NULL")) == \
+        [("orphan", None), ("stray", None)]
+
+
+@requires_local_db
+def test_the_backfill_dates_each_topic_from_its_earliest_card(scratch_db):
+    """A topic began when its first card was filed, not on migration day."""
+    _apply()
+    _rewind_to_pre_207()
+    _execute([
+        "INSERT INTO flashcards (word, topic, created_at) "
+        "VALUES ('early', 'vocab', '2026-01-01 09:00:00')",
+        "INSERT INTO flashcards (word, topic, created_at) "
+        "VALUES ('late', 'vocab', '2026-06-01 09:00:00')",
+    ], SCRATCH_DB)
+
+    assert _apply().returncode == 0
+
+    assert [str(r[0]) for r in _query(
+        "SELECT created_at FROM topics WHERE name = 'vocab'")] == \
+        ["2026-01-01 09:00:00"]
+
+
+@requires_local_db
+def test_the_backfill_credits_the_earliest_cards_owner(scratch_db):
+    """Whoever saved the first card did create the topic, under the rules this
+    replaces. A later arrival does not become its creator."""
+    _apply()
+    _rewind_to_pre_207()
+    _execute([
+        "INSERT INTO users (id, google_sub, email) "
+        "VALUES (11, 'sub-first', 'first@example.com')",
+        "INSERT INTO users (id, google_sub, email) "
+        "VALUES (22, 'sub-later', 'later@example.com')",
+        "INSERT INTO flashcards (word, topic, added_by_user_id, created_at) "
+        "VALUES ('early', 'owned', 11, '2026-01-01 09:00:00')",
+        "INSERT INTO flashcards (word, topic, added_by_user_id, created_at) "
+        "VALUES ('late', 'owned', 22, '2026-06-01 09:00:00')",
+        # A topic whose first card was anonymous stays creatorless: the honest
+        # answer, arrived at rather than assumed.
+        "INSERT INTO flashcards (word, topic, created_at) "
+        "VALUES ('nobodys', 'unowned', '2026-02-01 09:00:00')",
+        "INSERT INTO flashcards (word, topic, added_by_user_id, created_at) "
+        "VALUES ('somebodys', 'unowned', 11, '2026-03-01 09:00:00')",
+    ], SCRATCH_DB)
+
+    assert _apply().returncode == 0
+
+    assert _query("SELECT created_by_user_id FROM topics WHERE name = 'owned'") \
+        == [(11,)]
+    assert _query("SELECT created_by_user_id FROM topics WHERE name = 'unowned'") \
+        == [(None,)]
+
+
+@requires_local_db
+def test_case_variant_topics_become_one_row_and_one_spelling(scratch_db):
+    """'Work' and 'work' were already one topic to every query the app ran, so
+    the UNIQUE key cannot be violated — but only one spelling survives, and the
+    string column is rewritten to match the row it points at."""
+    _apply()
+    _rewind_to_pre_207()
+    _execute([
+        "INSERT INTO flashcards (word, topic) VALUES ('a', 'emotions')",
+        "INSERT INTO flashcards (word, topic) VALUES ('b', 'EMOTIONS')",
+        "INSERT INTO flashcards (word, topic) VALUES ('c', 'Emotions')",
+    ], SCRATCH_DB)
+
+    assert _apply().returncode == 0
+
+    assert _query("SELECT COUNT(*) FROM topics") == [(1,)]
+    assert _query("SELECT COUNT(DISTINCT topic_id) FROM flashcards") == [(1,)]
+    # Every card spells it exactly as the row does — the invariant that keeps
+    # ai_agent, which still reads the string, agreeing with the app.
+    assert _query("SELECT COUNT(*) FROM flashcards f JOIN topics t "
+                  "ON f.topic_id = t.id "
+                  "WHERE f.topic <> t.name COLLATE utf8mb4_bin") == [(0,)]
+
+
+@requires_local_db
+def test_an_interrupted_backfill_is_finished_by_the_next_run(scratch_db):
+    """The probe describes remaining work, so a partial run reads as unfinished.
+
+    This is what makes the migration safe to interrupt: the fix for a run that
+    died halfway is to run it again.
+    """
+    _apply()
+    _rewind_to_pre_207()
+    _execute(["INSERT INTO flashcards (word, topic) VALUES ('brittle', 'vocab')"],
+             SCRATCH_DB)
+    assert _apply().returncode == 0
+
+    # A card arriving as if the run had stopped before reaching it.
+    _execute(["INSERT INTO flashcards (word, topic, topic_id) "
+              "VALUES ('afterwards', 'vocab', NULL)"], SCRATCH_DB)
+
+    result = _apply()
+    assert result.returncode == 0, result.stderr
+    assert "flashcards.topic_id backfill" in _steps_in(result.stdout), \
+        "the outstanding row makes the step pending again"
+    assert _query("SELECT COUNT(*) FROM flashcards WHERE topic_id IS NULL") == [(0,)]
+    assert _query("SELECT COUNT(*) FROM topics") == [(1,)], \
+        "and the topic it already had was not duplicated"
+
+
+@requires_local_db
+def test_deleting_a_topics_creator_leaves_the_topic_standing(scratch_db):
+    """ON DELETE SET NULL, unlike flashcards' RESTRICT (#207).
+
+    A topic may hold other people's cards, so deleting its creator's account
+    cannot delete it — and RESTRICT would make the deletion itself fail.
+    """
+    _apply()
+    _execute([
+        "INSERT INTO users (id, google_sub, email) "
+        "VALUES (11, 'sub-leaver', 'leaver@example.com')",
+        "INSERT INTO topics (id, name, created_by_user_id) "
+        "VALUES (5, 'shared', 11)",
+    ], SCRATCH_DB)
+
+    _execute(["DELETE FROM users WHERE id = 11"], SCRATCH_DB)
+
+    assert _query("SELECT name, created_by_user_id FROM topics WHERE id = 5") \
+        == [("shared", None)]
 
 
 @requires_local_db

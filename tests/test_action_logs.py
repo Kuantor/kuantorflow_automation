@@ -99,6 +99,50 @@ def test_deleting_a_missing_card_is_logged_too(user_client, app_module,
     assert not _find(action_logs, "cards", "DELETE")
 
 
+def test_a_new_topic_is_logged(action_logs):
+    """Creating a topic is a write, and a write is logged (kuantorflow#207).
+
+    The field is `topic=`, matching the card lines, so one grep over cards.log
+    finds the topic appearing and every card later filed under it.
+    """
+    applog.topic_created("Environment and climate", topic_id=4, created_by=7)
+    line = _find(action_logs, "cards", "TOPIC")[0]
+    assert "topic='Environment and climate'" in line
+    assert "id=4" in line
+    assert "created_by=7" in line
+
+
+def test_a_topic_nobody_owns_is_logged_as_anonymous(action_logs):
+    """NULL means nobody's, as it does for a card — and an absent field would
+    read as a topic whose creator was simply not recorded."""
+    applog.topic_created("general", topic_id=1, created_by=None)
+    assert "created_by=anonymous" in _find(action_logs, "cards", "TOPIC")[0]
+
+
+def test_saving_a_card_into_a_new_topic_logs_both_lines(monkeypatch, action_logs):
+    """The TOPIC line carries no source; the CREATE line that follows does, and
+    the pair is meant to be read as one event."""
+    import utils
+    from conftest import fake_card_db
+
+    fake_card_db(monkeypatch, duplicate=None, topic=None)
+    utils.save_flashcard({"word": "resilient", "topic": "a new topic"},
+                         added_by_user_id=7)
+    assert "topic='a new topic'" in _find(action_logs, "cards", "TOPIC")[0]
+
+
+def test_saving_into_an_existing_topic_logs_no_topic_line(monkeypatch,
+                                                          action_logs):
+    """It counts events, not attempts — the lesson from #126's unblock logging."""
+    import utils
+    from conftest import fake_card_db
+
+    fake_card_db(monkeypatch, duplicate=None, topic=(3, "vocab"))
+    utils.save_flashcard({"word": "resilient", "topic": "vocab"},
+                         added_by_user_id=7)
+    assert _find(action_logs, "cards", "TOPIC") == []
+
+
 def test_edit_helper_is_ready_for_an_edit_feature(action_logs):
     """The app has no edit-a-saved-card route yet; the helper exists so that
     one logs from the first commit."""

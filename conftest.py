@@ -96,6 +96,110 @@ def app_module(monkeypatch):
     return app_mod
 
 
+class FakeCardCursor:
+    """A cursor that answers the statements the card write paths run.
+
+    `save_flashcard()` and `move_flashcard()` stopped being one query each when
+    topics became a table (kuantorflow#207): a topic **name** now has to be
+    resolved to an id, which adds a lookup and sometimes an insert. A fake that
+    handed back the same canned row to every `fetchone()` cannot represent that
+    — it would answer the topic lookup with a flashcards row — so this one
+    dispatches on the statement it was last given.
+
+    Each canned row says what the database *contains*, not what should happen:
+
+    - `card` — the row behind ``SELECT ... FROM flashcards WHERE id``, as
+      ``(word, topic, topic_id, added_by_user_id)``. None means no such card.
+    - `duplicate` — the answer to the word+pos check; None means "not a
+      duplicate", which is what lets a save proceed.
+    - `topic` — the row behind ``SELECT id, name FROM topics WHERE name``, as
+      ``(id, name)``. **None means the topic does not exist yet**, so the code
+      under test creates it — the case worth exercising most.
+    - `update_rows` — what the conditional UPDATE reports. 0 is a refusal, and
+      is how "the card changed hands between the read and the write" is staged.
+    """
+
+    def __init__(self, *, card=None, duplicate=None, topic=None,
+                 update_rows=1, topic_id=3, card_id=42):
+        self.card = card
+        self.duplicate = duplicate
+        self.topic = topic
+        self.update_rows = update_rows
+        self.topic_id = topic_id
+        self.card_id = card_id
+        self.queries = []
+        self.rowcount = 1
+        self.lastrowid = card_id
+        self._last = ""
+
+    def execute(self, query, params=None):
+        collapsed = " ".join(query.split())
+        self.queries.append((collapsed, params))
+        self._last = collapsed
+        if collapsed.startswith("INSERT INTO topics"):
+            # A row that was not there: MySQL reports one affected row and
+            # LAST_INSERT_ID() gives the new id. Both are what tell
+            # _get_or_create_topic() that *it* created the topic.
+            self.rowcount = 1
+            self.lastrowid = self.topic_id
+        elif collapsed.startswith("INSERT INTO flashcards"):
+            self.lastrowid = self.card_id
+        elif collapsed.startswith("UPDATE flashcards"):
+            self.rowcount = self.update_rows
+
+    def fetchone(self):
+        if "FROM topics WHERE name" in self._last:
+            return self.topic
+        if "FROM topics WHERE id" in self._last:
+            return (self.topic[1],) if self.topic else None
+        if "FROM flashcards WHERE id" in self._last:
+            return self.card
+        return self.duplicate       # the word+pos duplicate check
+
+    def fetchall(self):
+        return []
+
+    def close(self):
+        pass
+
+
+class FakeCardConn:
+    """The connection around a FakeCardCursor; records whether it committed."""
+
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self.committed = False
+
+    def cursor(self, **kwargs):
+        return self._cursor
+
+    def commit(self):
+        self.committed = True
+
+    def close(self):
+        pass
+
+
+def fake_card_db(monkeypatch, **kwargs):
+    """Point utils at a FakeCardCursor. Returns (cursor, connection)."""
+    import utils
+
+    cursor = FakeCardCursor(**kwargs)
+    conn = FakeCardConn(cursor)
+    monkeypatch.setattr(utils, "get_db_connection", lambda: conn)
+    return cursor, conn
+
+
+def inserted_card(cursor):
+    """The ``INSERT INTO flashcards`` statement and its parameters.
+
+    Not simply "the first INSERT": creating a topic inserts too, and it happens
+    first (kuantorflow#207).
+    """
+    return next((q, p) for q, p in cursor.queries
+                if q.startswith("INSERT INTO flashcards"))
+
+
 class SavedCards(list):
     """Cards captured from save_flashcard(), and who each was attributed to.
 

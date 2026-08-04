@@ -15,16 +15,26 @@ import re
 import pytest
 
 import apply_schema
-from apply_schema import Column, Constraint, Index, Table
+from apply_schema import Column, Constraint, Index, Pending, Table
 
 CREATE_TABLE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)", re.I)
 ADD_COLUMN = re.compile(r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)", re.I)
 ADD_INDEX = re.compile(r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+INDEX\s+(\w+)", re.I)
 ADD_CONSTRAINT = re.compile(r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+CONSTRAINT\s+(\w+)", re.I)
 
+# Statements that move data rather than creating anything (kuantorflow#207's
+# backfill). Recognised explicitly, so an unknown statement is still a loud
+# failure rather than being waved through as "probably harmless".
+MOVES_DATA = re.compile(r"(INSERT|UPDATE)\s+", re.I)
+
 # Lines inside a CREATE TABLE body that continue the previous definition
 # rather than starting a column of their own.
 NOT_A_COLUMN = {"PRIMARY", "UNIQUE", "KEY", "FOREIGN", "REFERENCES", "ON", "CHECK"}
+
+# Which table a probe reads, and the columns it names. Enough to tell a probe
+# that cannot run yet from one that simply finds nothing left to do.
+PROBE_TABLE = re.compile(r"FROM\s+(\w+)", re.I)
+PROBE_COLUMN = re.compile(r"(\w+)\s+(?:IS\s+(?:NOT\s+)?NULL|<>|=)", re.I)
 
 
 def objects_created_by(sql):
@@ -50,6 +60,8 @@ def objects_created_by(sql):
         match = pattern.match(sql)
         if match:
             return {kind(match.group(1), match.group(2))}
+    if MOVES_DATA.match(sql):
+        return set()
     raise AssertionError(f"the fake database does not understand: {sql}")
 
 
@@ -60,12 +72,16 @@ class FakeDatabase:
     objects, and updates that set as DDL runs through it.
     """
 
-    def __init__(self, objects=(), failing=None):
+    def __init__(self, objects=(), failing=None, unmigrated=False):
         self.objects = set(objects)
-        self.executed = []      # DDL only, in order
+        self.executed = []      # statements, in order
         self.commits = 0
         self.closed = False
         self.failing = failing  # substring of a statement that must blow up
+        # Whether rows are still waiting to be migrated. A data step has no
+        # object to look up, so this is what its probe reports on — and running
+        # the step is what clears it, the same way DDL updates `objects`.
+        self.unmigrated = unmigrated
 
     # -- connection ------------------------------------------------------
     def cursor(self):
@@ -80,12 +96,31 @@ class FakeDatabase:
     # -- cursor ----------------------------------------------------------
     def execute(self, sql, params=None):
         if sql.lstrip().upper().startswith("SELECT"):
-            self._rows = [(1,)] if self._target(sql, params) in self.objects else []
+            if "information_schema" in sql:
+                self._rows = [(1,)] if self._target(sql, params) in self.objects else []
+            else:
+                self._rows = self._probe(sql)
             return
         if self.failing and self.failing in sql:
             raise RuntimeError("mysql said no")
         self.executed.append(sql)
         self.objects.update(objects_created_by(sql))
+        if MOVES_DATA.match(sql):
+            self.unmigrated = False
+
+    def _probe(self, sql):
+        """Answer a data step's probe, or refuse it as MySQL would.
+
+        A probe names the column an earlier step adds, so on a database that has
+        not had that step applied — every `--dry-run` — the real database
+        rejects it. Reproduced here rather than smoothed over: the tolerance for
+        that is the behaviour worth pinning down.
+        """
+        table = PROBE_TABLE.search(sql).group(1)
+        for name in PROBE_COLUMN.findall(sql):
+            if Column(table, name) not in self.objects:
+                raise RuntimeError(f"Unknown column '{name}' in '{table}'")
+        return [(1,)] if self.unmigrated else []
 
     def fetchall(self):
         return self._rows
@@ -129,12 +164,33 @@ def test_parse_statements_splits_and_drops_trailing_noise():
     assert statements == ["CREATE TABLE a (id INT)", "CREATE TABLE b (id INT)"]
 
 
-def test_schema_sql_is_the_three_tables_in_file_order(schema_sql):
+def test_schema_sql_is_its_tables_in_dependency_order(schema_sql):
     steps = apply_schema.schema_steps(schema_sql)
-    # users before flashcards: flashcards' foreign key needs it to exist first.
-    assert [s.name for s in steps] == ["anonymous_usage", "users", "flashcards"]
+    # users and topics before flashcards: its foreign keys need both to exist
+    # first, and the file is applied in the order it is written.
+    assert [s.name for s in steps] == [
+        "anonymous_usage", "users", "topics", "flashcards"]
     assert [s.target for s in steps] == [
-        Table("anonymous_usage"), Table("users"), Table("flashcards")]
+        Table("anonymous_usage"), Table("users"), Table("topics"),
+        Table("flashcards")]
+
+
+def test_every_foreign_key_target_is_created_before_the_table_needing_it(
+        schema_sql):
+    """The ordering above is load-bearing, so it is checked rather than trusted.
+
+    A REFERENCES naming a table defined further down the file would apply
+    cleanly to a database that already had it and fail on a fresh one — the
+    worst kind of schema bug, because only new installations see it.
+    """
+    created = []
+    for statement in apply_schema.parse_statements(schema_sql):
+        table = CREATE_TABLE.match(statement).group(1)
+        for referenced in re.findall(r"REFERENCES\s+(\w+)", statement, re.I):
+            assert referenced in created or referenced == table, (
+                f"{table} references {referenced}, which schema.sql "
+                f"creates later")
+        created.append(table)
 
 
 def test_an_alter_left_in_schema_sql_is_rejected():
@@ -154,13 +210,95 @@ def test_migrations_are_ordered_column_then_index_then_constraint():
     assert names.index("flashcards.idx_added_by") < names.index("flashcards.fk_flashcards_user")
 
 
+def test_the_topic_backfill_runs_after_its_column_and_before_its_key():
+    """#207's chain: the column has to exist for the data to go anywhere, and
+    the data has to be right before a foreign key can describe it."""
+    names = [step.name for step in apply_schema.MIGRATIONS]
+    assert (names.index("flashcards.topic_id")
+            < names.index("flashcards.topic_id backfill")
+            < names.index("flashcards.idx_topic_id")
+            < names.index("flashcards.fk_flashcards_topic"))
+
+
 def test_every_migration_names_the_object_its_sql_creates():
     """Otherwise the step is never seen as done and re-runs on every deploy."""
     for step in apply_schema.MIGRATIONS:
+        if isinstance(step.target, Pending):
+            continue        # nothing to name — see the data-step tests below
         created = set()
         for statement in step.statements:
             created |= objects_created_by(statement)
         assert step.target in created, f"{step.name} does not create {step.target}"
+
+
+# --- data steps ---------------------------------------------------------
+#
+# A step that moves data creates no object, so it cannot be checked by name.
+# It carries a probe instead: SQL that still returns rows while there is work
+# left. These pin down that the probe describes the *work* and not the shape of
+# the schema — a probe that asked "does the topics table have rows?" would call
+# a half-finished backfill done.
+
+
+def test_a_data_step_creates_nothing_and_carries_a_probe():
+    for step in apply_schema.MIGRATIONS:
+        if not isinstance(step.target, Pending):
+            continue
+        assert step.target.probe.strip(), f"{step.name} has an empty probe"
+        for statement in step.statements:
+            assert objects_created_by(statement) == set(), (
+                f"{step.name} creates an object, so it should name it "
+                f"rather than probe for it")
+
+
+def test_the_backfill_probe_describes_rows_left_to_migrate():
+    step = _backfill()
+    probe = " ".join(step.target.probe.split())
+    assert "topic_id IS NULL" in probe, \
+        "the question is which cards are still unlinked"
+    assert "FROM flashcards" in probe, \
+        "asked of the cards, which is where the work is"
+
+
+def test_a_data_step_is_done_when_its_probe_finds_nothing():
+    db = FakeDatabase(_migrated_objects(), unmigrated=False)
+    assert apply_schema.Schema(db).exists(_backfill().target) is True
+
+
+def test_a_data_step_is_pending_while_its_probe_finds_rows():
+    db = FakeDatabase(_migrated_objects(), unmigrated=True)
+    assert apply_schema.Schema(db).exists(_backfill().target) is False
+
+
+def test_a_probe_that_cannot_run_yet_reads_as_pending():
+    """The --dry-run case, and the reason the probe is allowed to fail.
+
+    Under --dry-run the column the probe names was only *reported*, never added,
+    so the database rejects the query. That rejection is the answer: nothing has
+    been backfilled. Without this, looking before you leap would crash.
+    """
+    db = FakeDatabase(_pre_207_objects(), unmigrated=True)
+    with pytest.raises(RuntimeError):
+        db.execute(_backfill().target.probe)     # the fake refuses it, as MySQL would
+    assert apply_schema.Schema(db).exists(_backfill().target) is False
+
+
+def test_a_dry_run_on_a_pre_207_database_reports_the_backfill_instead_of_failing(
+        schema_sql, capsys):
+    db = FakeDatabase(_pre_207_objects(), unmigrated=True)
+    steps = apply_schema.schema_steps(schema_sql) + list(apply_schema.MIGRATIONS)
+    changed, _ = apply_schema.run(steps, apply_schema.Schema(db), db, dry_run=True)
+    out = capsys.readouterr().out
+    assert "~ flashcards.topic_id backfill" in out
+    assert db.executed == [], "a dry run touches nothing"
+    assert changed
+
+
+def test_the_backfill_is_skipped_once_the_rows_are_linked(schema_sql, capsys):
+    db = FakeDatabase(_migrated_objects(), unmigrated=False)
+    apply_schema.run(list(apply_schema.MIGRATIONS), apply_schema.Schema(db), db)
+    assert "= flashcards.topic_id backfill" in capsys.readouterr().out
+    assert db.executed == []
 
 
 # --- running ------------------------------------------------------------
@@ -170,7 +308,7 @@ def test_a_fresh_database_gets_its_tables_and_needs_no_migrations(schema_sql):
     db = FakeDatabase()
     created, present = apply_schema.run(
         apply_schema.schema_steps(schema_sql), apply_schema.Schema(db), db)
-    assert (created, present) == (3, 0)
+    assert (created, present) == (len(apply_schema.parse_statements(schema_sql)), 0)
 
     # Every migration is already satisfied by the CREATE TABLE statements —
     # the two halves of the schema describe the same database. Counted from
@@ -181,10 +319,13 @@ def test_a_fresh_database_gets_its_tables_and_needs_no_migrations(schema_sql):
 
 
 def test_a_pre_89_database_gets_the_column_index_and_key(schema_sql):
-    db = FakeDatabase(_pre_89_objects())
+    db = FakeDatabase(_pre_89_objects(), unmigrated=True)
     created, present = apply_schema.run(
         apply_schema.schema_steps(schema_sql), apply_schema.Schema(db), db)
-    assert (created, present) == (0, 3), "existing tables are left alone"
+    # topics did not exist before #207, so it is created; the three tables that
+    # were already there are left alone.
+    assert (created, present) == (1, 3)
+    assert Table("topics") in db.objects
 
     applied, skipped = apply_schema.run(
         apply_schema.MIGRATIONS, apply_schema.Schema(db), db)
@@ -192,10 +333,13 @@ def test_a_pre_89_database_gets_the_column_index_and_key(schema_sql):
     assert Column("flashcards", "added_by_user_id") in db.objects
     assert Index("flashcards", "idx_added_by") in db.objects
     assert Constraint("flashcards", "fk_flashcards_user") in db.objects
+    assert Column("flashcards", "topic_id") in db.objects
+    assert Constraint("flashcards", "fk_flashcards_topic") in db.objects
+    assert not db.unmigrated, "the backfill ran, so no card is left unlinked"
 
 
 def test_a_second_run_changes_nothing(schema_sql):
-    db = FakeDatabase(_pre_89_objects())
+    db = FakeDatabase(_pre_89_objects(), unmigrated=True)
     steps = apply_schema.schema_steps(schema_sql) + list(apply_schema.MIGRATIONS)
     apply_schema.run(steps, apply_schema.Schema(db), db)
     after_first = list(db.executed)
@@ -209,10 +353,24 @@ def test_a_second_run_changes_nothing(schema_sql):
 def test_a_half_applied_database_finishes_the_rest():
     """Production had the ALTERs run by hand; the run must not choke on them."""
     objects = _pre_89_objects() | {Column("flashcards", "added_by_user_id")}
-    db = FakeDatabase(objects)
+    db = FakeDatabase(objects, unmigrated=True)
     applied, skipped = apply_schema.run(
         apply_schema.MIGRATIONS, apply_schema.Schema(db), db)
     assert (applied, skipped) == (len(apply_schema.MIGRATIONS) - 1, 1)
+
+
+def test_an_interrupted_backfill_is_finished_by_the_next_run():
+    """The probe describes the work, so a partial run reads as unfinished.
+
+    This is the property that makes a 300-card migration safe to interrupt:
+    the fix for a run that died halfway is to run it again.
+    """
+    db = FakeDatabase(_migrated_objects(), unmigrated=True)
+    applied, _ = apply_schema.run(
+        apply_schema.MIGRATIONS, apply_schema.Schema(db), db)
+    assert applied == 1, "only the backfill was outstanding"
+    assert db.executed, "and it actually ran"
+    assert not db.unmigrated
 
 
 def test_dry_run_reports_without_touching_anything(schema_sql, capsys):
@@ -288,6 +446,13 @@ def test_main_dry_run_leaves_the_database_alone(monkeypatch, capsys):
 # --- helpers ------------------------------------------------------------
 
 
+def _backfill():
+    """#207's data step, found by its target rather than by its name."""
+    steps = [s for s in apply_schema.MIGRATIONS if isinstance(s.target, Pending)]
+    assert steps, "no data step to test"
+    return steps[0]
+
+
 def _pre_89_objects():
     """The database as it stood before #89: no pos, no owner column."""
     return {
@@ -299,6 +464,27 @@ def _pre_89_objects():
         Column("flashcards", "topic"),
         Index("flashcards", "idx_topic"),
         Index("flashcards", "idx_word"),
+    }
+
+
+def _pre_207_objects():
+    """As it stood before #207: cards have a topic string and no topic_id."""
+    return _pre_89_objects() | {
+        Column("flashcards", "pos"),
+        Column("flashcards", "added_by_user_id"),
+        Index("flashcards", "idx_added_by"),
+        Constraint("flashcards", "fk_flashcards_user"),
+        Column("users", "blocked_at"),
+    }
+
+
+def _migrated_objects():
+    """Everything #207 creates, so only the *data* can still be outstanding."""
+    return _pre_207_objects() | {
+        Table("topics"),
+        Column("flashcards", "topic_id"),
+        Index("flashcards", "idx_topic_id"),
+        Constraint("flashcards", "fk_flashcards_topic"),
     }
 
 
