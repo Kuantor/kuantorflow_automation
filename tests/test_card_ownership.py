@@ -17,7 +17,7 @@ import pytest
 from flask import session
 
 import utils
-from conftest import TEST_USER_ID
+from conftest import TEST_USER_ID, fake_card_db, inserted_card
 
 
 CARD_FORM = {
@@ -65,38 +65,59 @@ def _fake_db(monkeypatch, cursor):
     monkeypatch.setattr(utils, "get_db_connection", lambda: FakeConn(cursor))
 
 
-def _insert(cursor):
-    return next((q, p) for q, p in cursor.queries if q.startswith("INSERT"))
+# Where the owner sits among the bound values. It used to be last; since
+# kuantorflow#207 topic_id trails it, so the position is derived from the field
+# list rather than counted backwards from the end.
+OWNER = len(utils.FLASHCARD_FIELDS)
 
 
 def test_the_id_is_inserted_with_the_card(monkeypatch):
-    cursor = FakeCursor()
-    _fake_db(monkeypatch, cursor)
+    cursor, _ = fake_card_db(monkeypatch)
     utils.save_flashcard({"word": "resilient", "topic": "vocab"},
                          added_by_user_id=7)
-    query, params = _insert(cursor)
+    query, params = inserted_card(cursor)
     assert "added_by_user_id" in query
-    assert params[-1] == 7, "the id must be the last bound value"
+    assert params[OWNER] == 7, "the id follows the card's own fields"
 
 
 def test_no_id_is_stored_as_null(monkeypatch):
-    cursor = FakeCursor()
-    _fake_db(monkeypatch, cursor)
+    cursor, _ = fake_card_db(monkeypatch)
     utils.save_flashcard({"word": "resilient", "topic": "vocab"})
-    _, params = _insert(cursor)
-    assert params[-1] is None, "an anonymous save must store NULL, not a sentinel"
+    _, params = inserted_card(cursor)
+    assert params[OWNER] is None, \
+        "an anonymous save must store NULL, not a sentinel"
 
 
 def test_the_id_is_never_read_out_of_the_entry(monkeypatch):
     """The entry dict is built from form data, so it must not be a source of
     ownership even if a key of that name turns up in it."""
-    cursor = FakeCursor()
-    _fake_db(monkeypatch, cursor)
+    cursor, _ = fake_card_db(monkeypatch)
     utils.save_flashcard(
         {"word": "resilient", "topic": "vocab", "added_by_user_id": 999})
-    _, params = _insert(cursor)
+    _, params = inserted_card(cursor)
     assert 999 not in params
-    assert params[-1] is None
+    assert params[OWNER] is None
+
+
+def test_the_same_id_creates_the_topic(monkeypatch):
+    """One argument serves both (kuantorflow#207), so the card's owner and the
+    topic's creator cannot disagree about who was here."""
+    cursor, _ = fake_card_db(monkeypatch, topic=None)
+    utils.save_flashcard({"word": "resilient", "topic": "a new topic"},
+                         added_by_user_id=7)
+    insert = next(q for q, _ in cursor.queries if q.startswith("INSERT INTO topics"))
+    params = next(p for q, p in cursor.queries if q.startswith("INSERT INTO topics"))
+    assert "created_by_user_id" in insert
+    assert params == ("a new topic", 7)
+
+
+def test_a_topic_creator_is_never_read_out_of_the_entry(monkeypatch):
+    """Same trap as the card's owner, one column along."""
+    cursor, _ = fake_card_db(monkeypatch, topic=None)
+    utils.save_flashcard({"word": "resilient", "topic": "a new topic",
+                          "created_by_user_id": 999})
+    params = next(p for q, p in cursor.queries if q.startswith("INSERT INTO topics"))
+    assert params == ("a new topic", None)
 
 
 # --- every save path records the owner ----------------------------------------

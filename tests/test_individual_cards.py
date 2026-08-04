@@ -185,7 +185,14 @@ def test_topics_are_counted_per_owner(monkeypatch):
     query, params = cursor.queries[0]
     assert "added_by_user_id = %s" in query
     assert params == (TEST_USER_ID,)
-    assert "GROUP BY topic" in query
+    # Grouped by the topics row rather than by the string (kuantorflow#207),
+    # but still counting *cards* — which is what keeps this setting about
+    # ownership of cards and not about who created the topic.
+    assert "GROUP BY t.id, t.name" in query
+    assert "f.added_by_user_id = %s" in query, \
+        "the filter is on the card's owner, qualified now that topics is joined"
+    assert "created_by_user_id" not in query, \
+        "a topic's creator must never filter a view"
 
 
 def test_topics_unfiltered_by_default(monkeypatch):
