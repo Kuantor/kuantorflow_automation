@@ -1,6 +1,6 @@
 # KuantorFlow Automation — Test Catalog
 
-**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **579 test cases in 38 files**
+**As of 3 August 2026** · Repository: [kuantorflow_automation](https://github.com/Kuantor/kuantorflow_automation) · **585 test cases in 39 files**
 
 Every test in the suite, with a one-sentence description of what it checks, grounded in the test body rather than its name. One section per file, in alphabetical order.
 
@@ -12,8 +12,8 @@ The suite lives in `tests/` and runs with the repo's own virtualenv:
 
 | Command | What runs |
 | --- | --- |
-| `.\venv\Scripts\pytest` | Everything — **579 cases: 569 pass, 10 skip.** |
-| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 573 cases, of which 563 pass and 10 skip. About 18 seconds, no network. |
+| `.\venv\Scripts\pytest` | Everything — **585 cases: 575 pass, 10 skip.** |
+| `.\venv\Scripts\pytest -m "not live"` | The **offline suite** — 579 cases, of which 569 pass and 10 skip. About 18 seconds, no network. |
 | `.\venv\Scripts\pytest -m live` | **6 read-only smoke tests** against the deployed site. |
 
 The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFLOW_PATH` in the gitignored `.env`, defaulting to a sibling directory) with the database and every external service stubbed.
@@ -27,7 +27,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 
 ### Counting
 
-The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 528 test functions expand to 579 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
+The document reports **cases** — what `pytest --collect-only -q` counts, so the arithmetic reconciles with a test run. 534 test functions expand to 585 cases through `@pytest.mark.parametrize`; where a file's two numbers differ, its heading says so.
 
 ---
 
@@ -1217,6 +1217,19 @@ kuantorflow#197. The site sits on a photograph and almost none of it was visible
 | `test_page_specific_titles_in_og_title` | A topic page's OG title names the topic rather than repeating the site title. |
 | `test_favicon_and_preview_image_served` | Both images are actually served. |
 
+## test_upload_needs_an_account.py — uploading notes requires an account (6 cases)
+
+kuantorflow#200. Parsing a Reverso `.mht`/`.docx` sends its glued translations to Claude (`_split_glued_translations`), and that happens **before** the save — which #125 refuses for a visitor with no account. So an anonymous upload spent money producing cards the person was then not allowed to keep.
+
+| Test | What it checks |
+| --- | --- |
+| `test_an_anonymous_upload_never_reaches_the_parser` | The assertion that matters is not the status code but that the parser is **never called** — a refusal that still parses passes the obvious check and fails the entire purpose. |
+| `test_a_blocked_account_never_reaches_it_either` | They have an account but may not write, so the same reasoning holds (#126). |
+| `test_a_signed_in_upload_still_parses` | The control case: the feature is unchanged for anyone who can actually keep the result. |
+| `test_the_refusal_prompts_the_visitor_to_sign_in` | The refusal raises the same sign-in dialog the review popup raises, rather than an error banner. |
+| `test_the_blocked_wording_is_not_the_sign_in_wording` | A blocked visitor is signed in already; telling them to sign in would send them round a loop that changes nothing. |
+| `test_every_upload_is_refused_not_only_the_expensive_ones` | A plain `.txt` is refused too: which file calls Claude cannot be known without parsing it, and parsing is the thing being paid for. |
+
 ## test_users_table.py — persisted identities (9 tests, 14 cases)
 
 kuantorflow#148. A Google sign-in writes a row keyed on the OIDC subject, and the session carries the user's id plus the name claims Mykola addresses them by.
@@ -1300,5 +1313,5 @@ When it complains:
 
 Normally all of that belongs in the same pull request as the tests themselves.
 
-**Totals as of this revision: 38 files, 528 test functions, 579 collected
-cases** (569 passing, 10 opt-in `db` skips).
+**Totals as of this revision: 39 files, 534 test functions, 585 collected
+cases** (575 passing, 10 opt-in `db` skips).

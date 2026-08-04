@@ -179,18 +179,19 @@ def _upload(client, data, filename):
     )
 
 
-def test_parsed_file_is_logged(client, saved, action_logs):
+def test_parsed_file_is_logged(user_client, saved, action_logs):
     payload = NOTES.encode("utf-8")
-    _upload(client, payload, "notes.txt")
+    _upload(user_client, payload, "notes.txt")
     line = _find(action_logs, "parsed_files", "PARSE")[0]
     assert "file=notes.txt" in line
     assert f"bytes={len(payload)}" in line
     assert "cards=2" in line
-    assert "topic=vocab" in line and "user=anonymous" in line and "ms=" in line
+    # Signed-in since #200: an upload with no account is refused before parsing.
+    assert "topic=vocab" in line and "user=test.user@gmail.com" in line and "ms=" in line
 
 
-def test_rejected_file_is_logged(client, saved, action_logs):
-    _upload(client, b"whatever", "notes.pdf")
+def test_rejected_file_is_logged(user_client, saved, action_logs):
+    _upload(user_client, b"whatever", "notes.pdf")
     line = _find(action_logs, "parsed_files", "REJECT")[0]
     assert "file=notes.pdf" in line and "Unsupported notes format" in line
     assert not _find(action_logs, "parsed_files", "PARSE")
