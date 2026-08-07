@@ -141,6 +141,25 @@ def _rewind_to_pre_207():
               "DROP TABLE topics"], SCRATCH_DB)
 
 
+def _rewind_to_pre_215():
+    """Undo #215 on a freshly created scratch database.
+
+    Same reasoning as _rewind_to_pre_207: rewinding the real schema beats
+    pasting a stale copy of the old CREATE TABLE. The foreign key goes before
+    the column it is on, and dropping the column takes its index with it.
+    """
+    _execute(["ALTER TABLE topics DROP FOREIGN KEY fk_topics_section",
+              "ALTER TABLE topics DROP COLUMN section_id",
+              "ALTER TABLE topics DROP COLUMN position",
+              "DROP TABLE topic_sections"], SCRATCH_DB)
+
+
+# Spelled with an EN DASH (U+2013), as #215 and #203 both write it and as the
+# migration inserts it. Asserted against deliberately: comparing with a plain
+# hyphen would quietly stop checking that the character survives the round trip
+# through a utf8mb4 connection, which is the only thing that can go wrong here.
+CURRICULUM_SECTION = "B2–C1 Conversational Topics"
+
 STATUSES = (" would be applied", " already present", " applied")
 
 
@@ -169,7 +188,8 @@ def test_an_empty_database_gets_the_whole_schema(scratch_db):
     result = _apply()
     assert result.returncode == 0, result.stderr
     tables = sorted(r[0] for r in _query("SHOW TABLES"))
-    assert tables == ["anonymous_usage", "flashcards", "topics", "users"]
+    assert tables == ["anonymous_usage", "flashcards", "topic_sections",
+                      "topics", "users"]
     # The tables schema.sql creates need no migrations on top of them.
     columns = _columns()
     assert "added_by_user_id" in columns
@@ -401,6 +421,166 @@ def test_deleting_a_topics_creator_leaves_the_topic_standing(scratch_db):
 
     assert _query("SELECT name, created_by_user_id FROM topics WHERE id = 5") \
         == [("shared", None)]
+
+
+# --- #215: sections, against a real database ----------------------------
+
+
+@requires_local_db
+def test_both_sections_are_created_and_the_curriculum_one_is_left_empty(scratch_db):
+    """Filling B2–C1 is #203. This migration only makes the shelf."""
+    _apply()
+    _rewind_to_pre_215()
+    _execute(["INSERT INTO topics (name) VALUES ('vocab')"], SCRATCH_DB)
+
+    assert _apply().returncode == 0
+
+    assert _query("SELECT name, position FROM topic_sections ORDER BY position") \
+        == [(CURRICULUM_SECTION, 1), ("Other", 100)]
+    assert _query("SELECT COUNT(*) FROM topics t JOIN topic_sections s "
+                  "ON t.section_id = s.id WHERE s.name = %s",
+                  (CURRICULUM_SECTION,)) == [(0,)]
+
+
+@requires_local_db
+def test_the_backfill_files_every_existing_topic_under_other(scratch_db):
+    _apply()
+    _rewind_to_pre_215()
+    _execute(["INSERT INTO topics (name) VALUES ('vocab')",
+              "INSERT INTO topics (name) VALUES ('emotions')"], SCRATCH_DB)
+
+    assert _apply().returncode == 0
+
+    assert sorted(_query("SELECT t.name, s.name FROM topics t "
+                         "JOIN topic_sections s ON t.section_id = s.id")) == \
+        [("emotions", "Other"), ("vocab", "Other")]
+    assert _query("SELECT COUNT(*) FROM topics WHERE section_id IS NULL") == [(0,)]
+
+
+@requires_local_db
+def test_the_backfill_leaves_every_topic_at_position_zero(scratch_db):
+    """The migration must not reorder anything.
+
+    Zero across the whole bucket means the name breaks the tie, which is the
+    alphabetical list the index page already shows — the property that makes
+    this deployable without touching a template.
+    """
+    _apply()
+    _rewind_to_pre_215()
+    _execute(["INSERT INTO topics (name) VALUES ('vocab')",
+              "INSERT INTO topics (name) VALUES ('emotions')"], SCRATCH_DB)
+
+    assert _apply().returncode == 0
+
+    assert _query("SELECT DISTINCT position FROM topics") == [(0,)]
+    assert [r[0] for r in _query(
+        "SELECT t.name FROM topics t JOIN topic_sections s "
+        "ON t.section_id = s.id ORDER BY s.position, t.position, t.name")] == \
+        ["emotions", "vocab"]
+
+
+@requires_local_db
+def test_a_topic_that_arrives_later_is_adopted_by_the_next_run(scratch_db):
+    """The probe describes the work, so an unfiled topic makes it pending again
+    — and the sections it already created are not inserted a second time."""
+    _apply()
+    _rewind_to_pre_215()
+    _execute(["INSERT INTO topics (name) VALUES ('vocab')"], SCRATCH_DB)
+    assert _apply().returncode == 0
+
+    _execute(["INSERT INTO topics (name, section_id) VALUES ('later', NULL)"],
+             SCRATCH_DB)
+
+    result = _apply()
+    assert result.returncode == 0, result.stderr
+    assert "topics.section_id backfill" in _steps_in(result.stdout)
+    assert "topic_sections rows" not in _steps_in(result.stdout)
+    assert _query("SELECT COUNT(*) FROM topics WHERE section_id IS NULL") == [(0,)]
+    assert _query("SELECT COUNT(*) FROM topic_sections") == [(2,)]
+
+
+@requires_local_db
+def test_a_half_inserted_pair_is_completed_without_rewriting_the_survivor(
+        scratch_db):
+    """ON DUPLICATE KEY UPDATE id = id, exercised for real.
+
+    A run that died between the two inserts must add the missing section and
+    leave the one that landed exactly as it is — including a position somebody
+    has since changed by hand.
+    """
+    _apply()
+    _execute([f"DELETE FROM topic_sections WHERE name = '{CURRICULUM_SECTION}'",
+              "UPDATE topic_sections SET position = 5 WHERE name = 'Other'"],
+             SCRATCH_DB)
+
+    result = _apply()
+    assert result.returncode == 0, result.stderr
+    assert "topic_sections rows" in _steps_in(result.stdout), \
+        "one row missing makes the pair pending again"
+    assert _query("SELECT name, position FROM topic_sections ORDER BY name") == \
+        [(CURRICULUM_SECTION, 1), ("Other", 5)]
+
+
+@requires_local_db
+def test_the_en_dash_survives_the_round_trip(scratch_db):
+    """utf8mb4 all the way through — the section name is data, not ASCII
+    deploy output, and a mojibaked name would be stored and served that way."""
+    _apply()
+    stored = _query("SELECT name FROM topic_sections WHERE position = 1")[0][0]
+    assert stored == CURRICULUM_SECTION
+    assert "–" in stored, "an en dash, not a hyphen"
+
+
+@requires_local_db
+def test_dry_run_reports_the_section_steps_it_cannot_yet_probe(scratch_db):
+    """One table further out than #207's case.
+
+    #207's probe names a column --dry-run has not added; this one names a whole
+    table --dry-run has not created. Both rejections must read as "nothing done
+    yet" rather than crashing the run that exists to look before leaping.
+    """
+    _apply()
+    _rewind_to_pre_215()
+    _execute(["INSERT INTO topics (name) VALUES ('vocab')"], SCRATCH_DB)
+
+    result = _apply("--dry-run")
+    assert result.returncode == 0, result.stderr
+    assert {"topic_sections", "topics.section_id", "topic_sections rows",
+            "topics.section_id backfill", "topics.idx_topics_section",
+            "topics.fk_topics_section"} <= _steps_in(result.stdout)
+    assert _query("SELECT COUNT(*) FROM information_schema.TABLES "
+                  "WHERE TABLE_SCHEMA = DATABASE() "
+                  "AND TABLE_NAME = 'topic_sections'") == [(0,)], \
+        "--dry-run created the table"
+
+
+@requires_local_db
+def test_deleting_a_section_that_holds_topics_is_refused(scratch_db):
+    """ON DELETE RESTRICT (#215), where fk_topics_user on the same table is SET
+    NULL. A creator is attribution; a section is where the topic lives, so
+    emptying one into NULL would break the invariant the column is documented by.
+    """
+    import mysql.connector
+
+    _apply()
+    _execute(["INSERT INTO topics (name, section_id) "
+              "SELECT 'vocab', id FROM topic_sections WHERE name = 'Other'"],
+             SCRATCH_DB)
+
+    with pytest.raises(mysql.connector.Error):
+        _execute(["DELETE FROM topic_sections WHERE name = 'Other'"], SCRATCH_DB)
+
+    assert _query("SELECT COUNT(*) FROM topics WHERE section_id IS NULL") == [(0,)]
+
+
+@requires_local_db
+def test_an_empty_section_can_be_deleted(scratch_db):
+    """RESTRICT is about the topics, not the row: a section nobody uses — the
+    B2–C1 shelf before #203 fills it — is not pinned in place."""
+    _apply()
+    _execute([f"DELETE FROM topic_sections WHERE name = '{CURRICULUM_SECTION}'"],
+             SCRATCH_DB)
+    assert _query("SELECT COUNT(*) FROM topic_sections") == [(1,)]
 
 
 @requires_local_db

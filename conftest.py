@@ -120,13 +120,17 @@ class FakeCardCursor:
     """
 
     def __init__(self, *, card=None, duplicate=None, topic=None,
-                 update_rows=1, topic_id=3, card_id=42):
+                 update_rows=1, topic_id=3, card_id=42, section_id=6):
         self.card = card
         self.duplicate = duplicate
         self.topic = topic
         self.update_rows = update_rows
         self.topic_id = topic_id
         self.card_id = card_id
+        # The id of 'Other', the section a new topic is filed under
+        # (kuantorflow#215). `None` models a database whose section rows have
+        # not been inserted yet, where a topic is created without one.
+        self.section_id = section_id
         self.queries = []
         self.rowcount = 1
         self.lastrowid = card_id
@@ -152,6 +156,12 @@ class FakeCardCursor:
             return self.topic
         if "FROM topics WHERE id" in self._last:
             return (self.topic[1],) if self.topic else None
+        # Answered explicitly rather than falling through to `duplicate`
+        # (kuantorflow#215): the section lookup happens on the same cursor, and
+        # a test that sets `duplicate` would otherwise hand its value back here
+        # as a section id.
+        if "FROM topic_sections WHERE name" in self._last:
+            return (self.section_id,) if self.section_id is not None else None
         if "FROM flashcards WHERE id" in self._last:
             return self.card
         return self.duplicate       # the word+pos duplicate check
