@@ -16,13 +16,16 @@ import re
 
 import pytest
 
+from conftest import in_other
 
 TOPICS = [("basics", 12), ("it-vocab", 5), ("solo", 1)]
 
 
 @pytest.fixture()
 def topics(app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None: TOPICS)
+    # Grouped since #218; `in_other` files them the way a real database does.
+    monkeypatch.setattr(app_module, "get_topics_by_section",
+                        lambda owner_id=None: in_other(TOPICS))
     return TOPICS
 
 
@@ -88,7 +91,11 @@ def test_the_pill_markup_is_gone(client, topics):
 def test_the_empty_states_are_unchanged(client, app_module, monkeypatch):
     """The tiles replaced the chips; they did not replace the explanations
     for having none (#127)."""
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None: [])
+    # Both sections present but empty — the shape a real database returns for
+    # a deck with no cards, which #218 must still answer with the hint rather
+    # than with two bare headings.
+    monkeypatch.setattr(app_module, "get_topics_by_section",
+                        lambda owner_id=None: in_other([]))
     body = client.get("/").get_data(as_text=True)
     assert "No topics yet" in body
     assert 'class="topic-tiles"' not in body

@@ -26,6 +26,21 @@ sys.path.insert(0, KUANTORFLOW_PATH)
 # keyword from .env is only used by the live site tests).
 TEST_KEYWORD = "test-keyword"
 
+# The curriculum section #215 creates empty and #203 will fill. Named here
+# because tests assert on it by name and it is spelled with an en dash.
+CURRICULUM_SECTION = "B2–C1 Conversational Topics"
+
+
+def in_other(topics):
+    """`get_topics_by_section()`'s shape, with `topics` filed under 'Other'.
+
+    What a real database looks like today (kuantorflow#218): every topic is in
+    'Other', and the curriculum section exists but is empty. Tests that only
+    care *that* some topics reach the page use this rather than spelling the
+    grouping out, and get the empty-section heading exercised for free.
+    """
+    return [(CURRICULUM_SECTION, []), ("Other", list(topics))]
+
 
 @pytest.fixture(autouse=True)
 def settings_dir(tmp_path, monkeypatch):
@@ -84,6 +99,11 @@ def app_module(monkeypatch):
 
     monkeypatch.setattr(app_mod, "ACCESS_KEYWORD", TEST_KEYWORD)
     monkeypatch.setattr(app_mod, "get_topics", lambda owner_id=None: [])
+    # The index page reads the grouped shape now (kuantorflow#218); /topics.json
+    # reads both. Stubbed alongside get_topics so no test reaches a real
+    # database by accident, which is the whole point of this fixture.
+    monkeypatch.setattr(app_mod, "get_topics_by_section",
+                        lambda owner_id=None: [], raising=False)
     # Any anonymous chat message counts itself against the daily ceiling
     # (kuantorflow#164) — a real database write. Stub it here so the whole
     # suite stays offline; the tests that care patch it themselves.
