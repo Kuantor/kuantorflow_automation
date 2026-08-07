@@ -108,7 +108,8 @@ def test_the_same_id_creates_the_topic(monkeypatch):
     insert = next(q for q, _ in cursor.queries if q.startswith("INSERT INTO topics"))
     params = next(p for q, p in cursor.queries if q.startswith("INSERT INTO topics"))
     assert "created_by_user_id" in insert
-    assert params == ("a new topic", 7)
+    # Third parameter is the section (kuantorflow#215), not a third identity.
+    assert params == ("a new topic", 7, cursor.section_id)
 
 
 def test_a_topic_creator_is_never_read_out_of_the_entry(monkeypatch):
@@ -117,7 +118,8 @@ def test_a_topic_creator_is_never_read_out_of_the_entry(monkeypatch):
     utils.save_flashcard({"word": "resilient", "topic": "a new topic",
                           "created_by_user_id": 999})
     params = next(p for q, p in cursor.queries if q.startswith("INSERT INTO topics"))
-    assert params == ("a new topic", None)
+    assert 999 not in params
+    assert params == ("a new topic", None, cursor.section_id)
 
 
 # --- every save path records the owner ----------------------------------------

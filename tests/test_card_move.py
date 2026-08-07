@@ -69,8 +69,8 @@ def test_the_destination_topic_is_created_when_it_is_new(monkeypatch):
     assert utils.move_flashcard(5, "character", owner_id=TEST_USER_ID)[0] == "moved"
     insert = next((q, p) for q, p in cursor.queries
                   if q.startswith("INSERT INTO topics"))
-    assert insert[1] == ("character", TEST_USER_ID), \
-        "the mover is the creator"
+    assert insert[1] == ("character", TEST_USER_ID, cursor.section_id), \
+        "the mover is the creator, and the topic lands in a section (#215)"
 
 
 def test_an_existing_topic_is_reused_not_recreated(monkeypatch):

@@ -21,7 +21,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 **Two markers**, both declared in `pytest.ini`:
 
 - `live` — hits the deployed site over the network; needs `SITE_URL` and the real `ACCESS_KEYWORD` in `.env`. All 6 are in `test_live_site.py`.
-- `db` — runs against a **local** MySQL and creates its own scratch database. These 10 are **opt-in**: they skip unless `RUN_DB_ROUNDTRIP=1` is set with `DB_HOST=localhost` and the `DB_*` variables configured. They are the suite's only skips, and they live in `test_apply_schema_db.py` (5), `test_card_editing_db.py` (4) and `test_backup_roundtrip.py` (1).
+- `db` — runs against a **local** MySQL and creates its own scratch database. These 44 are **opt-in**: they skip unless `RUN_DB_ROUNDTRIP=1` is set with `DB_HOST=localhost` and the `DB_*` variables configured. They are the suite's only skips, and they live in `test_apply_schema_db.py` (21), `test_topics_table_db.py` (10), `test_topic_sections_db.py` (8), `test_card_editing_db.py` (4) and `test_backup_roundtrip.py` (1).
 
 **"Offline" is a property of the fixtures, not of the network.** A local MySQL usually *is* reachable from a development machine, so a test that forgets to stub a database call will quietly connect to it and pass. Several autouse fixtures exist for exactly that reason.
 
@@ -289,7 +289,7 @@ kuantorflow#125. A visitor with no users-row id cannot add a card by any route �
 | `test_the_prompt_offers_a_working_sign_in_link` | The prompt carries a real `/login/google` link — #125 asks for it to be functional, not decorative. |
 | `test_settings_are_unaffected` | Anonymous settings were already frozen by #102 with their own message; #125 must not change that answer. |
 
-## test_apply_schema.py — the deploy step that applies schema changes (17 cases)
+## test_apply_schema.py — the deploy step that applies schema changes (36 cases)
 
 kuantorflow#180. Fully offline against a fake database that remembers only which objects exist. The fake learns what a statement created **from the statement itself**, never from the step that ran it — so a migration whose SQL does not build the object its target names shows up as a step that keeps re-applying, which is exactly the failure the idempotency check exists to catch. The end-to-end run against a real MySQL is `test_apply_schema_db.py`.
 
@@ -299,7 +299,8 @@ kuantorflow#180. Fully offline against a fake database that remembers only which
 | --- | --- |
 | `test_a_commented_out_alter_is_not_a_statement` | The #180 bug itself: an `ALTER` inside a comment is parsed away, so nothing applies it — which is how production silently missed a column. |
 | `test_parse_statements_splits_and_drops_trailing_noise` | Statements split on `;` with trailing comments and blank lines discarded. |
-| `test_schema_sql_is_the_three_tables_in_file_order` | The file yields `anonymous_usage`, `users`, `flashcards` in that order — `users` before `flashcards` because the foreign key needs it to exist first. |
+| `test_schema_sql_is_its_tables_in_dependency_order` | The file yields `anonymous_usage`, `users`, `topic_sections`, `topics`, `flashcards` in that order — every foreign key target created before the table needing it. |
+| `test_every_foreign_key_target_is_created_before_the_table_needing_it` | The ordering above checked rather than trusted: a `REFERENCES` naming a table defined further down would apply cleanly to an existing database and fail only on a fresh one. |
 | `test_an_alter_left_in_schema_sql_is_rejected` | A bare `ALTER` in the file raises, and the error names `MIGRATIONS` — so the trap cannot come back quietly. |
 
 **The migration list**
@@ -307,7 +308,30 @@ kuantorflow#180. Fully offline against a fake database that remembers only which
 | Test | What it checks |
 | --- | --- |
 | `test_migrations_are_ordered_column_then_index_then_constraint` | The owner column comes before its index, which comes before the foreign key — each needs the previous one. |
+| `test_the_topic_backfill_runs_after_its_column_and_before_its_key` | #207's chain: the column must exist for the data to go anywhere, and the data must be right before a key can describe it. |
+| `test_the_section_chain_runs_column_then_rows_then_data_then_key` | #215's chain, one link longer: the section rows have to exist before a topic can be filed into one. |
+| `test_sections_are_migrated_after_the_topics_they_group` | #207's backfill creates the topics #215's backfill then files, so it has to run first. |
+| `test_both_section_columns_arrive_in_one_statement` | `section_id` and `position` are one feature in one `ALTER`, so there is no half-applied state for the idempotency check to miss. |
 | `test_every_migration_names_the_object_its_sql_creates` | Every step's declared target is actually built by its own statements; otherwise the step is never seen as done and re-runs on every deploy. |
+
+**Data steps** — a step that moves data creates no object, so it cannot be checked by name. It carries a `Pending` probe instead: SQL that still returns rows while there is work left. These pin down that a probe describes the *work* and not the shape of the schema — one asking "does the topics table have rows?" would call a half-finished backfill done. There are three: #207's card backfill, and #215's section rows and topic backfill.
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_data_step_creates_nothing_and_carries_a_probe` | Every `Pending` step has a non-empty probe and builds no object — otherwise it should have named one instead. |
+| `test_the_backfill_probe_describes_rows_left_to_migrate` | #207's probe asks which *cards* are still unlinked, not whether any topic exists. |
+| `test_the_section_probe_describes_topics_left_without_one` | #215's asks which *topics* are unfiled, so one created after the last deploy is still outstanding work. |
+| `test_the_section_rows_probe_is_not_satisfied_by_one_of_the_two` | It counts rather than tests existence, so a run interrupted between the two inserts is not read as complete. |
+| `test_the_section_rows_step_only_inserts` | It only inserts, and `ON DUPLICATE KEY UPDATE id = id` means a re-run leaves an existing section — and a position an admin edited — exactly as it is. |
+| `test_a_data_step_is_done_when_its_probe_finds_nothing` | No rows returned means already applied. |
+| `test_a_data_step_is_pending_while_its_probe_finds_rows` | Rows returned means there is work left. |
+| `test_a_probe_that_cannot_run_yet_reads_as_pending` | Under `--dry-run` the column the probe names was only *reported*, so the database rejects the query; the rejection has to mean "nothing done yet" or looking before you leap would crash. |
+| `test_a_section_probe_reads_as_pending_before_its_table_exists` | The same tolerance one level out: #215's probe names a whole *table* `--dry-run` has not created. |
+| `test_a_dry_run_on_a_pre_207_database_reports_the_backfill_instead_of_failing` | The dry run reports `~ flashcards.topic_id backfill` and touches nothing. |
+| `test_a_dry_run_on_a_pre_215_database_reports_both_section_data_steps` | Both of #215's data steps are reported pending, and nothing is executed. |
+| `test_filling_one_data_step_leaves_the_others_outstanding` | The three data steps are independent: running one must not report the rest as done, which is what a single "has anything been migrated" flag used to do. |
+| `test_the_backfill_is_skipped_once_the_rows_are_linked` | With every row linked the step prints `=` and executes nothing. |
+| `test_an_interrupted_backfill_is_finished_by_the_next_run` | With every object present, only the data steps apply — the property that makes a long migration safe to interrupt. Counted from the data steps, so adding one does not make this stale. |
 
 **Running**
 
@@ -330,17 +354,60 @@ kuantorflow#180. Fully offline against a fake database that remembers only which
 | `test_main_exits_non_zero_when_a_migration_fails` | Exit 1 with the failing step named on stderr, and the connection still closed. |
 | `test_main_dry_run_leaves_the_database_alone` | `--dry-run` from the command line reports pending work and executes nothing. |
 
-## test_apply_schema_db.py — the deploy step against a real MySQL (5 cases, marker `db`)
+## test_apply_schema_db.py — the deploy step against a real MySQL (21 cases, marker `db`)
 
-kuantorflow#180. The offline tests prove the logic against a fake; this proves the thing the outage was actually about. It creates and drops its **own** scratch database (`kuantorflow_apply_schema_test`) and never touches the configured one, and still refuses to run unless `RUN_DB_ROUNDTRIP=1` and `DB_HOST` is localhost.
+kuantorflow#180, #207, #215. The offline tests prove the logic against a fake; this proves the thing the outage was actually about. It creates and drops its **own** scratch database (`kuantorflow_apply_schema_test`) and never touches the configured one, and still refuses to run unless `RUN_DB_ROUNDTRIP=1` and `DB_HOST` is localhost. Rather than pasting stale copies of old `CREATE TABLE` statements, it rewinds the real schema — `_rewind_to_pre_207()` and `_rewind_to_pre_215()` — so the migration under test is always the one the app actually ships.
+
+**The script itself**
 
 | Test | What it checks |
 | --- | --- |
-| `test_an_empty_database_gets_the_whole_schema` | An empty database ends up with all three tables and the owner column already present — the tables `schema.sql` creates need no migrations on top of them. |
-| `test_a_pre_89_database_is_migrated_and_keeps_its_cards` | Against the real pre-#89 table: four changes applied, `pos` and `added_by_user_id` added **in the right column positions** so a migrated table matches a fresh one, the index and foreign key created, and the existing card still there untouched. |
+| `test_an_empty_database_gets_the_whole_schema` | An empty database ends up with all five tables and the owner column already present — the tables `schema.sql` creates need no migrations on top of them. |
+| `test_a_pre_89_database_is_migrated_and_keeps_its_cards` | Against the real pre-#89 table: the named steps applied, `pos` and `added_by_user_id` added **in the right column positions** so a migrated table matches a fresh one, the index and foreign key created, and the existing card still there untouched. |
 | `test_a_second_run_is_a_no_op_and_says_so` | The second run prints "nothing to do" and never the word "applied". |
-| `test_dry_run_reports_the_pending_work_without_doing_it` | `--dry-run` reports four pending changes and the column is still absent afterwards. |
+| `test_dry_run_reports_the_pending_work_without_doing_it` | `--dry-run` reports the pending changes and the column is still absent afterwards. |
+| `test_dry_run_reports_the_backfill_it_cannot_yet_probe` | The probe names `topic_id`, which `--dry-run` has not created; the rejection is read as "nothing backfilled" rather than crashing. |
 | `test_a_broken_migration_exits_non_zero` | A column of the wrong type makes the foreign key impossible; the script exits 1 and names the failing step on stderr. |
+
+**#207 — the topic backfill**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_backfill_creates_one_topic_per_name_and_links_every_card` | One `topics` row per distinct name, every card linked, and `''`/NULL topics left as "no topic" rather than becoming a topic named `''`. |
+| `test_the_backfill_dates_each_topic_from_its_earliest_card` | A topic began when its first card was filed, not on migration day. |
+| `test_the_backfill_credits_the_earliest_cards_owner` | Whoever saved the first card created the topic; a topic whose first card was anonymous stays creatorless. |
+| `test_case_variant_topics_become_one_row_and_one_spelling` | `Work`/`work` collapse to one row, and every card's string is rewritten to match the row it points at. |
+| `test_an_interrupted_backfill_is_finished_by_the_next_run` | An outstanding row makes the step pending again, and the topic it already had is not duplicated. |
+| `test_deleting_a_topics_creator_leaves_the_topic_standing` | `ON DELETE SET NULL`: a topic may hold other people's cards, so losing its creator cannot delete it. |
+
+**#215 — sections**
+
+| Test | What it checks |
+| --- | --- |
+| `test_both_sections_are_created_and_the_curriculum_one_is_left_empty` | `B2–C1 Conversational Topics` at position 1 and `Other` at 100, and the curriculum one holds nothing — filling it is #203. |
+| `test_the_backfill_files_every_existing_topic_under_other` | Every pre-existing topic ends up in `Other`, and no topic is left without a section. |
+| `test_the_backfill_leaves_every_topic_at_position_zero` | The migration reorders nothing: zero across the bucket means the name breaks the tie, which is the alphabetical list already on screen. |
+| `test_a_topic_that_arrives_later_is_adopted_by_the_next_run` | An unfiled topic makes the backfill pending again, while the sections already created are not inserted a second time. |
+| `test_a_half_inserted_pair_is_completed_without_rewriting_the_survivor` | A run that died between the two inserts adds the missing section and leaves the other's hand-edited position alone. |
+| `test_the_en_dash_survives_the_round_trip` | The section name is data, not ASCII deploy output; a mojibaked name would be stored and served that way. |
+| `test_dry_run_reports_the_section_steps_it_cannot_yet_probe` | One table further out than #207's case: the probe names a whole table `--dry-run` has not created, and the table is still absent afterwards. |
+| `test_deleting_a_section_that_holds_topics_is_refused` | `ON DELETE RESTRICT`, where `fk_topics_user` on the same table is `SET NULL` — emptying a section into NULL would break the invariant the column is documented by. |
+| `test_an_empty_section_can_be_deleted` | RESTRICT is about the topics, not the row: the unused B2–C1 shelf is not pinned in place. |
+
+## test_topic_sections_db.py — what the app does once sections exist (8 cases, marker `db`)
+
+kuantorflow#215. `test_apply_schema_db.py` proves the migration; this proves the promise it leaves behind — **every topic has a section, so nothing needs a "no section" branch**. The migration only settles that for topics that already existed; keeping it true is `_get_or_create_topic()`'s job on every path that invents a topic. Own scratch database (`kuantorflow_sections_test`), same opt-in switch.
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_topic_invented_by_a_lookup_lands_in_other` | A topic created by saving a card is filed under `Other`, not left NULL. |
+| `test_a_topic_invented_by_a_card_move_lands_in_other` | #177 promises an unknown destination is created — it must be created *into a section* like any other. |
+| `test_a_new_topic_starts_at_position_zero` | Which is what puts it in alphabetical place among the rest of `Other` rather than at the front or the end. |
+| `test_saving_into_an_existing_topic_does_not_move_it` | A topic's section is set once and never rewritten, or the first learner to add a card would drag a curriculum topic back into `Other`. |
+| `test_topics_order_by_section_then_position_then_name` | The full rule: `Other` sinks below the curriculum section on its position, and its members sort by name because they share position 0. |
+| `test_get_topics_is_unchanged_by_sections` | #215 adds no UI — the browse list is still `(name, count)` for topics that have cards, in name order. |
+| `test_a_topic_created_before_the_sections_exist_is_adopted_later` | The one case where NULL is legitimate: a save between the column arriving and the rows being inserted still saves the card, and the next run picks the topic up. |
+| `test_a_card_with_no_topic_creates_no_section_membership` | "No topic" is still a real state and must not become a topic named `''` filed under `Other`. |
 
 ## test_backup.py — backup retention logic (4 cases)
 
