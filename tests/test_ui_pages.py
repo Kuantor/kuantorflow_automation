@@ -2,6 +2,8 @@
 
 import re
 
+from conftest import in_other
+
 
 def _meta(body, prop, attr="property"):
     m = re.search(rf'{attr}="{prop}" content="([^"]+)"', body)
@@ -10,8 +12,9 @@ def _meta(body, prop, attr="property"):
 
 def test_topic_tiles(client, app_module, monkeypatch):
     """Each topic is a tile linking to it, with its card count (#184)."""
-    monkeypatch.setattr(app_module, "get_topics",
-                        lambda owner_id=None: [("basics", 12), ("it-vocab", 5)])
+    monkeypatch.setattr(app_module, "get_topics_by_section",
+                        lambda owner_id=None: in_other(
+                            [("basics", 12), ("it-vocab", 5)]))
     body = client.get("/").get_data(as_text=True)
     assert "/flashcards/basics" in body and "12 cards" in body
     assert "/flashcards/it-vocab" in body and "5 cards" in body
@@ -23,9 +26,9 @@ def test_no_topics_hint(client):
 
 
 def test_page_survives_db_failure(client, app_module, monkeypatch):
-    def boom():
+    def boom(owner_id=None):
         raise RuntimeError("db down")
-    monkeypatch.setattr(app_module, "get_topics", boom)
+    monkeypatch.setattr(app_module, "get_topics_by_section", boom)
     r = client.get("/")
     assert r.status_code == 200
     assert "No topics yet" in r.get_data(as_text=True)

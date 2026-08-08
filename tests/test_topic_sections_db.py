@@ -233,6 +233,117 @@ def test_get_topics_is_unchanged_by_sections(sections_db):
     assert utils.get_topics() == [("emotions", 1), ("vocab", 2)]
 
 
+# --- get_topics_by_section(), the browse page's read (#218) -------------
+
+
+@requires_local_db
+def test_the_grouped_read_returns_every_section_with_its_topics(sections_db):
+    import utils
+
+    utils.save_flashcard({"word": "a", "topic": "vocab"}, added_by_user_id=7)
+    utils.save_flashcard({"word": "b", "topic": "vocab"}, added_by_user_id=7)
+    utils.save_flashcard({"word": "c", "topic": "emotions"}, added_by_user_id=7)
+
+    assert utils.get_topics_by_section() == [
+        (CURRICULUM_SECTION, []),
+        ("Other", [("emotions", 1), ("vocab", 2)]),
+    ]
+
+
+@requires_local_db
+def test_an_empty_section_comes_back_with_an_empty_list(sections_db):
+    """Not omitted, and not None — the page renders a heading from it."""
+    import utils
+
+    assert utils.get_topics_by_section() == [
+        (CURRICULUM_SECTION, []), ("Other", [])]
+
+
+@requires_local_db
+def test_a_topic_with_no_cards_is_left_out_but_its_section_is_not(sections_db):
+    """The asymmetry #218 rests on: an empty *section* is structure, an empty
+    *topic* is a leftover (#207 keeps the row for its name and creator)."""
+    import utils
+
+    card = utils.save_flashcard({"word": "only", "topic": "doomed"},
+                                added_by_user_id=7)
+    utils.delete_flashcard(card, owner_id=7)
+
+    assert _query("SELECT COUNT(*) FROM topics WHERE name = 'doomed'") == [(1,)]
+    assert utils.get_topics_by_section() == [
+        (CURRICULUM_SECTION, []), ("Other", [])]
+
+
+@requires_local_db
+def test_a_section_survives_the_owner_filter_hiding_all_its_topics(sections_db):
+    """The bug an owner filter in the WHERE clause would cause: it would drop
+    the rows the outer join exists to keep, and every section with no cards
+    *of yours* would disappear rather than appear empty."""
+    import utils
+
+    _execute(["INSERT INTO users (id, google_sub, email) "
+              "VALUES (8, 'sub-8', 'eight@example.com')"])
+    utils.save_flashcard({"word": "theirs", "topic": "shared"},
+                         added_by_user_id=8)
+
+    assert utils.get_topics_by_section(owner_id=8) == [
+        (CURRICULUM_SECTION, []), ("Other", [("shared", 1)])]
+    assert utils.get_topics_by_section(owner_id=7) == [
+        (CURRICULUM_SECTION, []), ("Other", [])], \
+        "user 7 owns nothing, but both sections are still there"
+
+
+@requires_local_db
+def test_the_grouped_read_counts_only_your_cards(sections_db):
+    """#127, one level in: the count on a tile is of the cards you can see."""
+    import utils
+
+    _execute(["INSERT INTO users (id, google_sub, email) "
+              "VALUES (8, 'sub-8', 'eight@example.com')"])
+    utils.save_flashcard({"word": "mine", "topic": "shared"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "theirs", "topic": "shared"},
+                         added_by_user_id=8)
+
+    assert utils.get_topics_by_section()[1][1] == [("shared", 2)]
+    assert utils.get_topics_by_section(owner_id=7)[1][1] == [("shared", 1)]
+
+
+@requires_local_db
+def test_the_grouped_read_orders_by_section_then_position_then_name(sections_db):
+    import utils
+
+    for word, topic in (("a", "zebra"), ("b", "apple"), ("c", "second")):
+        utils.save_flashcard({"word": word, "topic": topic}, added_by_user_id=7)
+    _execute([
+        "UPDATE topics SET section_id = "
+        f"(SELECT id FROM topic_sections WHERE name = '{CURRICULUM_SECTION}'), "
+        "position = 1 WHERE name = 'second'",
+    ])
+
+    assert utils.get_topics_by_section() == [
+        (CURRICULUM_SECTION, [("second", 1)]),
+        ("Other", [("apple", 1), ("zebra", 1)]),
+    ]
+
+
+@requires_local_db
+def test_a_topic_with_no_section_is_absent_rather_than_ungrouped(sections_db):
+    """#215 documents section_id as never NULL, so there is no "no section"
+    bucket. Worth pinning the consequence: such a topic is missing from this
+    page while still listed flat and still reachable by URL.
+    """
+    import utils
+
+    utils.save_flashcard({"word": "a", "topic": "orphan"}, added_by_user_id=7)
+    _execute(["UPDATE topics SET section_id = NULL WHERE name = 'orphan'"])
+
+    assert utils.get_topics_by_section() == [
+        (CURRICULUM_SECTION, []), ("Other", [])]
+    assert utils.get_topics() == [("orphan", 1)], "still in the flat list"
+    assert [c["word"] for c in utils.get_flashcards_by_topic("orphan")] == ["a"]
+
+
 # --- a database the migration has not finished with ---------------------
 
 

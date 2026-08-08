@@ -34,7 +34,7 @@ a sibling `../../kuantorflow`). `.env` also holds `SITE_URL`, the real
 `ACCESS_KEYWORD`, and `DB_*` for the live/backup tooling.
 
 **A green default run is not the whole suite.** The `db`-marked tests — roughly
-44 of them, against a real local MySQL — are **skipped unless you opt in**:
+51 of them, against a real local MySQL — are **skipped unless you opt in**:
 
 ```bash
 RUN_DB_ROUNDTRIP=1 venv/Scripts/pytest -q

@@ -21,7 +21,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 **Two markers**, both declared in `pytest.ini`:
 
 - `live` — hits the deployed site over the network; needs `SITE_URL` and the real `ACCESS_KEYWORD` in `.env`. All 6 are in `test_live_site.py`.
-- `db` — runs against a **local** MySQL and creates its own scratch database. These 44 are **opt-in**: they skip unless `RUN_DB_ROUNDTRIP=1` is set with `DB_HOST=localhost` and the `DB_*` variables configured. They are the suite's only skips, and they live in `test_apply_schema_db.py` (21), `test_topics_table_db.py` (10), `test_topic_sections_db.py` (8), `test_card_editing_db.py` (4) and `test_backup_roundtrip.py` (1).
+- `db` — runs against a **local** MySQL and creates its own scratch database. These 51 are **opt-in**: they skip unless `RUN_DB_ROUNDTRIP=1` is set with `DB_HOST=localhost` and the `DB_*` variables configured. They are the suite's only skips, and they live in `test_apply_schema_db.py` (21), `test_topic_sections_db.py` (15), `test_topics_table_db.py` (10), `test_card_editing_db.py` (4) and `test_backup_roundtrip.py` (1).
 
 **"Offline" is a property of the fixtures, not of the network.** A local MySQL usually *is* reachable from a development machine, so a test that forgets to stub a database call will quietly connect to it and pass. Several autouse fixtures exist for exactly that reason.
 
@@ -394,7 +394,7 @@ kuantorflow#180, #207, #215. The offline tests prove the logic against a fake; t
 | `test_deleting_a_section_that_holds_topics_is_refused` | `ON DELETE RESTRICT`, where `fk_topics_user` on the same table is `SET NULL` — emptying a section into NULL would break the invariant the column is documented by. |
 | `test_an_empty_section_can_be_deleted` | RESTRICT is about the topics, not the row: the unused B2–C1 shelf is not pinned in place. |
 
-## test_topic_sections_db.py — what the app does once sections exist (8 cases, marker `db`)
+## test_topic_sections_db.py — what the app does once sections exist (15 cases, marker `db`)
 
 kuantorflow#215. `test_apply_schema_db.py` proves the migration; this proves the promise it leaves behind — **every topic has a section, so nothing needs a "no section" branch**. The migration only settles that for topics that already existed; keeping it true is `_get_or_create_topic()`'s job on every path that invents a topic. Own scratch database (`kuantorflow_sections_test`), same opt-in switch.
 
@@ -408,6 +408,55 @@ kuantorflow#215. `test_apply_schema_db.py` proves the migration; this proves the
 | `test_get_topics_is_unchanged_by_sections` | #215 adds no UI — the browse list is still `(name, count)` for topics that have cards, in name order. |
 | `test_a_topic_created_before_the_sections_exist_is_adopted_later` | The one case where NULL is legitimate: a save between the column arriving and the rows being inserted still saves the card, and the next run picks the topic up. |
 | `test_a_card_with_no_topic_creates_no_section_membership` | "No topic" is still a real state and must not become a topic named `''` filed under `Other`. |
+
+**`get_topics_by_section()` — the browse page's read (#218)**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_grouped_read_returns_every_section_with_its_topics` | The shape the page renders: each section with its `(name, count)` pairs. |
+| `test_an_empty_section_comes_back_with_an_empty_list` | Not omitted and not `None` — the page renders a heading from it. |
+| `test_a_topic_with_no_cards_is_left_out_but_its_section_is_not` | The asymmetry #218 rests on: an empty *section* is structure, an empty *topic* is a leftover #207 keeps for its name and creator. |
+| `test_a_section_survives_the_owner_filter_hiding_all_its_topics` | The bug an owner filter in the `WHERE` clause would cause — it would drop the rows the outer join exists to keep, so every section with no cards *of yours* would vanish instead of appearing empty. |
+| `test_the_grouped_read_counts_only_your_cards` | #127 one level in: the count on a tile is of the cards you can see. |
+| `test_the_grouped_read_orders_by_section_then_position_then_name` | #215's full ordering rule, end to end. |
+| `test_a_topic_with_no_section_is_absent_rather_than_ungrouped` | The documented consequence of no "no section" branch: such a topic is missing from this page while still listed flat and still reachable by URL. |
+
+## test_topic_sections_ui.py — sections on the Browse page (13 cases)
+
+kuantorflow#218. #215 gave topics a section and rendered nothing; this is the UI half. The decisions are all about what a heading *means* — structure, so an empty section still gets one, except when the whole deck is empty, and #127's explanation wins over both. The Mykola widget rebuilds the same block in JavaScript after a chat save (#53), so the rules are asserted against that code too.
+
+**The headings**
+
+| Test | What it checks |
+| --- | --- |
+| `test_each_section_is_a_heading_followed_by_its_tiles` | Reading order in the markup: a heading, then the grid that belongs to it. |
+| `test_sections_render_in_the_order_they_are_given` | The order is the query's (`section.position`); the template must not re-sort it alphabetically. |
+| `test_an_empty_section_keeps_its_heading_and_gets_no_grid` | The question #215 left open: the B2–C1 shelf appears, empty, until #203 fills it. |
+| `test_topics_keep_their_order_within_a_section` | Also the query's. Alphabetical inside `Other` is a *consequence* of every topic holding position 0, not a rule the page applies. |
+| `test_a_tile_still_links_to_its_topic_with_a_count` | #184's tile is unchanged by the grouping around it, singular "1 card" included. |
+
+**When there is nothing to show**
+
+| Test | What it checks |
+| --- | --- |
+| `test_an_empty_deck_shows_the_hint_not_bare_headings` | One sentence beats two headings above nothing. |
+| `test_the_individual_cards_explanation_still_wins` | #127's message is the more specific answer and survives #218. |
+| `test_a_dead_database_still_renders_the_page` | The read raising leaves a 200 and the hint, as before. |
+
+**`/topics.json`, which two different things read**
+
+| Test | What it checks |
+| --- | --- |
+| `test_topics_json_carries_both_shapes` | `sections` for the tiles and `topics` for the move dialog's suggestions (#177) — dropping the flat list would have emptied that datalist and nothing else would have noticed. |
+| `test_topics_json_survives_a_dead_database` | Both keys present and empty. |
+
+**The widget's copy of the markup**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_widget_rebuild_reads_sections` | It consumes the grouped shape, not the flat one that is still in the response and would silently render the pre-#218 page. |
+| `test_the_widget_rebuild_creates_section_headings` | The trap `base.html` has carried a comment about since #184: a chat save must not quietly flatten the block. |
+| `test_the_widget_rebuild_falls_back_to_the_hint_when_nothing_is_left` | A non-empty list of empty sections is exactly what the template calls "no topics", so the JS has to look inside them. |
 
 ## test_backup.py — backup retention logic (4 cases)
 

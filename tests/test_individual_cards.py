@@ -18,6 +18,7 @@ import pytest
 
 import settings_store
 import utils
+from conftest import in_other
 from conftest import TEST_USER_ID
 
 STORED_CARD = {
@@ -51,8 +52,15 @@ def _capture_owner(app_module, monkeypatch, cards=None):
         seen.append(owner_id)
         return [("character", 1)]
 
+    def fake_sections(owner_id=None):
+        seen.append(owner_id)
+        return in_other([("character", 1)])
+
     monkeypatch.setattr(app_module, "get_flashcards_by_topic", fake_cards)
     monkeypatch.setattr(app_module, "get_topics", fake_topics)
+    # The index page's read since #218, and /topics.json's second one. A new
+    # read path that forgot the filter is exactly what this helper is for.
+    monkeypatch.setattr(app_module, "get_topics_by_section", fake_sections)
     return seen
 
 
@@ -238,7 +246,11 @@ def test_an_empty_topic_page_says_why(user_client, app_module, monkeypatch,
 
 def test_an_empty_topic_list_says_why(user_client, app_module, monkeypatch,
                                       individual):
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None: [])
+    """The sections still exist — they are everyone's — but none of them has a
+    topic holding a card of yours, so the explanation wins over two headings
+    above nothing (#218)."""
+    monkeypatch.setattr(app_module, "get_topics_by_section",
+                        lambda owner_id=None: in_other([]))
     body = user_client.get("/").get_data(as_text=True)
     assert "No topics of your own" in body
 
