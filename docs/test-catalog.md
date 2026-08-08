@@ -840,7 +840,8 @@ kuantorflow#177. Split from #176 because the rules differ: **no duplicate check 
 | `test_an_empty_destination_is_rejected_before_the_database` | A blank destination never reaches the storage layer. |
 | `test_a_brand_new_topic_is_accepted` | Topics are derived from the cards, so there is nothing to create — an unknown destination is valid. |
 | `test_the_confirmation_names_the_destination` | The flash message names the word and where it went. |
-| `test_the_move_is_logged_as_an_edit_of_the_topic` | Logged as an `EDIT` with `changed=topic` and its own source, so a move is distinguishable from a field edit. |
+| `test_the_move_is_logged_with_both_of_its_ends` | Its own `MOVE` action since #161, with `from=` as well as `topic=`. The destination alone was never the interesting half, and the route had the origin in hand and dropped it. |
+| `test_a_move_out_of_no_topic_logs_no_origin` | "No topic" is a real state (#207), so `from=` is absent rather than empty — as every other None is. |
 | `test_a_forged_move_of_someone_elses_card_is_refused` | The greyed control is presentation; the route refuses and logs `EDIT-DENIED`. |
 
 **Where the user lands**
@@ -1415,7 +1416,7 @@ kuantorflow#134. The parser detects OneNote copy-pastes of Reverso entries by th
 | `test_split_glued_translations_parses_model_reply` | The helper parses the model's JSON reply into the split strings. |
 | `test_split_glued_translations_falls_back_on_error` | When the client cannot even be constructed, the glued string is kept whole and nothing raises — the split is best-effort by design. |
 
-## test_settings.py — the settings store, endpoint and popup (16 cases)
+## test_settings.py — the settings store, endpoint and popup (20 cases)
 
 kuantorflow#86, #13, #20.
 
@@ -1454,6 +1455,15 @@ kuantorflow#86, #13, #20.
 | --- | --- |
 | `test_auto_add_saves_without_review_popup` | With the setting on, both cards are saved directly, the banner reports the count, and no review popup is rendered. |
 | `test_lookup_receives_the_stored_providers` | The lookup is called with exactly the stored translator and dictionary, so the settings actually reach the network layer. |
+
+**The change is logged (#161)** — unlogged until now, and the omission cost real diagnosis time: with `individual_cards` on (#127) a learner sees none of the shared deck and is told a word is "already in the database" that they cannot find (#186). That reads as a broken app, and nothing recorded the setting being switched on.
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_settings_change_is_logged` | A `SETTINGS` line naming each key, its new value, and who changed it. |
+| `test_a_rejected_value_is_logged_beside_what_was_stored` | The store silently substitutes the default, so *"I chose no-such-dictionary and it went back to Oxford"* is only answerable with both sides on the line. |
+| `test_an_unknown_key_is_logged_as_unknown` | Dropped rather than stored wrong — a different failure, so its own field. |
+| `test_a_refused_anonymous_save_logs_nothing` | #102 refuses the write, so there is nothing to record; a line would claim a change the response denied. |
 
 ## test_translucent_surfaces.py — half-transparent panels, widget and cards (13 tests, 15 cases)
 
