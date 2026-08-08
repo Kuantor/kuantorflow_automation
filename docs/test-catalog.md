@@ -1310,7 +1310,7 @@ ai_agent#62, the KuantorFlow half. The tool itself lives in `ai_agent`; what is 
 | `test_no_rows_updated_is_reported` | An id that matches nothing reports False. |
 | `test_no_account_never_reaches_the_database` | No id means no connection is opened at all — the stub raises if it is. |
 
-## test_providers.py — translation and dictionary providers (18 cases)
+## test_providers.py — translation and dictionary providers (30 cases)
 
 kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests replace the backend functions, the fetcher tests replace `requests.get`/`post` (or the Bing API seam) with responses captured from the real services.
 
@@ -1350,6 +1350,28 @@ kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests rep
 | `test_oxford_keeps_the_senses_in_the_page_order` | Oxford's order is its order of importance, so the first definition on a card is the one a learner most likely wants. |
 | `test_oxford_still_caps_the_definitions_it_keeps` | A descendant selector reaches more nodes, so `MAX_DEFINITIONS` earns a test of its own. |
 | `test_oxford_does_not_repeat_a_definition_it_has_already_taken` | De-duplication predates #221 but matters more now that both shapes are reachable. |
+
+**Oxford's example sentences (#225)** — examples live inside `li.sense`, exactly where definitions do, so they come out of the same walk and the same per-part-of-speech grouping. Two things about the markup earn their own cases: an example may be preceded by a `span.cf` carrying the grammar pattern it illustrates, and both of #221's sense shapes must work here too — a selector handling only one is the bug that hid for months.
+
+| Test | What it checks |
+| --- | --- |
+| `test_oxford_takes_example_sentences` | The sentences come back grouped by part of speech, in Oxford's order. |
+| `test_oxford_examples_come_from_both_sense_shapes` | The `span.sensetop` sense and the direct-child one, in a single entry — #221's lesson applied to a second selector rather than relearned later. |
+| `test_oxford_drops_the_grammar_pattern_before_the_sentence` | `span.cf` is useful beside a dictionary heading and reads as a broken sentence on a card: *"be hedged (with something) His belief was hedged with doubt."* |
+| `test_oxford_keeps_a_whole_example_when_there_is_no_x_span` | A fallback, not a guess: if Oxford rewraps a sentence, an example is still worth having. |
+| `test_oxford_caps_the_examples_it_keeps` | Oxford gives a popular word dozens — 41 for one of #203's words — so `MAX_EXAMPLES` trims, in page order. |
+| `test_a_word_with_no_examples_still_returns_its_definitions` | `burnout` is the real case: defined, with no sentences. |
+| `test_oxford_definitions_alone_still_answer_the_shared_contract` | `_fetch_oxford_definitions()` keeps returning `{pos: [defs]}` — the shape the other dictionaries share, and what `seed_topics.py --check-oxford` calls. |
+
+**Examples reaching the card**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_lookup_puts_the_examples_on_the_matching_card` | Grouped by part of speech like the definition, so a card can have a translation and neither — which is what happens when the translator finds a sense the dictionary does not list. |
+| `test_examples_reach_the_card_as_a_list` | `examples_en` is one of `utils.LIST_FIELDS`, stored as JSON, so the card page shows separate sentences rather than one run-on. |
+| `test_the_reverso_fallback_supplies_no_examples` | It answers with definitions only, and Reverso Context is IP-blocked from PythonAnywhere anyway. |
+| `test_merriam_webster_supplies_no_examples` | It has them on the page; extracting them is not #225, and it is unreachable from PA. |
+| `test_a_dictionary_that_fails_costs_the_examples_and_nothing_else` | Both dictionaries down still leaves the translations, with no definition and no examples. |
 | `test_merriam_webster_unknown_word_returns_empty` | A 404 yields an empty result. |
 
 ## test_quiz.py — grading, language filtering and fallbacks (10 cases)
