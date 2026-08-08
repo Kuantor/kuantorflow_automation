@@ -21,7 +21,7 @@ The offline tests import the Flask app from the kuantorflow checkout (`KUANTORFL
 **Two markers**, both declared in `pytest.ini`:
 
 - `live` — hits the deployed site over the network; needs `SITE_URL` and the real `ACCESS_KEYWORD` in `.env`. All 6 are in `test_live_site.py`.
-- `db` — runs against a **local** MySQL and creates its own scratch database. These 51 are **opt-in**: they skip unless `RUN_DB_ROUNDTRIP=1` is set with `DB_HOST=localhost` and the `DB_*` variables configured. They are the suite's only skips, and they live in `test_apply_schema_db.py` (21), `test_topic_sections_db.py` (15), `test_topics_table_db.py` (10), `test_card_editing_db.py` (4) and `test_backup_roundtrip.py` (1).
+- `db` — runs against a **local** MySQL and creates its own scratch database. These 67 are **opt-in**: they skip unless `RUN_DB_ROUNDTRIP=1` is set with `DB_HOST=localhost` and the `DB_*` variables configured. They are the suite's only skips, and they live in `test_apply_schema_db.py` (21), `test_seed_topics_db.py` (16), `test_topic_sections_db.py` (15), `test_topics_table_db.py` (10), `test_card_editing_db.py` (4) and `test_backup_roundtrip.py` (1).
 
 **"Offline" is a property of the fixtures, not of the network.** A local MySQL usually *is* reachable from a development machine, so a test that forgets to stub a database call will quietly connect to it and pass. Several autouse fixtures exist for exactly that reason.
 
@@ -421,6 +421,111 @@ kuantorflow#215. `test_apply_schema_db.py` proves the migration; this proves the
 | `test_the_grouped_read_orders_by_section_then_position_then_name` | #215's full ordering rule, end to end. |
 | `test_a_topic_with_no_section_is_absent_rather_than_ungrouped` | The documented consequence of no "no section" branch: such a topic is missing from this page while still listed flat and still reachable by URL. |
 
+## test_seed_topics.py — the seeding script and its word list (32 cases)
+
+kuantorflow#203. `seed_topics.py` turns `seed_words.py` into cards through the app's own `lookup_word()` and `save_flashcard()`. Both are stubbed here — **these tests never touch a dictionary or a database**; 360 words over a network is what the script exists to do once, not what a suite should do on every run. What is pinned down is the set of properties the script borrowed from `apply_schema.py`, because each one is a specific failure someone would otherwise hit 300 words into a run they cannot repeat cheaply.
+
+**The word list is data, so its shape is a test**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_word_list_has_no_problems` | `seed_words.problems()` is the single validator; a complaint is a content bug, not a code bug. |
+| `test_every_topic_has_exactly_twenty_words` | Eighteen topics of twenty. |
+| `test_no_word_appears_under_two_topics` | Dedup is global by word + pos (#101), so a repeat is a card filed under whichever topic reached it first and a second topic quietly nineteen words long. |
+| `test_words_are_single_lower_case_tokens` | A mashed compound like `peerreview` satisfies "one token" and is not a word — it would fail every lookup and read as a provider problem. |
+| `test_the_list_is_ordered_not_sorted` | Order is load-bearing twice (lookup order, and `topics.position`); alphabetical would mean somebody sorted it and broke both. |
+| `test_a_broken_list_stops_the_script_before_any_lookup` | Validated first, always — a topic of nineteen words would otherwise surface 300 lookups in. |
+| `test_check_validates_and_exits_without_touching_anything` | `--check` reports the totals and calls nothing. |
+
+**Every word must be one Oxford can define (#221)** — Oxford is the only explanatory dictionary reachable from PythonAnywhere, so a word it has no entry for reaches production with translations and no English explanation, and locally nobody notices because Reverso covers the gap. That is exactly how #221 hid for months; `--check-oxford` is the guard. The dictionary is stubbed here — the suite does not make 360 network requests to prove the plumbing.
+
+| Test | What it checks |
+| --- | --- |
+| `test_check_oxford_is_quiet_when_every_word_has_an_entry` | The happy path says so plainly and exits 0. |
+| `test_check_oxford_names_the_words_it_cannot_define` | Named and non-zero: a count would not say which word to swap, and a zero exit would let the list rot quietly. |
+| `test_check_oxford_reports_a_broken_request_rather_than_dying` | A dictionary that is down is not the same as a word that is absent, and neither ends the check half way through. |
+| `test_check_oxford_writes_nothing_and_looks_up_nothing_else` | It asks the dictionary directly — one request per word instead of a full lookup's three — and never reaches the database. |
+| `test_a_broken_word_list_stops_check_oxford_too` | The list's shape is validated before anything is asked, on every path. |
+
+**Choosing what to run**
+
+| Test | What it checks |
+| --- | --- |
+| `test_topic_selects_one_and_is_case_insensitive` | `--topic` arrives from a console, where nobody matches capitals exactly. |
+| `test_an_unknown_topic_lists_the_known_ones` | The error is actionable rather than just a refusal. |
+| `test_no_topic_means_all_of_them` | And in the word list's order. |
+| `test_a_partial_run_does_not_renumber_the_section` | A `--topic` run places its topic at the number it holds in the *full* curriculum; numbering from the subset would put whatever you ran last at position 1. |
+
+**The two passes, in order**
+
+| Test | What it checks |
+| --- | --- |
+| `test_every_topic_is_placed_before_any_card_is_saved` | The whole reason there are two passes: `save_flashcard()` files an unknown topic under `Other` at position 0, so the curriculum rows must exist first. |
+| `test_the_cards_carry_their_topic` | Twenty saves, all under the topic being seeded. |
+| `test_the_chosen_providers_reach_the_lookup` | Passed explicitly, never read from a settings file — a deck whose contents depend on whose config was lying around is not reproducible. |
+| `test_the_defaults_are_the_settings_defaults` | Google + Oxford, which are also the two that work from PythonAnywhere. |
+| `test_the_section_is_the_one_215_created_empty` | Not a flag: putting the curriculum elsewhere is not something a run should do quietly. |
+
+**A dry run spends nothing**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_dry_run_looks_nothing_up_and_places_nothing` | It must not spend 360 network requests telling you what it would spend them on. |
+| `test_a_dry_run_names_a_topic_it_would_move` | The one thing the seed does to data somebody else made, visible before it happens rather than in the log afterwards. |
+| `test_a_dry_run_says_when_a_topic_is_already_in_place` | So a re-run's dry run is quiet rather than alarming. |
+
+**One bad word must not end the run**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_failed_lookup_skips_the_word_and_the_run_continues` | Losing word 12 of 360 must not cost the other 348 — the ordinary case on PythonAnywhere, where two providers are IP-blocked. |
+| `test_failed_words_are_named_in_the_summary` | Named, not counted: these are the words to fix by hand and a number does not say which. |
+| `test_a_failed_save_does_not_end_the_run_either` | A dead row, not a dead run. |
+
+**Re-running**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_word_already_in_the_database_counts_as_present_not_added` | `save_flashcard()` returning None for a duplicate (#101) *is* the idempotency. |
+| `test_a_word_is_present_only_when_none_of_its_cards_were_written` | Counting per card would make the totals disagree with the per-word lines someone reads to follow progress. |
+
+**Logging and output**
+
+| Test | What it checks |
+| --- | --- |
+| `test_every_card_is_logged_with_the_seed_source` | CLAUDE.md's rule that a new save path logs; with no request behind it, it logs beside the write like `set_user_blocked()`. |
+| `test_an_unowned_run_logs_the_user_as_anonymous` | The default attribution reaches the log too. |
+| `test_the_output_is_ascii` | A Windows console is cp1252 and raises on a Ukrainian translation — which would end a run that was saving cards perfectly well. |
+
+## test_seed_topics_db.py — seeding against a real MySQL (16 cases, marker `db`)
+
+kuantorflow#203. What only a database can prove: that `place_topic()` puts the curriculum in the section #215 built for it, that it *moves* rather than duplicates a topic somebody had already started, and that a whole run leaves eighteen numbered topics full of linked cards. `lookup_word()` is still stubbed — the network is not under test, and a suite that depended on Google being reachable would fail for reasons that are nobody's bug. Own scratch database (`kuantorflow_seed_test`), same opt-in switch.
+
+**`place_topic()`**
+
+| Test | What it checks |
+| --- | --- |
+| `test_place_topic_puts_a_new_topic_in_the_section_at_the_position` | The basic contract. |
+| `test_place_topic_moves_a_topic_that_already_exists_elsewhere` | The UNIQUE key means the same name is the same topic, so an existing `Other` topic *is* the curriculum one — and its cards come with it rather than being stranded beside a duplicate. |
+| `test_place_topic_is_unchanged_the_second_time` | Re-running reports `unchanged` and rewrites nothing. |
+| `test_place_topic_matches_a_name_case_insensitively` | Same rule as `_get_or_create_topic()` and the column collation. |
+| `test_place_topic_refuses_when_the_section_does_not_exist` | The section rows are a migration step, so their absence means `apply_schema.py` has not run; filing eighteen topics under nothing would be worse than stopping. |
+| `test_place_topic_records_the_creator` | Attribution, on the same terms as everything else. |
+| `test_a_saved_card_does_not_drag_a_placed_topic_back_to_other` | The property the two-pass order rests on (#218): `save_flashcard()` finds the topic by name and leaves its section alone. |
+
+**A whole run**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_full_run_places_eighteen_numbered_topics_and_fills_them` | Positions 1..18 in the word list's order, twenty cards each, every card linked, 360 lookups asked for. |
+| `test_the_seeded_deck_is_what_the_browse_page_will_show` | The end of the chain: #218's curriculum section stops being an empty heading, ordered by position rather than alphabet. |
+| `test_a_second_run_adds_nothing` | #101's duplicate rule, for real. |
+| `test_an_interrupted_run_is_finished_by_the_next_one` | Eight words, then the whole topic: the second run adds only the remaining twelve. |
+| `test_an_unowned_run_leaves_the_cards_and_the_topics_nobodys` | The default, and its consequence — #127 means an "only my cards" learner sees none of it. |
+| `test_owner_attributes_the_cards_and_the_topic_together` | One flag settles both, or the odd state is owned topics full of unowned cards. |
+| `test_an_unknown_owner_email_is_refused_before_anything_is_written` | Refused rather than falling back to nobody, and before a single lookup. |
+| `test_a_dry_run_changes_nothing` | No topics, no cards, no lookups. |
+| `test_a_dry_run_reports_a_topic_it_would_move` | `current_placement()` reads the real table, which is what turns "18 would be created" into "one of yours would be moved". |
 ## test_topic_icons.py — pictures on the topic tiles (13 tests, 22 cases)
 
 kuantorflow#223. A topic finds its icon by **name** — `static/img/topics/<slug>.webp` — so the feature is a convention plus a directory listing. Two things pull in opposite directions and both are pinned: the slug rule, which is the only thing joining a database row to a file on disk, and the **absence** of a file, which is the common case rather than the edge one (everything in `Other`, and anything a learner invents by looking a word up). The icon directory is stubbed in most tests — a test that passed only because someone had committed a matching file would be asserting the state of `static/`, not the behaviour of the code.
