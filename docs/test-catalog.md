@@ -1311,7 +1311,7 @@ ai_agent#62, the KuantorFlow half. The tool itself lives in `ai_agent`; what is 
 | `test_no_rows_updated_is_reported` | An id that matches nothing reports False. |
 | `test_no_account_never_reaches_the_database` | No id means no connection is opened at all — the stub raises if it is. |
 
-## test_providers.py — translation and dictionary providers (30 cases)
+## test_providers.py — translation and dictionary providers (40 tests, 45 cases)
 
 kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests replace the backend functions, the fetcher tests replace `requests.get`/`post` (or the Bing API seam) with responses captured from the real services.
 
@@ -1363,6 +1363,31 @@ kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests rep
 | `test_oxford_caps_the_examples_it_keeps` | Oxford gives a popular word dozens — 41 for one of #203's words — so `MAX_EXAMPLES` trims, in page order. |
 | `test_a_word_with_no_examples_still_returns_its_definitions` | `burnout` is the real case: defined, with no sentences. |
 | `test_oxford_definitions_alone_still_answer_the_shared_contract` | `_fetch_oxford_definitions()` keeps returning `{pos: [defs]}` — the shape the other dictionaries share, and what `seed_topics.py --check-oxford` calls. |
+
+**Matching parts of speech across the two providers (#228)** — the translator names the parts of speech a card is created for; the dictionary names the ones it has text for, and they do not always use the same word for the same thing. Matching was exact string equality, so text already fetched was thrown away. The synonym table is applied to **both** sides and only for matching: a card keeps the label its translator gave it.
+
+| Test | What it checks |
+| --- | --- |
+| `test_an_oxford_entry_can_head_several_parts_of_speech` | `hello` is headed "exclamation, noun" and `both` "determiner, pronoun"; the whole string used to be the key, and `exclamation,noun` matches nothing any translator reports. |
+| `test_the_pos_heading_is_split_on_commas` | Six cases, including an empty and a comma-only heading falling back to `other`. |
+| `test_the_dictionarys_modal_verb_reaches_googles_auxiliary_verb` | The #228 case: same sense, two names — the definition was discarded *and* the card left blank. |
+| `test_the_card_keeps_the_label_its_translator_gave_it` | Matching is canonical, the card is not. Renaming a learner's card because the dictionary uses another word would change what they see. |
+| `test_googles_interjection_meets_oxfords_exclamation` | The second synonym pair found by the survey. |
+| `test_an_exact_match_is_never_displaced_by_a_synonym` | With both reported, each keeps its own text — the index is first-wins on the card's own label. |
+
+**The `other` bucket**
+
+| Test | What it checks |
+| --- | --- |
+| `test_an_other_card_adopts_the_only_entry_the_dictionary_had` | `other` is Google's fallback when it has no dictionary entry, so it is not a part of speech and can never match; one unplaced entry is unambiguously its text (`overbook`). |
+| `test_an_other_card_takes_nothing_when_the_entry_is_ambiguous` | Two unplaced entries and a guess would be worse than nothing. |
+
+**What must not happen**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_part_of_speech_the_dictionary_cannot_explain_keeps_its_card` | #228's corrected premise: a translation is enough to keep a card. Google over-reports parts of speech and those cards stay. |
+| `test_an_unmatched_definition_is_discarded_rather_than_misplaced` | Decided deliberately: attaching it elsewhere would be a confidently wrong card (#221), and creating one would mean an explanation with no translation. |
 
 **Examples reaching the card**
 
