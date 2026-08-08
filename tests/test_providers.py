@@ -343,6 +343,162 @@ def test_oxford_definitions_alone_still_answer_the_shared_contract(monkeypatch):
         "noun": ["a row of bushes", "a way of protecting yourself"]}
 
 
+# --- matching parts of speech across the two providers (#228) ------------
+#
+# The translator names the parts of speech a card is created for; the dictionary
+# names the ones it has text for. They do not always use the same word for the
+# same thing, and matching was exact string equality — so text that had already
+# been fetched was thrown away. `must` is the case: Google reports an *auxiliary
+# verb*, Oxford a *modal verb*.
+#
+# The synonym table is applied to **both** sides and only for matching. A card
+# keeps the label its translator gave it, because that is what the learner sees.
+
+OXFORD_TWO_POS_PAGE = """
+<html><body>
+<div class="webtop"><h1 class="headword">hello</h1><span class="pos">exclamation, noun</span></div>
+<ol><li class="sense"><span class="def">used as a greeting</span>
+  <ul class="examples"><li><span class="x">Hello there!</span></li></ul>
+</li></ol>
+</body></html>
+"""
+
+
+def test_an_oxford_entry_can_head_several_parts_of_speech(monkeypatch):
+    """`hello` is headed "exclamation, noun" and `both` "determiner, pronoun".
+    The whole string used to be the key, and `exclamation,noun` matches nothing
+    any translator reports — so the entry's text was unreachable."""
+    _page(monkeypatch, OXFORD_TWO_POS_PAGE)
+
+    definitions, examples = parsers._fetch_oxford_entry("hello")
+
+    assert definitions == {"exclamation": ["used as a greeting"],
+                           "noun": ["used as a greeting"]}
+    assert examples == {"exclamation": ["Hello there!"],
+                        "noun": ["Hello there!"]}
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("noun", ["noun"]),
+    ("exclamation,noun", ["exclamation", "noun"]),
+    ("determiner,pronoun,adverb", ["determiner", "pronoun", "adverb"]),
+    ("modal verb", ["modal verb"]),
+    (" , ", ["other"]),
+    ("", ["other"]),
+])
+def test_the_pos_heading_is_split_on_commas(text, expected):
+    assert parsers._oxford_poses(text) == expected
+
+
+def test_the_dictionarys_modal_verb_reaches_googles_auxiliary_verb(backends):
+    """The #228 case, and the reason the ticket exists. Same sense, two names —
+    so the definition was discarded *and* the card was left blank."""
+    backends(google={"auxiliary verb": ["мусити"], "noun": ["необхідність"]},
+             oxford={"modal verb": ["used to say that something is necessary"],
+                     "noun": ["something you must do"]},
+             examples={"modal verb": ["You must be tired."]})
+
+    cards = {c["pos"]: c for c in parsers.lookup_word("must")}
+
+    assert cards["auxiliary verb"]["explanation_en"] ==         "used to say that something is necessary"
+    assert cards["auxiliary verb"]["examples_en"] == ["You must be tired."]
+    assert cards["noun"]["explanation_en"] == "something you must do"
+
+
+def test_the_card_keeps_the_label_its_translator_gave_it(backends):
+    """Matching is canonical; the card is not. Renaming a learner's card to
+    "modal verb" because the dictionary says so would change what they see."""
+    backends(google={"auxiliary verb": ["мусити"]},
+             oxford={"modal verb": ["necessary"]})
+
+    cards = parsers.lookup_word("must")
+
+    assert [c["pos"] for c in cards] == ["auxiliary verb"]
+    assert "modal verb" not in [c["pos"] for c in cards]
+
+
+def test_googles_interjection_meets_oxfords_exclamation(backends):
+    backends(google={"interjection": ["привіт"]},
+             oxford={"exclamation": ["used as a greeting"]})
+
+    card = parsers.lookup_word("hello")[0]
+    assert card["explanation_en"] == "used as a greeting"
+
+
+def test_an_exact_match_is_never_displaced_by_a_synonym(backends):
+    """When the translator reports both, each keeps its own text — the index is
+    first-wins on the card's own label."""
+    backends(google={"verb": ["робити"], "auxiliary verb": ["мусити"]},
+             oxford={"verb": ["ordinary verb sense"],
+                     "modal verb": ["modal sense"]})
+
+    cards = {c["pos"]: c for c in parsers.lookup_word("must")}
+
+    assert cards["verb"]["explanation_en"] == "ordinary verb sense"
+    assert cards["auxiliary verb"]["explanation_en"] == "modal sense"
+
+
+# --- the `other` bucket -------------------------------------------------
+
+
+def test_an_other_card_adopts_the_only_entry_the_dictionary_had(backends):
+    """`other` is what _google_dictionary() falls back to when Google has no
+    dictionary entry, so it is not a part of speech and can never match. One
+    unplaced entry is unambiguously its text — `overbook` is the real case."""
+    backends(google={"other": ["перебронювати"]},
+             oxford={"verb": ["to sell more tickets than there are seats"]},
+             examples={"verb": ["The flight was overbooked."]})
+
+    card = parsers.lookup_word("overbook")[0]
+
+    assert card["pos"] == "other", "the label is not invented"
+    assert card["explanation_en"] == "to sell more tickets than there are seats"
+    assert card["examples_en"] == ["The flight was overbooked."]
+
+
+def test_an_other_card_takes_nothing_when_the_entry_is_ambiguous(backends):
+    """Two unplaced entries and there is no way to tell which belongs to it, so
+    it keeps its translations and no English text — a guess would be worse."""
+    backends(google={"other": ["щось"]},
+             oxford={"noun": ["a thing"], "verb": ["to do a thing"]})
+
+    card = parsers.lookup_word("thing")[0]
+    assert "explanation_en" not in card
+
+
+# --- what must not happen ------------------------------------------------
+
+
+def test_a_part_of_speech_the_dictionary_cannot_explain_keeps_its_card(backends):
+    """The premise of #228 after it was corrected: a translation is enough to
+    keep a card. Google over-reports parts of speech — `hedge` as an adjective —
+    and those cards stay, with their translations and no English text."""
+    backends(google={"noun": ["живопліт"], "verb": ["ухилятися"],
+                     "adjective": ["живоплітний"]},
+             oxford={"noun": ["a row of bushes"], "verb": ["to avoid answering"]})
+
+    cards = {c["pos"]: c for c in parsers.lookup_word("hedge")}
+
+    assert set(cards) == {"noun", "verb", "adjective"}, "no card was removed"
+    assert cards["adjective"]["translation_ukr"] == "живоплітний"
+    assert "explanation_en" not in cards["adjective"]
+
+
+def test_an_unmatched_definition_is_discarded_rather_than_misplaced(backends):
+    """Decided deliberately (#228): a definition whose part of speech has no card
+    is dropped. Attaching it to a different sense would be a confidently wrong
+    card, which is the #221 lesson, and creating one would mean a card with an
+    explanation and no translation in a bilingual app."""
+    backends(google={"noun": ["криниця"]},
+             oxford={"noun": ["a hole for water"],
+                     "determiner": ["nothing should receive this"]})
+
+    cards = parsers.lookup_word("well")
+
+    assert len(cards) == 1 and cards[0]["pos"] == "noun"
+    assert cards[0]["explanation_en"] == "a hole for water"
+
+
 # --- the examples reaching the card -------------------------------------
 
 
