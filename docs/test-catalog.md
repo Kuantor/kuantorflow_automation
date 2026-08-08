@@ -1205,7 +1205,7 @@ ai_agent#62, the KuantorFlow half. The tool itself lives in `ai_agent`; what is 
 | `test_no_rows_updated_is_reported` | An id that matches nothing reports False. |
 | `test_no_account_never_reaches_the_database` | No id means no connection is opened at all — the stub raises if it is. |
 
-## test_providers.py — translation and dictionary providers (13 cases)
+## test_providers.py — translation and dictionary providers (18 cases)
 
 kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests replace the backend functions, the fetcher tests replace `requests.get`/`post` (or the Bing API seam) with responses captured from the real services.
 
@@ -1235,6 +1235,16 @@ kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests rep
 | `test_oxford_follows_sibling_entries_only` | Both senses of the word are collected by following the *sibling* entry (`run_2`) and not unrelated related-entry links like `run-up` or `ladder` — the fetch list is asserted exactly. |
 | `test_oxford_unknown_word_returns_empty` | A 404 yields an empty result rather than raising. |
 | `test_merriam_webster_parses_entries` | Each entry's part of speech and definitions are parsed, with a repeated definition de-duplicated. |
+
+**Oxford's two sense shapes (#221)** — Oxford wraps a sense's definition in a `span.sensetop` whenever that sense carries extra furniture at the top, which makes the definition a *grandchild* of `.sense`. The `.sense > .def` selector used until #221 walked past it. Every other Oxford fixture in this file happens to use the direct-child shape, which is exactly why the bug passed the suite; these are trimmed from the real `punctual` and `hedge` pages so a selector handling one shape and not the other cannot pass again.
+
+| Test | What it checks |
+| --- | --- |
+| `test_oxford_reads_a_single_sense_entry` | The bug itself: a single-sense entry — the common shape for precise vocabulary — returned nothing at all, which was 143 of the 360 words in #203's list. |
+| `test_oxford_keeps_the_primary_sense_of_a_mixed_entry` | The worse half: in an entry holding both shapes the wrapped sense is usually the *first*, so `hedge` was defined only as a financial instrument. A confidently wrong card, not an empty one. |
+| `test_oxford_keeps_the_senses_in_the_page_order` | Oxford's order is its order of importance, so the first definition on a card is the one a learner most likely wants. |
+| `test_oxford_still_caps_the_definitions_it_keeps` | A descendant selector reaches more nodes, so `MAX_DEFINITIONS` earns a test of its own. |
+| `test_oxford_does_not_repeat_a_definition_it_has_already_taken` | De-duplication predates #221 but matters more now that both shapes are reachable. |
 | `test_merriam_webster_unknown_word_returns_empty` | A 404 yields an empty result. |
 
 ## test_quiz.py — grading, language filtering and fallbacks (10 cases)
