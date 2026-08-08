@@ -28,6 +28,13 @@ import pytest
 import seed_topics
 import seed_words
 
+# A topic, and two of its words taken **by position, not by name**. These tests
+# are about what the script does with a word that fails, not about which words
+# the curriculum contains — naming them would make a content change (a word
+# swapped because Oxford has no entry for it) break a behaviour test.
+WORK = "Work and careers"
+FIRST, SECOND = seed_words.SEED_WORDS[WORK][:2]
+
 
 # --- the word list is data, so its shape is a test ----------------------
 
@@ -269,18 +276,18 @@ def test_a_failed_lookup_skips_the_word_and_the_run_continues(monkeypatch):
                         (saved.append(entry["word"]), 1)[1])
 
     def flaky(word, topic=None, translator=None, explanatory_dictionary=None):
-        if word in ("delegate", "mentor"):
+        if word in (FIRST, SECOND):
             raise ValueError(f"No translations found for '{word}'")
         return [{"word": word, "pos": "noun", "topic": topic}]
 
     monkeypatch.setattr(seed_topics, "lookup_word", flaky)
 
-    counts = seed_topics.run(seed_topics.chosen_topics("Work and careers"),
+    counts = seed_topics.run(seed_topics.chosen_topics(WORK),
                              None, None, "google", "oxford", pause=0,
                              out=io.StringIO())
 
     assert len(saved) == 18, "the other eighteen were saved"
-    assert [w for w, _ in counts.failed] == ["delegate", "mentor"]
+    assert [w for w, _ in counts.failed] == [FIRST, SECOND]
     assert counts.added == 18
 
 
@@ -291,17 +298,17 @@ def test_failed_words_are_named_in_the_summary(monkeypatch, capsys):
     monkeypatch.setattr(seed_topics, "save_flashcard", lambda *a, **k: 1)
 
     def flaky(word, topic=None, translator=None, explanatory_dictionary=None):
-        if word == "headhunt":
+        if word == FIRST:
             raise ValueError("nothing came back")
         return [{"word": word, "pos": "noun", "topic": topic}]
 
     monkeypatch.setattr(seed_topics, "lookup_word", flaky)
 
-    seed_topics.main(["--topic", "Work and careers", "--pause", "0"])
+    seed_topics.main(["--topic", WORK, "--pause", "0"])
 
     out = capsys.readouterr().out
     assert "could not be built:" in out
-    assert "- headhunt: ValueError: nothing came back" in out
+    assert f"- {FIRST}: ValueError: nothing came back" in out
 
 
 def test_a_failed_save_does_not_end_the_run_either(monkeypatch):
@@ -314,18 +321,18 @@ def test_a_failed_save_does_not_end_the_run_either(monkeypatch):
                                         "topic": topic}])
 
     def flaky_save(entry, added_by_user_id=None):
-        if entry["word"] == "delegate":
+        if entry["word"] == FIRST:
             raise RuntimeError("column too short")
         return 1
 
     monkeypatch.setattr(seed_topics, "save_flashcard", flaky_save)
 
-    counts = seed_topics.run(seed_topics.chosen_topics("Work and careers"),
+    counts = seed_topics.run(seed_topics.chosen_topics(WORK),
                              None, None, "google", "oxford", pause=0,
                              out=io.StringIO())
 
     assert counts.added == 19
-    assert [w for w, _ in counts.failed] == ["delegate"]
+    assert [w for w, _ in counts.failed] == [FIRST]
 
 
 # --- re-running -----------------------------------------------------------
