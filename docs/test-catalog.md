@@ -421,6 +421,43 @@ kuantorflow#215. `test_apply_schema_db.py` proves the migration; this proves the
 | `test_the_grouped_read_orders_by_section_then_position_then_name` | #215's full ordering rule, end to end. |
 | `test_a_topic_with_no_section_is_absent_rather_than_ungrouped` | The documented consequence of no "no section" branch: such a topic is missing from this page while still listed flat and still reachable by URL. |
 
+## test_topic_icons.py — pictures on the topic tiles (13 tests, 22 cases)
+
+kuantorflow#223. A topic finds its icon by **name** — `static/img/topics/<slug>.webp` — so the feature is a convention plus a directory listing. Two things pull in opposite directions and both are pinned: the slug rule, which is the only thing joining a database row to a file on disk, and the **absence** of a file, which is the common case rather than the edge one (everything in `Other`, and anything a learner invents by looking a word up). The icon directory is stubbed in most tests — a test that passed only because someone had committed a matching file would be asserting the state of `static/`, not the behaviour of the code.
+
+**The slug rule**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_slug_is_the_name_lower_cased_with_runs_collapsed` | Ten cases, spelled out rather than sampled: this is the only join between a topics row and a file, so a change here silently unhooks every icon. Covers punctuation, case, padding, `''` and `None`. |
+| `test_a_topic_with_a_file_gets_a_static_url` | The happy path resolves to a `/static/` URL. |
+| `test_a_topic_with_no_file_gets_none` | `None`, not a placeholder path — the caller decides, and the tile keeps its flat colour. |
+| `test_a_missing_icon_directory_is_not_an_error` | A checkout with no icons committed still renders every tile. |
+
+**The tile**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_tile_with_an_icon_carries_the_image_and_the_modifier` | Both the `<img>` and the `topic-tile--image` class, which is what the scrim hangs off. |
+| `test_a_tile_without_an_icon_has_no_image_at_all` | Not an empty `src`, not a placeholder — no element. A broken-image icon on every topic in `Other` would be worse than the plain tile. |
+| `test_the_image_is_decorative` | An empty `alt`, because the topic's name is already on the tile as text; plus `loading="lazy"`, since 18 icons should not block first paint. |
+| `test_the_caption_still_follows_the_image` | Markup order is what puts the caption above the scrim — reversed, the name would be painted under it and vanish. |
+
+**`/topics.json` and the widget**
+
+| Test | What it checks |
+| --- | --- |
+| `test_topics_json_carries_an_icon_map` | A `name -> url` map, and the `(name, count)` pairs unchanged — widening the pair would push presentation into the database layer. |
+| `test_a_topic_with_no_icon_is_absent_from_the_map` | Absent rather than mapped to null, so the JavaScript's `if (iconUrl)` reads the same either way. |
+| `test_the_widget_rebuild_uses_the_map_rather_than_guessing` | It reads `data.icons` and does **not** re-derive the slug or build the path itself; duplicating the rule in JavaScript is how the two would drift, and the symptom would be silently missing pictures. |
+
+**The real directory, deliberately** — these two read the checkout rather than a stub, and skip when `seed_words.py` is not on the branch under test (#203).
+
+| Test | What it checks |
+| --- | --- |
+| `test_every_seeded_topic_has_an_icon_file` | A topic renamed without renaming its file loses its icon silently — no error, no log line, just a plain tile. |
+| `test_no_icon_file_is_orphaned` | The other direction: a file whose topic no longer exists is dead weight in the repo and on every page load. |
+
 ## test_topic_sections_ui.py — sections on the Browse page (13 cases)
 
 kuantorflow#218. #215 gave topics a section and rendered nothing; this is the UI half. The decisions are all about what a heading *means* — structure, so an empty section still gets one, except when the whole deck is empty, and #127's explanation wins over both. The Mykola widget rebuilds the same block in JavaScript after a chat save (#53), so the rules are asserted against that code too.
