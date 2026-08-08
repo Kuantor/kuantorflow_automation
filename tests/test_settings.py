@@ -55,6 +55,62 @@ def test_settings_endpoint_saves_and_validates(user_client, settings_dir):
     assert on_disk == stored
 
 
+# --- the change is logged (#161) -----------------------------------------
+#
+# Unlogged until #161, and the omission cost real diagnosis time: with
+# `individual_cards` on (#127) a learner sees none of the shared deck and is told
+# a word is "already in the database" that they cannot find (#186). That reads as
+# a broken app, and nothing recorded the setting being switched on.
+
+
+def test_a_settings_change_is_logged(user_client, settings_dir, action_logs):
+    user_client.post("/settings", json={"individual_cards": True,
+                                        "translator": "bing"})
+
+    line = [l for l in (action_logs / "cards.log").read_text(encoding="utf-8")
+            .splitlines() if " SETTINGS " in l][0]
+    assert "individual_cards=True" in line
+    assert "translator=bing" in line
+    assert "user=test.user@gmail.com" in line
+
+
+def test_a_rejected_value_is_logged_beside_what_was_stored(user_client,
+                                                           settings_dir,
+                                                           action_logs):
+    """The store silently replaces an invalid value with the default, so
+    "I chose no-such-dictionary and it went back to Oxford" is only answerable by
+    logging both sides."""
+    user_client.post("/settings",
+                     json={"explanatory_dictionary": "no-such-dictionary"})
+
+    line = [l for l in (action_logs / "cards.log").read_text(encoding="utf-8")
+            .splitlines() if " SETTINGS " in l][0]
+    assert "set=explanatory_dictionary=oxford" in line, "what stuck"
+    assert "rejected=explanatory_dictionary=no-such-dictionary" in line, "what was sent"
+
+
+def test_an_unknown_key_is_logged_as_unknown(user_client, settings_dir,
+                                             action_logs):
+    """Dropped by the store rather than stored wrong, so it belongs in its own
+    field — it is a different failure from a value the store would not take."""
+    user_client.post("/settings", json={"nonsense": 1})
+
+    line = [l for l in (action_logs / "cards.log").read_text(encoding="utf-8")
+            .splitlines() if " SETTINGS " in l][0]
+    assert "unknown=nonsense" in line
+    assert "set=" not in line, "nothing was set"
+
+
+def test_a_refused_anonymous_save_logs_nothing(client, settings_dir,
+                                               action_logs):
+    """#102 refuses the write, so there is no change to record. A line here would
+    say a setting changed when the response said it had not."""
+    assert client.post("/settings", json={"translator": "bing"}).status_code == 403
+
+    log = action_logs / "cards.log"
+    assert not log.exists() or " SETTINGS " not in log.read_text(encoding="utf-8")
+
+
 def test_settings_saved_per_identity(user_client, settings_dir):
     """A signed-in save lands in that user's own file only."""
     user_client.post("/settings", json={"translator": "bing",

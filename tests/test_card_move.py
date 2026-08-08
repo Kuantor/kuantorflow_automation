@@ -244,14 +244,39 @@ def test_the_confirmation_names_the_destination(user_client, moved):
     assert "Moved &#39;resilient&#39; to &#39;character&#39;." in body
 
 
-def test_the_move_is_logged_as_an_edit_of_the_topic(user_client, moved,
-                                                    action_logs):
+def test_the_move_is_logged_with_both_of_its_ends(user_client, moved,
+                                                  action_logs):
+    """Its own MOVE action since #161, not an `EDIT changed=topic`.
+
+    The destination alone was never the interesting half: "which topic did this
+    come out of" is what a move is about, and the route had `from_topic` in hand
+    and dropped it. `grep MOVE` also separates these from every explanation
+    somebody retyped.
+    """
     _move(user_client)
     line = [l for l in (action_logs / "cards.log").read_text(encoding="utf-8")
-            .splitlines() if "EDIT " in l][0]
-    assert "changed=topic" in line
+            .splitlines() if " MOVE " in l][0]
+    assert "word=resilient" in line and "id=5" in line
+    assert "from=vocab" in line, "where it came from"
+    assert "topic=character" in line, "and where it went"
     assert "source='topic move'" in line
-    assert "id=5" in line
+    assert "EDIT" not in line, "a move is no longer disguised as an edit"
+
+
+def test_a_move_out_of_no_topic_logs_no_origin(user_client, app_module,
+                                               monkeypatch, moved, action_logs):
+    """"No topic" is a real state (#207), so the field is absent rather than
+    empty — the same way every other None is dropped from a line."""
+    monkeypatch.setattr(app_module, "move_flashcard",
+                        lambda card_id, to_topic, owner_id=None, admin=False:
+                        ("moved", ("resilient", None)))
+
+    _move(user_client)
+
+    line = [l for l in (action_logs / "cards.log").read_text(encoding="utf-8")
+            .splitlines() if " MOVE " in l][0]
+    assert "from=" not in line
+    assert "topic=character" in line
 
 
 def test_a_forged_move_of_someone_elses_card_is_refused(user_client,
