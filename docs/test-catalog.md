@@ -421,7 +421,7 @@ kuantorflow#215. `test_apply_schema_db.py` proves the migration; this proves the
 | `test_the_grouped_read_orders_by_section_then_position_then_name` | #215's full ordering rule, end to end. |
 | `test_a_topic_with_no_section_is_absent_rather_than_ungrouped` | The documented consequence of no "no section" branch: such a topic is missing from this page while still listed flat and still reachable by URL. |
 
-## test_seed_topics.py — the seeding script and its word list (27 cases)
+## test_seed_topics.py — the seeding script and its word list (32 cases)
 
 kuantorflow#203. `seed_topics.py` turns `seed_words.py` into cards through the app's own `lookup_word()` and `save_flashcard()`. Both are stubbed here — **these tests never touch a dictionary or a database**; 360 words over a network is what the script exists to do once, not what a suite should do on every run. What is pinned down is the set of properties the script borrowed from `apply_schema.py`, because each one is a specific failure someone would otherwise hit 300 words into a run they cannot repeat cheaply.
 
@@ -436,6 +436,16 @@ kuantorflow#203. `seed_topics.py` turns `seed_words.py` into cards through the a
 | `test_the_list_is_ordered_not_sorted` | Order is load-bearing twice (lookup order, and `topics.position`); alphabetical would mean somebody sorted it and broke both. |
 | `test_a_broken_list_stops_the_script_before_any_lookup` | Validated first, always — a topic of nineteen words would otherwise surface 300 lookups in. |
 | `test_check_validates_and_exits_without_touching_anything` | `--check` reports the totals and calls nothing. |
+
+**Every word must be one Oxford can define (#221)** — Oxford is the only explanatory dictionary reachable from PythonAnywhere, so a word it has no entry for reaches production with translations and no English explanation, and locally nobody notices because Reverso covers the gap. That is exactly how #221 hid for months; `--check-oxford` is the guard. The dictionary is stubbed here — the suite does not make 360 network requests to prove the plumbing.
+
+| Test | What it checks |
+| --- | --- |
+| `test_check_oxford_is_quiet_when_every_word_has_an_entry` | The happy path says so plainly and exits 0. |
+| `test_check_oxford_names_the_words_it_cannot_define` | Named and non-zero: a count would not say which word to swap, and a zero exit would let the list rot quietly. |
+| `test_check_oxford_reports_a_broken_request_rather_than_dying` | A dictionary that is down is not the same as a word that is absent, and neither ends the check half way through. |
+| `test_check_oxford_writes_nothing_and_looks_up_nothing_else` | It asks the dictionary directly — one request per word instead of a full lookup's three — and never reaches the database. |
+| `test_a_broken_word_list_stops_check_oxford_too` | The list's shape is validated before anything is asked, on every path. |
 
 **Choosing what to run**
 

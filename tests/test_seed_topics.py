@@ -101,6 +101,81 @@ def test_check_validates_and_exits_without_touching_anything(monkeypatch, capsys
     assert calls == []
 
 
+# --- every word must be one Oxford can define (#221) --------------------
+#
+# Oxford is the only explanatory dictionary reachable from PythonAnywhere, so a
+# word it has no entry for reaches production with translations and no English
+# explanation — and locally nobody notices, because Reverso covers the gap from a
+# developer's machine. That is exactly how #221 hid for months, and `--check-oxford`
+# is the guard. The dictionary itself is stubbed here; the suite does not make 360
+# network requests to prove the plumbing.
+
+
+def test_check_oxford_is_quiet_when_every_word_has_an_entry(monkeypatch, capsys):
+    monkeypatch.setattr(seed_topics, "_fetch_oxford_definitions",
+                        lambda word: {"noun": [f"a definition of {word}"]})
+
+    assert seed_topics.main(["--check-oxford", "--topic", WORK, "--pause", "0"]) == 0
+    assert "all 20 word(s) have an Oxford definition" in capsys.readouterr().out
+
+
+def test_check_oxford_names_the_words_it_cannot_define(monkeypatch, capsys):
+    """Named and non-zero. A count would not say which word to swap, and a zero
+    exit would let the list rot quietly."""
+    monkeypatch.setattr(
+        seed_topics, "_fetch_oxford_definitions",
+        lambda word: {} if word in (FIRST, SECOND) else {"noun": ["a def"]})
+
+    assert seed_topics.main(["--check-oxford", "--topic", WORK, "--pause", "0"]) == 1
+    captured = capsys.readouterr()
+    assert f"- {FIRST}: no entry" in captured.out
+    assert f"- {SECOND}: no entry" in captured.out
+    assert "only dictionary reachable from PythonAnywhere" in captured.err
+
+
+def test_check_oxford_reports_a_broken_request_rather_than_dying(monkeypatch):
+    """A dictionary that is down is not the same as a word that is absent, and
+    neither should end the check half way through the list."""
+    def boom(word):
+        raise RuntimeError("dictionary unreachable")
+
+    monkeypatch.setattr(seed_topics, "_fetch_oxford_definitions", boom)
+
+    misses = seed_topics.oxford_misses(["alpha", "beta"], pause=0,
+                                       out=io.StringIO())
+    assert [w for w, _ in misses] == ["alpha", "beta"]
+    assert all("RuntimeError" in reason for _, reason in misses)
+
+
+def test_check_oxford_writes_nothing_and_looks_up_nothing_else(monkeypatch):
+    """It asks the dictionary directly — one request per word instead of the
+    three a full lookup costs — and never reaches the database."""
+    calls = []
+    monkeypatch.setattr(seed_topics, "_fetch_oxford_definitions",
+                        lambda word: {"noun": ["a def"]})
+    monkeypatch.setattr(seed_topics, "lookup_word",
+                        lambda *a, **k: calls.append("lookup"))
+    monkeypatch.setattr(seed_topics, "place_topic",
+                        lambda *a, **k: calls.append("place"))
+    monkeypatch.setattr(seed_topics, "save_flashcard",
+                        lambda *a, **k: calls.append("save"))
+
+    seed_topics.main(["--check-oxford", "--topic", WORK, "--pause", "0"])
+    assert calls == []
+
+
+def test_a_broken_word_list_stops_check_oxford_too(monkeypatch):
+    """The shape of the list is validated before anything is asked, on every
+    path — 360 requests is a slow way to find out a topic has nineteen words."""
+    monkeypatch.setattr(seed_words, "problems", lambda: ["Topic: 19 words"])
+    asked = []
+    monkeypatch.setattr(seed_topics, "_fetch_oxford_definitions",
+                        lambda word: asked.append(word) or {})
+
+    assert seed_topics.main(["--check-oxford"]) == 1
+    assert asked == []
+
+
 # --- choosing what to run -----------------------------------------------
 
 
