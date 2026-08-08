@@ -179,6 +179,110 @@ def test_oxford_unknown_word_returns_empty(monkeypatch):
     assert parsers._fetch_oxford_definitions("qwertyzzz") == {}
 
 
+# --- both of Oxford's sense shapes (#221) --------------------------------
+#
+# Oxford wraps a sense's definition in a `span.sensetop` whenever that sense
+# carries extra furniture at the top of it — always on a single-sense entry, and
+# on the *first* sense of many multi-sense ones. The definition is then a
+# grandchild of `.sense`, and the `.sense > .def` selector this parser used until
+# #221 walked straight past it.
+#
+# Every Oxford fixture above happens to use the direct-child shape, which is
+# exactly why the bug passed the suite for so long. These two are trimmed from
+# the real `punctual` and `hedge` pages so that a selector handling one shape and
+# not the other cannot pass again.
+
+OXFORD_SINGLE_SENSE_PAGE = """
+<html><body>
+<div class="webtop"><h1 class="headword">punctual</h1><span class="pos">adjective</span></div>
+<ol class="sense_single"><li class="sense"><span class="sensetop">
+  <span class="def">happening or doing something at the arranged or correct time; not late</span>
+</span></li></ol>
+</body></html>
+"""
+
+# `hedge`, which has one of each in a single entry — and the *primary* sense is
+# the wrapped one, so the old selector returned only the financial meaning.
+OXFORD_MIXED_SENSES_PAGE = """
+<html><body>
+<div class="webtop"><h1 class="headword">hedge</h1><span class="pos">noun</span></div>
+<ol class="senses_multiple">
+  <li class="sense"><span class="sensetop">
+    <span class="def">a row of bushes or small trees planted close together</span>
+  </span></li>
+  <li class="sense">
+    <span class="def">a way of protecting yourself against the loss of something</span>
+  </li>
+</ol>
+</body></html>
+"""
+
+
+def _page(monkeypatch, html):
+    monkeypatch.setattr(parsers.requests, "get",
+                        lambda url, **kwargs: FakeResponse(html, url=url))
+
+
+def test_oxford_reads_a_single_sense_entry(monkeypatch):
+    """The #221 bug itself. A single-sense entry is the common shape for precise
+    vocabulary, and it returned nothing at all — 143 of the 360 words in #203's
+    list, including `punctual`, `resign` and `algorithm`."""
+    _page(monkeypatch, OXFORD_SINGLE_SENSE_PAGE)
+
+    assert parsers._fetch_oxford_definitions("punctual") == {
+        "adjective": ["happening or doing something at the arranged or correct "
+                      "time; not late"]}
+
+
+def test_oxford_keeps_the_primary_sense_of_a_mixed_entry(monkeypatch):
+    """The worse half of #221: when one entry holds both shapes, the wrapped
+    sense is usually the *first* one. The old selector dropped it and kept a
+    later one, so `hedge` was defined only as a financial instrument — a
+    confidently wrong card rather than an empty one."""
+    _page(monkeypatch, OXFORD_MIXED_SENSES_PAGE)
+
+    assert parsers._fetch_oxford_definitions("hedge") == {
+        "noun": ["a row of bushes or small trees planted close together",
+                 "a way of protecting yourself against the loss of something"]}
+
+
+def test_oxford_keeps_the_senses_in_the_page_order(monkeypatch):
+    """Which is Oxford's order of importance, and what makes the first
+    definition on a card the one a learner most likely wants."""
+    _page(monkeypatch, OXFORD_MIXED_SENSES_PAGE)
+
+    defs = parsers._fetch_oxford_definitions("hedge")["noun"]
+    assert defs[0].startswith("a row of bushes")
+
+
+def test_oxford_still_caps_the_definitions_it_keeps(monkeypatch):
+    """A descendant selector reaches more nodes, so the cap earns a test: an
+    entry with many senses must not put ten definitions on one card."""
+    senses = "".join(
+        f'<li class="sense"><span class="sensetop"><span class="def">'
+        f'sense number {n}</span></span></li>' for n in range(1, 9))
+    _page(monkeypatch,
+          '<html><body><div class="webtop"><span class="pos">noun</span></div>'
+          f'<ol class="senses_multiple">{senses}</ol></body></html>')
+
+    defs = parsers._fetch_oxford_definitions("many")["noun"]
+    assert len(defs) == parsers.MAX_DEFINITIONS
+    assert defs[0] == "sense number 1"
+
+
+def test_oxford_does_not_repeat_a_definition_it_has_already_taken(monkeypatch):
+    """The de-duplication predates #221 and matters more now: the wrapped and
+    unwrapped shapes both being reachable makes a repeat easier to hit."""
+    _page(monkeypatch,
+          '<html><body><div class="webtop"><span class="pos">noun</span></div>'
+          '<ol><li class="sense"><span class="sensetop">'
+          '<span class="def">the same words</span></span></li>'
+          '<li class="sense"><span class="def">the same words</span></li>'
+          '</ol></body></html>')
+
+    assert parsers._fetch_oxford_definitions("dup") == {"noun": ["the same words"]}
+
+
 MW_PAGE = """
 <html><body>
 <div id="dictionary-entry-1">

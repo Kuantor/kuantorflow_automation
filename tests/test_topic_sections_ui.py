@@ -179,7 +179,10 @@ def test_topics_json_survives_a_dead_database(client, app_module, monkeypatch):
 
     monkeypatch.setattr(app_module, "get_topics_by_section", boom)
     data = client.get("/topics.json").get_json()
-    assert data == {"topics": [], "sections": []}
+    # Compared exactly, on purpose: the point is that nothing leaks through a
+    # failed read. `icons` joined the payload in #223 and is empty for the same
+    # reason the other two are — there are no topics to have icons for.
+    assert data == {"topics": [], "sections": [], "icons": {}}
 
 
 # --- the widget's copy of the markup ------------------------------------

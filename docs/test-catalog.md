@@ -526,6 +526,42 @@ kuantorflow#203. What only a database can prove: that `place_topic()` puts the c
 | `test_an_unknown_owner_email_is_refused_before_anything_is_written` | Refused rather than falling back to nobody, and before a single lookup. |
 | `test_a_dry_run_changes_nothing` | No topics, no cards, no lookups. |
 | `test_a_dry_run_reports_a_topic_it_would_move` | `current_placement()` reads the real table, which is what turns "18 would be created" into "one of yours would be moved". |
+## test_topic_icons.py — pictures on the topic tiles (13 tests, 22 cases)
+
+kuantorflow#223. A topic finds its icon by **name** — `static/img/topics/<slug>.webp` — so the feature is a convention plus a directory listing. Two things pull in opposite directions and both are pinned: the slug rule, which is the only thing joining a database row to a file on disk, and the **absence** of a file, which is the common case rather than the edge one (everything in `Other`, and anything a learner invents by looking a word up). The icon directory is stubbed in most tests — a test that passed only because someone had committed a matching file would be asserting the state of `static/`, not the behaviour of the code.
+
+**The slug rule**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_slug_is_the_name_lower_cased_with_runs_collapsed` | Ten cases, spelled out rather than sampled: this is the only join between a topics row and a file, so a change here silently unhooks every icon. Covers punctuation, case, padding, `''` and `None`. |
+| `test_a_topic_with_a_file_gets_a_static_url` | The happy path resolves to a `/static/` URL. |
+| `test_a_topic_with_no_file_gets_none` | `None`, not a placeholder path — the caller decides, and the tile keeps its flat colour. |
+| `test_a_missing_icon_directory_is_not_an_error` | A checkout with no icons committed still renders every tile. |
+
+**The tile**
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_tile_with_an_icon_carries_the_image_and_the_modifier` | Both the `<img>` and the `topic-tile--image` class, which is what the scrim hangs off. |
+| `test_a_tile_without_an_icon_has_no_image_at_all` | Not an empty `src`, not a placeholder — no element. A broken-image icon on every topic in `Other` would be worse than the plain tile. |
+| `test_the_image_is_decorative` | An empty `alt`, because the topic's name is already on the tile as text; plus `loading="lazy"`, since 18 icons should not block first paint. |
+| `test_the_caption_still_follows_the_image` | Markup order is what puts the caption above the scrim — reversed, the name would be painted under it and vanish. |
+
+**`/topics.json` and the widget**
+
+| Test | What it checks |
+| --- | --- |
+| `test_topics_json_carries_an_icon_map` | A `name -> url` map, and the `(name, count)` pairs unchanged — widening the pair would push presentation into the database layer. |
+| `test_a_topic_with_no_icon_is_absent_from_the_map` | Absent rather than mapped to null, so the JavaScript's `if (iconUrl)` reads the same either way. |
+| `test_the_widget_rebuild_uses_the_map_rather_than_guessing` | It reads `data.icons` and does **not** re-derive the slug or build the path itself; duplicating the rule in JavaScript is how the two would drift, and the symptom would be silently missing pictures. |
+
+**The real directory, deliberately** — these two read the checkout rather than a stub, and skip when `seed_words.py` is not on the branch under test (#203).
+
+| Test | What it checks |
+| --- | --- |
+| `test_every_seeded_topic_has_an_icon_file` | A topic renamed without renaming its file loses its icon silently — no error, no log line, just a plain tile. |
+| `test_no_icon_file_is_orphaned` | The other direction: a file whose topic no longer exists is dead weight in the repo and on every page load. |
 
 ## test_topic_sections_ui.py — sections on the Browse page (13 cases)
 
@@ -1274,7 +1310,7 @@ ai_agent#62, the KuantorFlow half. The tool itself lives in `ai_agent`; what is 
 | `test_no_rows_updated_is_reported` | An id that matches nothing reports False. |
 | `test_no_account_never_reaches_the_database` | No id means no connection is opened at all — the stub raises if it is. |
 
-## test_providers.py — translation and dictionary providers (13 cases)
+## test_providers.py — translation and dictionary providers (18 cases)
 
 kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests replace the backend functions, the fetcher tests replace `requests.get`/`post` (or the Bing API seam) with responses captured from the real services.
 
@@ -1304,6 +1340,16 @@ kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests rep
 | `test_oxford_follows_sibling_entries_only` | Both senses of the word are collected by following the *sibling* entry (`run_2`) and not unrelated related-entry links like `run-up` or `ladder` — the fetch list is asserted exactly. |
 | `test_oxford_unknown_word_returns_empty` | A 404 yields an empty result rather than raising. |
 | `test_merriam_webster_parses_entries` | Each entry's part of speech and definitions are parsed, with a repeated definition de-duplicated. |
+
+**Oxford's two sense shapes (#221)** — Oxford wraps a sense's definition in a `span.sensetop` whenever that sense carries extra furniture at the top, which makes the definition a *grandchild* of `.sense`. The `.sense > .def` selector used until #221 walked past it. Every other Oxford fixture in this file happens to use the direct-child shape, which is exactly why the bug passed the suite; these are trimmed from the real `punctual` and `hedge` pages so a selector handling one shape and not the other cannot pass again.
+
+| Test | What it checks |
+| --- | --- |
+| `test_oxford_reads_a_single_sense_entry` | The bug itself: a single-sense entry — the common shape for precise vocabulary — returned nothing at all, which was 143 of the 360 words in #203's list. |
+| `test_oxford_keeps_the_primary_sense_of_a_mixed_entry` | The worse half: in an entry holding both shapes the wrapped sense is usually the *first*, so `hedge` was defined only as a financial instrument. A confidently wrong card, not an empty one. |
+| `test_oxford_keeps_the_senses_in_the_page_order` | Oxford's order is its order of importance, so the first definition on a card is the one a learner most likely wants. |
+| `test_oxford_still_caps_the_definitions_it_keeps` | A descendant selector reaches more nodes, so `MAX_DEFINITIONS` earns a test of its own. |
+| `test_oxford_does_not_repeat_a_definition_it_has_already_taken` | De-duplication predates #221 but matters more now that both shapes are reachable. |
 | `test_merriam_webster_unknown_word_returns_empty` | A 404 yields an empty result. |
 
 ## test_quiz.py — grading, language filtering and fallbacks (10 cases)
