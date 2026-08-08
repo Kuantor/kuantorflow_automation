@@ -158,8 +158,12 @@ def test_edit_helper_is_ready_for_an_edit_feature(action_logs):
 def test_lookup_logs_every_site_it_used(action_logs, monkeypatch):
     monkeypatch.setattr(parsers, "_google_dictionary",
                         lambda word, code: {"noun": ["стійкість"]})
-    monkeypatch.setattr(parsers, "_fetch_oxford_definitions",
-                        lambda word: {"noun": ["able to recover"]})
+    # The *entry* function, which is what _dictionary_backend() returns since
+    # #225 and therefore the only thing lookup_word() calls. Stubbing the
+    # definitions-only fetcher underneath it leaves the real one in the path,
+    # and this "offline" test starts making live requests to Oxford.
+    monkeypatch.setattr(parsers, "_fetch_oxford_entry",
+                        lambda word: ({"noun": ["able to recover"]}, {}))
     parsers.lookup_word("resilient", translator="google",
                         explanatory_dictionary="oxford")
 
@@ -178,7 +182,7 @@ def test_lookup_logs_the_fallback_provider(action_logs, monkeypatch):
                         lambda word, code: (_ for _ in ()).throw(ValueError("401")))
     monkeypatch.setattr(parsers, "_google_dictionary",
                         lambda word, code: {"noun": ["стійкість"]})
-    monkeypatch.setattr(parsers, "_fetch_oxford_definitions", lambda word: {})
+    monkeypatch.setattr(parsers, "_fetch_oxford_entry", lambda word: ({}, {}))
     monkeypatch.setattr(parsers, "_fetch_definitions", lambda word: {})
     parsers.lookup_word("resilient", translator="bing",
                         explanatory_dictionary="oxford")

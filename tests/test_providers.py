@@ -19,7 +19,20 @@ BING = {"noun": ["будинок"]}
 
 @pytest.fixture()
 def backends(monkeypatch):
-    """Replace every network-touching backend, recording who was called."""
+    """Replace every network-touching backend, recording who was called.
+
+    The dictionary backends are stubbed at the **entry** functions since #225 —
+    `_fetch_oxford_entry` and `_merriam_webster_entry` — because those are what
+    `_dictionary_backend()` now returns and therefore the only things
+    `lookup_word()` calls. Stubbing the definitions-only fetchers underneath them
+    would leave the real entry functions in the call path, and the "offline"
+    tests would quietly make live requests to Oxford. That happened while #225
+    was being written; it is why the seam moved rather than a branch being added.
+
+    `oxford=` and `mw=` still take a plain `{pos: [defs]}` for readability. The
+    tuple the entry shape returns is assembled here, with `examples=` for the
+    tests that care about the second half.
+    """
     calls = []
 
     def backend(name, result):
@@ -30,11 +43,14 @@ def backends(monkeypatch):
             return result
         return fetch
 
-    def install(google=GOOGLE, bing=BING, oxford={}, mw={}, reverso={}):
+    def install(google=GOOGLE, bing=BING, oxford={}, mw={}, reverso={},
+                examples={}):
         monkeypatch.setattr(parsers, "_google_dictionary", backend("google", google))
         monkeypatch.setattr(parsers, "_bing_dictionary", backend("bing", bing))
-        monkeypatch.setattr(parsers, "_fetch_oxford_definitions", backend("oxford", oxford))
-        monkeypatch.setattr(parsers, "_fetch_merriam_webster_definitions", backend("mw", mw))
+        monkeypatch.setattr(parsers, "_fetch_oxford_entry", backend(
+            "oxford", oxford if isinstance(oxford, Exception) else (oxford, examples)))
+        monkeypatch.setattr(parsers, "_merriam_webster_entry", backend(
+            "mw", mw if isinstance(mw, Exception) else (mw, {})))
         monkeypatch.setattr(parsers, "_fetch_definitions", backend("reverso", reverso))
         return calls
 
@@ -221,6 +237,166 @@ OXFORD_MIXED_SENSES_PAGE = """
 def _page(monkeypatch, html):
     monkeypatch.setattr(parsers.requests, "get",
                         lambda url, **kwargs: FakeResponse(html, url=url))
+
+
+# --- Oxford's example sentences (#225) -----------------------------------
+#
+# Examples live inside `li.sense`, exactly where definitions do, so they come out
+# of the same walk. Two things about the markup earn tests of their own: an
+# example may be preceded by a `span.cf` carrying the grammar pattern it
+# illustrates, which reads as a broken sentence on a flashcard; and both sense
+# shapes from #221 must work here too, since a selector that only handles one is
+# precisely the bug that hid for months.
+
+OXFORD_EXAMPLES_PAGE = """
+<html><body>
+<div class="webtop"><h1 class="headword">hedge</h1><span class="pos">noun</span></div>
+<ol class="senses_multiple">
+  <li class="sense"><span class="sensetop">
+    <span class="def">a row of bushes</span>
+    <ul class="examples">
+      <li><span class="x">a privet hedge</span></li>
+      <li><span class="x">Trim the hedge.</span></li>
+    </ul>
+  </span></li>
+  <li class="sense">
+    <span class="def">a way of protecting yourself</span>
+    <ul class="examples">
+      <li><span class="cf">be hedged (with something)</span><span class="x">His belief was hedged with doubt.</span></li>
+    </ul>
+  </li>
+</ol>
+</body></html>
+"""
+
+
+def test_oxford_takes_example_sentences(monkeypatch):
+    _page(monkeypatch, OXFORD_EXAMPLES_PAGE)
+
+    _, examples = parsers._fetch_oxford_entry("hedge")
+    assert examples == {"noun": ["a privet hedge", "Trim the hedge.",
+                                 "His belief was hedged with doubt."]}
+
+
+def test_oxford_examples_come_from_both_sense_shapes(monkeypatch):
+    """The wrapped sense and the unwrapped one, in one entry — #221's lesson
+    applied to a second selector rather than relearned later."""
+    _page(monkeypatch, OXFORD_EXAMPLES_PAGE)
+
+    examples = parsers._fetch_oxford_entry("hedge")[1]["noun"]
+    assert "a privet hedge" in examples, "the span.sensetop sense"
+    assert "His belief was hedged with doubt." in examples, "the direct-child sense"
+
+
+def test_oxford_drops_the_grammar_pattern_before_the_sentence(monkeypatch):
+    """`span.cf` is the pattern the example illustrates — useful beside a
+    dictionary heading, a broken sentence on a card:
+    'be hedged (with something) His belief was hedged with doubt.'"""
+    _page(monkeypatch, OXFORD_EXAMPLES_PAGE)
+
+    examples = parsers._fetch_oxford_entry("hedge")[1]["noun"]
+    assert "His belief was hedged with doubt." in examples
+    assert not any("be hedged (with something)" in e for e in examples)
+
+
+def test_oxford_keeps_a_whole_example_when_there_is_no_x_span(monkeypatch):
+    """A fallback, not a guess: if Oxford changes how it wraps a sentence, an
+    example is still worth having."""
+    _page(monkeypatch,
+          '<html><body><div class="webtop"><span class="pos">noun</span></div>'
+          '<ol><li class="sense"><span class="def">a thing</span>'
+          '<ul class="examples"><li>a bare example</li></ul>'
+          '</li></ol></body></html>')
+
+    assert parsers._fetch_oxford_entry("bare")[1] == {"noun": ["a bare example"]}
+
+
+def test_oxford_caps_the_examples_it_keeps(monkeypatch):
+    """Oxford gives a popular word dozens — 41 for one of #203's words."""
+    items = "".join(f'<li><span class="x">example {n}</span></li>'
+                    for n in range(1, 12))
+    _page(monkeypatch,
+          '<html><body><div class="webtop"><span class="pos">noun</span></div>'
+          '<ol><li class="sense"><span class="def">a thing</span>'
+          f'<ul class="examples">{items}</ul></li></ol></body></html>')
+
+    examples = parsers._fetch_oxford_entry("many")[1]["noun"]
+    assert len(examples) == parsers.MAX_EXAMPLES
+    assert examples[0] == "example 1", "Oxford's order is its order of importance"
+
+
+def test_a_word_with_no_examples_still_returns_its_definitions(monkeypatch):
+    """`burnout` is the real case: Oxford defines it and gives no sentences."""
+    _page(monkeypatch, OXFORD_SINGLE_SENSE_PAGE)
+
+    definitions, examples = parsers._fetch_oxford_entry("punctual")
+    assert definitions and examples == {}
+
+
+def test_oxford_definitions_alone_still_answer_the_shared_contract(monkeypatch):
+    """`_fetch_oxford_definitions()` keeps returning `{pos: [defs]}`. It is the
+    shape the other dictionaries return, and `seed_topics.py --check-oxford`
+    calls it directly."""
+    _page(monkeypatch, OXFORD_EXAMPLES_PAGE)
+
+    assert parsers._fetch_oxford_definitions("hedge") == {
+        "noun": ["a row of bushes", "a way of protecting yourself"]}
+
+
+# --- the examples reaching the card -------------------------------------
+
+
+def test_a_lookup_puts_the_examples_on_the_matching_card(backends):
+    """Grouped by part of speech, like the definition — so a card can have a
+    translation and neither, which is what happens when the translator finds a
+    part of speech the dictionary does not list."""
+    backends(google={"noun": ["дім"], "verb": ["розмістити"]},
+             oxford={"noun": ["a building"]},
+             examples={"noun": ["We live in a big house."]})
+
+    cards = {c["pos"]: c for c in parsers.lookup_word("house")}
+
+    assert cards["noun"]["examples_en"] == ["We live in a big house."]
+    assert "examples_en" not in cards["verb"], "no examples for that sense"
+
+
+def test_examples_reach_the_card_as_a_list(backends):
+    """`examples_en` is one of `utils.LIST_FIELDS` and stored as JSON, so the
+    card page can show them as separate sentences rather than one run-on."""
+    backends(oxford={"noun": ["a building"]},
+             examples={"noun": ["One.", "Two."]})
+
+    card = parsers.lookup_word("house")[0]
+    assert card["examples_en"] == ["One.", "Two."]
+
+
+def test_the_reverso_fallback_supplies_no_examples(backends):
+    """It answers with definitions only, and Reverso Context — where examples
+    would come from — is IP-blocked from PythonAnywhere anyway."""
+    backends(oxford={}, reverso={"noun": ["reverso definition"]})
+
+    card = parsers.lookup_word("house", explanatory_dictionary="oxford")[0]
+    assert card["explanation_en"] == "reverso definition"
+    assert "examples_en" not in card
+
+
+def test_merriam_webster_supplies_no_examples(backends):
+    """It has them on the page; extracting them is not #225, and it is
+    unreachable from PythonAnywhere."""
+    backends(mw={"noun": ["a building for people to live in"]})
+
+    card = parsers.lookup_word("house", explanatory_dictionary="merriam-webster")[0]
+    assert card["explanation_en"] == "a building for people to live in"
+    assert "examples_en" not in card
+
+
+def test_a_dictionary_that_fails_costs_the_examples_and_nothing_else(backends):
+    backends(oxford=requests.ConnectionError("down"),
+             reverso=requests.ConnectionError("down"))
+
+    card = parsers.lookup_word("house")[0]
+    assert card["translation_ukr"] == "дім"
+    assert "explanation_en" not in card and "examples_en" not in card
 
 
 def test_oxford_reads_a_single_sense_entry(monkeypatch):
