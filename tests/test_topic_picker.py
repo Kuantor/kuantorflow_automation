@@ -328,3 +328,107 @@ def test_a_single_topic_quiz_does_not_repeat_its_name(client, deck):
         body = client.get(url).get_data(as_text=True)
         assert "Quiz: Work" in body
         assert 'class="quiz-topics"' not in body, url
+
+
+# --- how many words a round asks (kuantorflow#250) ----------------------
+
+
+MANY = [{"id": i, "word": f"word{i}", "pos": "noun", "topic": "Work",
+         "translation_ukr": f"слово{i}", "translation_rus": f"слово{i}"}
+        for i in range(1, 61)]
+
+
+@pytest.fixture()
+def big_deck(app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "get_topics_by_section",
+                        lambda owner_id=None: [("Sec", [("Work", 60)])])
+    monkeypatch.setattr(app_module, "get_flashcards_by_topics",
+                        lambda topics, owner_id=None: [dict(c) for c in MANY])
+
+
+def _asked(body):
+    """The answer_<id> fields a rendered round is asking about."""
+    import re
+    return re.findall(r'name="answer_(\d+)"', body)
+
+
+def test_a_round_asks_twenty_words_by_default(client, big_deck):
+    """Sixty cards is not a round, it is an afternoon."""
+    body = client.get("/quiz?topic=Work").get_data(as_text=True)
+    assert len(_asked(body)) == 20
+    assert "(20 questions)" in body
+
+
+def test_the_word_count_can_be_asked_for_in_the_url(client, big_deck):
+    body = client.get("/quiz?topic=Work&words=5").get_data(as_text=True)
+    assert len(_asked(body)) == 5
+
+
+def test_asking_for_more_words_than_exist_plays_what_there_is(client, big_deck):
+    body = client.get("/quiz?topic=Work&words=200").get_data(as_text=True)
+    assert len(_asked(body)) == 60
+
+
+@pytest.mark.parametrize("raw,expected", [("0", 1), ("-4", 1), ("9999", 60),
+                                          ("abc", 20), ("", 20)])
+def test_an_unusable_word_count_is_clamped_or_ignored(client, big_deck,
+                                                      raw, expected):
+    """It arrives from a URL anybody can edit, and a round is not the place to
+    argue about it."""
+    body = client.get(f"/quiz?topic=Work&words={raw}").get_data(as_text=True)
+    assert len(_asked(body)) == expected
+
+
+def test_the_words_are_drawn_at_random_rather_than_off_the_top(client, big_deck):
+    """Uniformly over every card in the selection — so two rounds differ, and
+    across several the draw reaches well past the first twenty."""
+    draws = [set(_asked(client.get("/quiz?topic=Work&words=20")
+                        .get_data(as_text=True))) for _ in range(6)]
+    assert all(len(d) == 20 for d in draws)
+    assert len({frozenset(d) for d in draws}) > 1, "every round drew the same words"
+    assert len(set().union(*draws)) > 30, "the draw never left the top of the list"
+
+
+def test_grading_marks_the_words_that_were_asked_not_a_fresh_draw(
+        client, big_deck):
+    """The round is a random sample, so re-drawing here would mark answers
+    against words the learner never saw."""
+    asked = _asked(client.get("/quiz?topic=Work&words=8").get_data(as_text=True))
+    answers = {f"answer_{i}": f"слово{i}" for i in asked}
+    body = client.post("/quiz?topic=Work&words=8&lang=ukr",
+                       data=answers).get_data(as_text=True)
+    assert "Score: 8 / 8" in body
+
+
+def test_the_results_are_numbered_in_the_order_the_questions_were_asked(
+        client, big_deck):
+    """A learner reading '3. wrong' has to find the third question they
+    answered, not the third alphabetically."""
+    asked = _asked(client.get("/quiz?topic=Work&words=6").get_data(as_text=True))
+    answers = {f"answer_{i}": "" for i in asked}
+    body = client.post("/quiz?topic=Work&words=6&lang=ukr",
+                       data=answers).get_data(as_text=True)
+    order = [body.index(f"word{i}<") if f"word{i}<" in body else -1 for i in asked]
+    assert order == sorted(order), "the results were re-ordered"
+
+
+def test_the_picker_offers_a_word_box_on_both_panels(client, deck):
+    body = client.get("/quiz").get_data(as_text=True)
+    assert body.count('class="picker-words-box"') == 2
+    assert body.count('value="20"') >= 1
+
+
+def test_the_start_panel_appears_above_and_below_the_topics(client, deck):
+    """The list runs to a screenful and more, so a learner who finished ticking
+    near the top should not have to scroll past everything to start."""
+    body = client.get("/quiz").get_data(as_text=True)
+    assert body.count('class="picker-start"') == 2
+    first = body.index("picker-actions")
+    topics = body.index('class="picker-topic-box"')
+    assert first < topics < body.rindex("picker-actions")
+
+
+def test_the_word_count_is_remembered_like_the_topics(client, deck):
+    client.get("/quiz?topic=Work&words=7")
+    body = client.get("/quiz").get_data(as_text=True)
+    assert 'value="7"' in body
