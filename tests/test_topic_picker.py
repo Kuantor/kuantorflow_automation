@@ -626,3 +626,13 @@ def test_only_an_activity_that_declares_it_gets_the_language_row():
     other = games.Activity(slug="x", name="X", kind="game", picker_heading="h",
                            min_cards=1, too_small="t")
     assert other.picks_language is False
+
+
+def test_the_quiz_results_offer_a_way_home(client, deck):
+    """Same as the games' results page (kuantorflow#133): after a set of graded
+    answers the row at the top of the page is a long way back up."""
+    body = client.post("/quiz?topic=Work&lang=ukr",
+                       data={"answer_1": ""}).get_data(as_text=True)
+    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    assert "Try again" in row
+    assert 'href="/"' in row

@@ -216,3 +216,14 @@ def test_scrambled_no_longer_carries_a_ticket(client, deck):
     assert games.ACTIVITIES["scrambled"].ticket == ""
     body = client.get("/games/scrambled/play?topic=Work").get_data(as_text=True)
     assert "built yet" not in body
+
+
+def test_the_results_offer_a_way_out_as_well_as_another_round(client, deck):
+    """The row at the top of the page has one, but a learner reading their
+    score is at the bottom of ten answers."""
+    ids, _ = _play(client)
+    body = client.post("/games/scrambled/play?topic=Work",
+                       data=_answers(ids, BY_ID)).get_data(as_text=True)
+    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    assert "Play again" in row
+    assert 'href="/"' in row
