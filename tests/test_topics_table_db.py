@@ -268,3 +268,111 @@ def test_deleting_a_creators_account_keeps_the_topic_and_its_cards(topics_db):
     assert _query("SELECT name, created_by_user_id FROM topics") == \
         [("shared", None)]
     assert utils.get_topics() == [("shared", 2)], "both cards are still filed"
+
+
+# --- reading several topics at once (#248) ------------------------------
+
+
+@requires_local_db
+def test_several_topics_come_back_from_one_query(topics_db):
+    """The groundwork under #233: every activity draws from a selection, so a
+    round is one round trip rather than one per ticked topic."""
+    import utils
+
+    utils.save_flashcard({"word": "commute", "topic": "Work"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "deadline", "topic": "Work"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "itinerary", "topic": "Travel"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "kitten", "topic": "animals"},
+                         added_by_user_id=7)
+
+    cards = utils.get_flashcards_by_topics(["Work", "Travel"])
+    assert [c["word"] for c in cards] == ["itinerary", "commute", "deadline"], \
+        "ordered by (topic name, word): Travel before Work"
+
+
+@requires_local_db
+def test_an_unselected_topic_contributes_nothing(topics_db):
+    import utils
+
+    utils.save_flashcard({"word": "commute", "topic": "Work"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "kitten", "topic": "animals"},
+                         added_by_user_id=7)
+
+    assert [c["word"] for c in utils.get_flashcards_by_topics(["Work"])] == \
+        ["commute"]
+
+
+@requires_local_db
+def test_a_name_that_matches_no_topic_is_simply_absent(topics_db):
+    """The selection is re-checked against visible topics before it gets here
+    (games.resolve_selection), but a name that has gone in between must not
+    fail the round for the topics that are still there."""
+    import utils
+
+    utils.save_flashcard({"word": "commute", "topic": "Work"},
+                         added_by_user_id=7)
+
+    cards = utils.get_flashcards_by_topics(["Work", "Deleted since"])
+    assert [c["word"] for c in cards] == ["commute"]
+
+
+@requires_local_db
+def test_topic_names_match_case_insensitively(topics_db):
+    """The engine's collation, which is why games.resolve_selection() folds case
+    too — the two must agree or a URL would resolve in one and vanish in the
+    other."""
+    import utils
+
+    utils.save_flashcard({"word": "commute", "topic": "Work"},
+                         added_by_user_id=7)
+
+    assert [c["word"] for c in utils.get_flashcards_by_topics(["wOrK"])] == \
+        ["commute"]
+
+
+@requires_local_db
+def test_the_owner_filter_applies_across_the_whole_selection(topics_db):
+    """#127 over several topics: one clause, every topic, cards only."""
+    import utils
+
+    utils.save_flashcard({"word": "mine", "topic": "Work"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "theirs", "topic": "Work"},
+                         added_by_user_id=8)
+    utils.save_flashcard({"word": "alsomine", "topic": "Travel"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "alsotheirs", "topic": "Travel"},
+                         added_by_user_id=8)
+
+    assert [c["word"] for c in
+            utils.get_flashcards_by_topics(["Work", "Travel"], owner_id=7)] == \
+        ["alsomine", "mine"]
+
+
+@requires_local_db
+def test_asking_for_a_topic_twice_does_not_double_its_cards(topics_db):
+    """A query string can repeat a parameter; IN matches a row once."""
+    import utils
+
+    utils.save_flashcard({"word": "commute", "topic": "Work"},
+                         added_by_user_id=7)
+
+    assert len(utils.get_flashcards_by_topics(["Work", "Work"])) == 1
+
+
+@requires_local_db
+def test_selecting_nothing_returns_nothing_from_a_full_database(topics_db):
+    """The one that would be expensive to get wrong: with cards in the deck, an
+    empty selection must still be empty rather than all of them."""
+    import utils
+
+    utils.save_flashcard({"word": "commute", "topic": "Work"},
+                         added_by_user_id=7)
+    utils.save_flashcard({"word": "kitten", "topic": "animals"},
+                         added_by_user_id=7)
+
+    assert utils.get_flashcards_by_topics([]) == []
