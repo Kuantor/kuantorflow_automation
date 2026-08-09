@@ -280,3 +280,51 @@ def test_the_quiz_is_not_reachable_as_a_game(client, deck):
     """It has its own URL, and two ways in would be two things to keep
     working."""
     assert client.get("/games/quiz").status_code == 404
+
+
+# --- naming the topics under the title ----------------------------------
+
+
+def test_a_multi_topic_quiz_names_the_topics_under_its_title(client, deck):
+    """The title counts them; this says which. A count alone leaves the learner
+    unable to tell one selection from another."""
+    body = client.get("/quiz?topic=Work&topic=Travel").get_data(as_text=True)
+    assert "Quiz: 2 topics" in body
+    assert '<p class="quiz-topics">Work, Travel</p>' in body
+
+
+def test_three_topics_are_all_named_without_an_ellipsis(client, app_module,
+                                                        monkeypatch, deck):
+    monkeypatch.setattr(app_module, "get_topics_by_section",
+                        lambda owner_id=None: [("Sec", [("Work", 2), ("Travel", 1),
+                                                        ("animals", 4)])])
+    body = client.get("/quiz?topic=Work&topic=Travel&topic=animals").get_data(as_text=True)
+    assert '<p class="quiz-topics">Work, Travel, animals</p>' in body
+    assert "…" not in body.split('class="quiz-topics"')[1].split("</p>")[0]
+
+
+def test_more_than_three_topics_are_truncated_with_an_ellipsis(
+        client, app_module, monkeypatch, deck):
+    monkeypatch.setattr(
+        app_module, "get_topics_by_section",
+        lambda owner_id=None: [("Sec", [("Work", 2), ("Travel", 1),
+                                        ("animals", 4), ("IT", 3)])])
+    body = client.get(
+        "/quiz?topic=Work&topic=Travel&topic=animals&topic=IT").get_data(as_text=True)
+    assert '<p class="quiz-topics">Work, Travel, animals …</p>' in body
+    assert "IT" not in body.split('class="quiz-topics"')[1].split("</p>")[0]
+
+
+def test_the_named_topics_follow_page_order_not_parameter_order(client, deck):
+    """Same order as the picker and the front page (#215), so the line matches
+    what the learner just ticked rather than how the URL happened to be built."""
+    body = client.get("/quiz?topic=animals&topic=Work").get_data(as_text=True)
+    assert '<p class="quiz-topics">Work, animals</p>' in body
+
+
+def test_a_single_topic_quiz_does_not_repeat_its_name(client, deck):
+    """'Quiz: Work' above a line reading 'Work' is the same word twice."""
+    for url in ("/quiz/Work", "/quiz?topic=Work"):
+        body = client.get(url).get_data(as_text=True)
+        assert "Quiz: Work" in body
+        assert 'class="quiz-topics"' not in body, url
