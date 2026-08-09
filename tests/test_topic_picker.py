@@ -269,11 +269,18 @@ def test_the_two_quiz_shapes_are_separate_endpoints(app_module):
 # --- game slugs ---------------------------------------------------------
 
 
-def test_a_game_with_no_ticket_yet_is_not_a_page(client, deck):
-    """Every game slug 404s until its own ticket registers it. A tile opening a
-    picker whose start button led nowhere would be worse than no tile."""
-    assert client.get("/games/scrambled").status_code == 404
-    assert client.get("/games/scrambled/play").status_code == 404
+def test_a_registered_game_has_a_picker_and_a_round(client, deck):
+    """Since kuantorflow#253 every activity registers as soon as the panel
+    exists, so its picker and its Start button are real from the first day —
+    only the round is a stub. A tile whose Start led to a 404 would be worse
+    than no tile."""
+    assert client.get("/games/scrambled").status_code == 200
+    assert client.get("/games/scrambled/play").status_code == 200
+
+
+def test_a_slug_nobody_declared_is_still_not_a_page(client, deck):
+    assert client.get("/games/invented").status_code == 404
+    assert client.get("/games/invented/play").status_code == 404
 
 
 def test_the_quiz_is_not_reachable_as_a_game(client, deck):
