@@ -56,7 +56,14 @@ def _capture_owner(app_module, monkeypatch, cards=None):
         seen.append(owner_id)
         return in_other([("character", 1)])
 
+    def fake_cards_multi(topics, owner_id=None):
+        # The quiz's read path since kuantorflow#250. It must record the owner
+        # like every other one -- a new read path that forgot #127's filter is
+        # exactly what this helper exists to catch.
+        return fake_cards(topics[0] if topics else None, owner_id)
+
     monkeypatch.setattr(app_module, "get_flashcards_by_topic", fake_cards)
+    monkeypatch.setattr(app_module, "get_flashcards_by_topics", fake_cards_multi)
     monkeypatch.setattr(app_module, "get_topics", fake_topics)
     # The index page's read since #218, and /topics.json's second one. A new
     # read path that forgot the filter is exactly what this helper is for.
