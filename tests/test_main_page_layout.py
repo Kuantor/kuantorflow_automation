@@ -39,8 +39,13 @@ def _panels(body):
 
 def test_browsing_comes_before_looking_up(client, topics):
     body = client.get("/").get_data(as_text=True)
-    assert _panels(body) == ["Browse flashcards", "Look up a word",
-                             "Upload notes"]
+    # The reader panel is deliberately left out of this list: it renders only
+    # with an ANTHROPIC_API_KEY (kuantorflow#253), so whether it appears is a
+    # property of the environment the suite runs in, not of the page's order.
+    # Its own test controls the key explicitly.
+    assert [p for p in _panels(body) if "Read a text" not in p] == [
+        "Browse flashcards", "Practise your words",
+        "Look up a word", "Upload notes"]
 
 
 def test_browsing_comes_straight_after_the_welcome_caption(client, topics):
@@ -98,7 +103,11 @@ def test_the_empty_states_are_unchanged(client, app_module, monkeypatch):
                         lambda owner_id=None: in_other([]))
     body = client.get("/").get_data(as_text=True)
     assert "No topics yet" in body
-    assert 'class="topic-tiles"' not in body
+    # Scoped to the browse section (kuantorflow#253): the games panel reuses
+    # `.topic-tiles` and always renders, empty deck or not, so a page-wide
+    # check now finds its tiles instead of the deck's.
+    browse = body.split('id="browse-topics"')[1].split("</div>")[0]
+    assert 'class="topic-tiles"' not in browse
 
 
 def test_the_widget_rebuilds_tiles_not_chips(client, app_module, monkeypatch):

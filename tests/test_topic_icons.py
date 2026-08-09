@@ -34,8 +34,14 @@ def _icons(app_module, monkeypatch, *slugs):
 
 
 def _tiles(body):
-    """Each tile as (classes, inner html), in render order."""
-    return re.findall(r'<a class="(topic-tile[^"]*)"(.*?)</a>', body, re.S)
+    """Each **topic** tile as (classes, inner html), in render order.
+
+    Scoped to the browse section since kuantorflow#253: the games panel reuses
+    the same tile classes, deliberately, so an unscoped search over the page
+    returns five activity tiles alongside the deck's.
+    """
+    browse = body.split('id="browse-topics"')[1].split("<form")[0]
+    return re.findall(r'<a class="(topic-tile[^"]*)"(.*?)</a>', browse, re.S)
 
 
 # --- the slug rule ------------------------------------------------------
@@ -81,7 +87,9 @@ def test_a_missing_icon_directory_is_not_an_error(app_module, monkeypatch,
                                                   tmp_path, client):
     """A checkout with no icons committed must still render every tile."""
     monkeypatch.setattr(app_module, "TOPIC_ICON_DIR", tmp_path / "nope")
-    monkeypatch.setattr(app_module._topic_icon_slugs, "cache", None)
+    # One cache keyed by directory since kuantorflow#253, shared with the game
+    # icons, so it is emptied rather than set to None.
+    monkeypatch.setattr(app_module._icon_slugs, "cache", {})
     with client.application.test_request_context():
         assert app_module.topic_icon("Work and careers") is None
 
