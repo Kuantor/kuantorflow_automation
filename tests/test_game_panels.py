@@ -226,9 +226,11 @@ def test_no_template_sharing_crumbs_kept_its_pipes(client, deck):
 
 
 def test_a_stub_round_names_the_ticket_that_will_build_it(client, deck):
-    body = client.get("/games/scrambled/play?topic=animals").get_data(as_text=True)
+    """Real or fake is still one; scrambled stopped being one in
+    kuantorflow#133, which is the lifecycle this test is watching."""
+    body = client.get("/games/real_or_fake/play?topic=animals").get_data(as_text=True)
     assert "built yet" in body
-    assert "#133" in body
+    assert "#132" in body
     assert "animals" in body
 
 
@@ -246,7 +248,7 @@ def test_every_registered_activity_has_a_picker_and_a_stub(client, deck,
 def test_the_stub_does_not_list_every_topic_it_would_have_played(client, deck):
     """A bare /play means the whole visible deck (#248), which in production is
     twenty-six names — a wall of text where one line was wanted."""
-    body = client.get("/games/scrambled/play").get_data(as_text=True)
+    body = client.get("/games/real_or_fake/play").get_data(as_text=True)
     assert "2 topics" in body
 
 
