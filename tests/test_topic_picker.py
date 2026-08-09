@@ -548,3 +548,74 @@ def test_with_one_visible_language_there_is_nothing_to_confirm(
                         lambda: dict(settings_store.DEFAULTS, show_russian=False))
     body = client.get("/quiz?topic=Work").get_data(as_text=True)
     assert 'data-lang-name="' not in body
+
+
+# --- choosing the language before the words are drawn -------------------
+
+
+def test_the_picker_offers_the_translation_language(client, deck):
+    """Chosen before the draw rather than inside the round, where switching
+    re-draws the words — which is also why this one needs no confirmation."""
+    body = client.get("/quiz").get_data(as_text=True)
+    assert "Translation to:" in body
+    assert 'name="lang" value="ukr"' in body
+    assert 'name="lang" value="rus"' in body
+
+
+def test_the_language_starts_on_the_identitys_setting(client, deck):
+    """#113's quiz_lang, which defaults to Ukrainian."""
+    body = client.get("/quiz").get_data(as_text=True)
+    ukr = body.index('value="ukr"')
+    assert "checked" in body[ukr:ukr + 120]
+
+
+def test_the_setting_decides_which_language_is_preselected(client, app_module,
+                                                           monkeypatch, deck):
+    import settings_store
+    monkeypatch.setattr(app_module, "current_settings",
+                        lambda: dict(settings_store.DEFAULTS, quiz_lang="russian"))
+    body = client.get("/quiz").get_data(as_text=True)
+    rus = body.index('value="rus"')
+    assert "checked" in body[rus:rus + 120]
+
+
+def test_the_chosen_language_reaches_the_round(client, mixed_deck):
+    """What the picker submits is what the quiz runs in."""
+    body = client.get("/quiz?topic=Work&lang=rus").get_data(as_text=True)
+    assert "Type the Russian translation" in body
+
+
+def test_the_language_row_appears_once_not_on_both_panels(client, deck):
+    """Radios sharing a name are one group across the form, so a second copy
+    could not show the same choice — checking one would clear the other. The
+    word box is duplicated precisely because it can be."""
+    body = client.get("/quiz").get_data(as_text=True)
+    assert body.count("Translation to:") == 1
+    assert body.count('class="picker-words-box"') == 2
+
+
+def test_the_row_is_on_the_upper_panel(client, deck):
+    body = client.get("/quiz").get_data(as_text=True)
+    assert body.index("Translation to:") < body.index('class="picker-topic-box"')
+
+
+def test_one_visible_language_offers_no_choice(client, app_module,
+                                               monkeypatch, deck):
+    """#46/#79: with a language hidden there is nothing to choose, and a lone
+    radio is a control that cannot do anything."""
+    import settings_store
+    monkeypatch.setattr(app_module, "current_settings",
+                        lambda: dict(settings_store.DEFAULTS, show_russian=False))
+    body = client.get("/quiz").get_data(as_text=True)
+    assert "Translation to:" not in body
+    assert 'name="lang"' not in body
+
+
+def test_only_an_activity_that_declares_it_gets_the_language_row():
+    """A game that shows a word and asks about its spelling has no translation
+    in it, so the flag is off unless an activity says otherwise."""
+    import games
+    assert games.ACTIVITIES["quiz"].picks_language is True
+    other = games.Activity(slug="x", name="X", kind="game", picker_heading="h",
+                           min_cards=1, too_small="t")
+    assert other.picks_language is False
