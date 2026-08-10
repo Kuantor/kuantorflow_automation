@@ -72,13 +72,40 @@ def test_the_quiz_takes_the_first_tile(client, deck):
     assert panel.index(">Quiz<") < panel.index(">Multiple choice<")
 
 
-def test_every_tile_opens_a_picker_not_a_round(client, deck):
+def test_every_built_tile_opens_a_picker_not_a_round(client, deck):
     """#233: a tile that went straight into a round would teach the seam the
-    panel exists to hide."""
+    panel exists to hide.
+
+    Read off the declaration rather than written down, so a game landing does
+    not need this edited (kuantorflow#69's rule, applied to the panel): a tile
+    still carrying `ticket` is greyed and has no href at all (#261)."""
     panel = _games_panel(client.get("/").get_data(as_text=True))
     hrefs = re.findall(r'href="(/quiz|/games/[a-z_]+)"', panel)
-    assert hrefs == ["/quiz", "/games/multiple_choice", "/games/real_or_fake",
-                     "/games/scrambled", "/games/fill_the_gap"]
+    expected = ["/quiz"] + [f"/games/{a.slug}" for a in games.panel("game")
+                            if not a.ticket]
+    assert hrefs == expected
+
+
+def test_a_tile_with_no_round_yet_is_greyed_and_goes_nowhere(client, deck):
+    """A greyed tile that still opened a picker would be the old behaviour with
+    decoration on top."""
+    panel = _games_panel(client.get("/").get_data(as_text=True))
+    for activity in games.panel("game"):
+        block = panel.split(f">{activity.name}</span>")[0].rsplit("<", 1)[0]
+        if activity.ticket:
+            assert f'href="/games/{activity.slug}"' not in panel, activity.slug
+            assert "topic-tile--soon" in panel
+        else:
+            assert f'href="/games/{activity.slug}"' in panel, activity.slug
+
+
+def test_a_greyed_tile_says_why_on_hover(client, deck):
+    """It stays on the page and explains itself rather than vanishing — the
+    same treatment the card controls get (#162/#176/#177), and what keeps the
+    set of activities legible."""
+    panel = _games_panel(client.get("/").get_data(as_text=True))
+    assert 'aria-disabled="true"' in panel
+    assert "under construction" in panel
 
 
 def test_every_tile_carries_an_icon_and_a_sub_line(client, deck):
@@ -117,15 +144,27 @@ def test_the_panel_renders_on_an_empty_deck(client, app_module, monkeypatch):
     assert _games_panel(body).count("topic-tile--image") == 5
 
 
-def test_no_tile_judges_whether_its_game_can_run(client, app_module,
-                                                 monkeypatch):
-    """That question is the picker's, and #250 answers it there. A tile has no
-    selection to reason about, so a second copy could only guess."""
+def test_no_tile_judges_whether_a_selection_can_play(client, app_module,
+                                                     monkeypatch):
+    """The rule #233 actually sets, and it survives #261 intact.
+
+    Two different questions get confused here. *Can this selection play?*
+    depends on what the learner ticked, so it stays in the picker — a tile has
+    no selection to reason about and could only guess. *Does this game exist?*
+    is true before any selection, identical for everyone, and already on the
+    declaration — which is what #261 greys on.
+
+    So an empty deck must still leave every tile inviting: the greying that
+    remains is about the activity, never about the deck."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
                         lambda owner_id=None: [])
     panel = _games_panel(client.get("/").get_data(as_text=True))
-    assert "disabled" not in panel
     assert "Tick at least" not in panel
+    assert "topic-tile--soon" not in panel.split(">Quiz</span>")[0]
+    # every built activity is still a live link on a deck with nothing in it
+    for activity in games.panel("game"):
+        if not activity.ticket:
+            assert f'href="/games/{activity.slug}"' in panel, activity.slug
 
 
 # --- the reader panel ---------------------------------------------------
@@ -287,3 +326,51 @@ def test_the_panel_and_the_row_render_from_the_same_declaration(client, deck,
     for activity in games.panel("game"):
         assert activity.name in _games_panel(body)
         assert activity.name in row
+
+
+# --- the topic row, and the reader (kuantorflow#261) ---------------------
+
+
+def test_the_row_greys_the_same_activities_as_the_panel(client, deck, with_key):
+    """Greying the front page alone would leave this row inviting the same dead
+    click one page away."""
+    body = client.get("/flashcards/Work%20and%20careers").get_data(as_text=True)
+    row = _row(body)
+    for activity in games.panel("game"):
+        if activity.ticket:
+            assert f">{activity.name}</span>" in row, activity.slug
+            assert f"/games/{activity.slug}/play" not in row, activity.slug
+        else:
+            assert f"/games/{activity.slug}/play" in row, activity.slug
+
+
+def test_the_reader_button_greys_on_the_same_field(client, deck, with_key):
+    body = client.get("/").get_data(as_text=True)
+    banner = body.split('class="reader-banner')[1].split(">")[0]
+    if games.ACTIVITIES["read_a_text"].ticket:
+        assert "reader-banner--soon" in banner
+        assert 'href=' not in banner
+    else:
+        assert "reader-banner--soon" not in banner
+
+
+def test_one_wording_across_all_three_surfaces(client, deck, with_key):
+    """A tooltip that differed between them would read as three states."""
+    import app as app_mod
+    home = client.get("/").get_data(as_text=True)
+    topic = client.get("/flashcards/Work%20and%20careers").get_data(as_text=True)
+    assert home.count(app_mod.UNDER_CONSTRUCTION) >= 2   # tiles + reader
+    assert app_mod.UNDER_CONSTRUCTION in _row(topic)
+
+
+def test_a_game_that_lands_ungreys_itself(client, deck, monkeypatch):
+    """The whole point of greying on `ticket`: dropping the field is the only
+    edit a game ticket makes to this page."""
+    import dataclasses
+    import games as games_mod
+    landed = dataclasses.replace(games_mod.ACTIVITIES["fill_the_gap"], ticket="")
+    monkeypatch.setitem(games_mod.ACTIVITIES, "fill_the_gap", landed)
+    panel = _games_panel(client.get("/").get_data(as_text=True))
+    assert 'href="/games/fill_the_gap"' in panel
+    block = panel.split(">Fill the gap</span>")[0]
+    assert "topic-tile--soon" not in block.rsplit("<a", 1)[-1]
