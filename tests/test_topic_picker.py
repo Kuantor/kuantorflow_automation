@@ -23,6 +23,8 @@ long it is in test_round_length.py (#69).
 
 import pytest
 
+import games
+
 from conftest import in_other, TEST_USER_ID
 
 
@@ -290,7 +292,7 @@ def test_only_an_activity_that_declares_it_gets_the_language_row():
 def test_the_picker_offers_a_word_box_on_both_panels(client, deck):
     body = client.get("/quiz").get_data(as_text=True)
     assert body.count('class="picker-words-box"') == 2
-    assert body.count('value="20"') >= 1
+    assert body.count(f'value="{games.QUIZ_WORDS_DEFAULT}"') >= 1
 
 
 def test_the_start_panel_appears_above_and_below_the_topics(client, deck):
