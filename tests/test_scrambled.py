@@ -32,11 +32,9 @@ CARDS = [
 
 
 @pytest.fixture()
-def deck(app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: [("Sec", [("Work", len(CARDS))])])
-    monkeypatch.setattr(app_module, "get_flashcards_by_topics",
-                        lambda topics, owner_id=None: [dict(c) for c in CARDS])
+def deck(stub_deck):
+    """The count comes from the cards, so it cannot drift from them."""
+    return stub_deck(cards=CARDS)
 
 
 def _asked(body):
