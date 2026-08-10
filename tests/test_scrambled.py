@@ -225,3 +225,12 @@ def test_the_results_offer_a_way_out_as_well_as_another_round(client, deck):
     row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
     assert "Play again" in row
     assert 'href="/"' in row
+
+
+def test_playing_again_keeps_the_round_the_same_length(client, deck):
+    """The same defect the real-or-fake results had (kuantorflow#132)."""
+    played = "/games/scrambled/play?topic=Work&words=3"
+    ids = _asked(client.get(played).get_data(as_text=True))
+    body = client.post(played, data=_answers(ids, BY_ID)).get_data(as_text=True)
+    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    assert "words=3" in row

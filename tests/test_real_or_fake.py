@@ -262,3 +262,44 @@ def test_the_answers_travel_with_the_question(client, deck):
                  .get_data(as_text=True)
     assert body.count('name="item_') == 6
     assert body.count('name="real_') == 6
+
+
+# --- the results page ---------------------------------------------------
+
+
+def test_the_results_admit_the_game_can_be_wrong(client, deck):
+    """The model is trained on English so it produces English by accident
+    (kuantorflow#258). Telling a learner a real word was invented teaches
+    something false, and until that is closed properly the page says so."""
+    items = _items(client.get("/games/real_or_fake/play?topic=Crime&words=6")
+                   .get_data(as_text=True))
+    body = client.post("/games/real_or_fake/play?topic=Crime",
+                       data=_answer(items, lambda real: "real")
+                       ).get_data(as_text=True)
+    flat = " ".join(body.split())
+    assert "sometimes invents a real one by accident" in flat
+    assert "look it up in a dictionary" in flat
+
+
+def test_playing_again_keeps_the_round_the_same_length(client, deck):
+    """It dropped `words`, so a round of four came back as twenty — a learner
+    who chose a short round got a long one for pressing the obvious button."""
+    played = "/games/real_or_fake/play?topic=Crime&words=4"
+    items = _items(client.get(played).get_data(as_text=True))
+    body = client.post(played, data=_answer(items, lambda real: "real")) \
+                 .get_data(as_text=True)
+    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    assert "words=4" in row
+
+
+def test_playing_again_lands_on_a_round(client, deck):
+    """Not on the stub, and not on the picker."""
+    played = "/games/real_or_fake/play?topic=Crime&words=4"
+    items = _items(client.get(played).get_data(as_text=True))
+    body = client.post(played, data=_answer(items, lambda real: "real")) \
+                 .get_data(as_text=True)
+    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    href = re.search(r'href="([^"]+)"[^>]*>\s*Play again', row).group(1)
+    again = client.get(href.replace("&amp;", "&")).get_data(as_text=True)
+    assert "built yet" not in again
+    assert 'name="item_1"' in again
