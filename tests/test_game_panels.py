@@ -22,19 +22,16 @@ import re
 
 import pytest
 
-from conftest import in_other
+import games
 
 TOPICS = [("Work and careers", 20), ("animals", 3)]
 
 
 @pytest.fixture()
-def deck(app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: in_other(TOPICS))
-    monkeypatch.setattr(app_module, "get_flashcards_by_topics",
-                        lambda topics, owner_id=None: [])
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [])
+def deck(stub_deck):
+    """Topics with counts but no cards: these tests are about the ways in, and
+    none of them opens a round."""
+    return stub_deck(topics=TOPICS)
 
 
 @pytest.fixture()
@@ -225,19 +222,44 @@ def test_no_template_sharing_crumbs_kept_its_pipes(client, deck):
 # --- the stubs ----------------------------------------------------------
 
 
-def test_a_stub_round_names_the_ticket_that_will_build_it(client, deck):
-    """Real or fake is still one; scrambled stopped being one in
-    kuantorflow#133, which is the lifecycle this test is watching."""
-    body = client.get("/games/real_or_fake/play?topic=animals").get_data(as_text=True)
+# Read off the declaration rather than written down (#69). These used to name
+# `scrambled` and `#133`, and both had to be edited by hand the day that game
+# landed — a test failing for a reason that is not a bug, once per remaining
+# game. Now a game ticket drops its `ticket=` field and the suite follows.
+#
+# `parametrize` rather than a loop so each activity is its own test: a failure
+# names the game, and the collected count is a live readout of how many are
+# still stubs.
+STUBBED = [a for a in games.ACTIVITIES.values()
+           if a.kind in games.GAMES_URL_KINDS and a.ticket]
+LANDED = [a for a in games.ACTIVITIES.values()
+          if a.kind in games.GAMES_URL_KINDS and not a.ticket]
+
+
+@pytest.mark.parametrize("activity", STUBBED, ids=lambda a: a.slug)
+def test_an_activity_that_still_carries_a_ticket_renders_a_stub(
+        client, deck, activity):
+    """`ticket=` is present exactly while an activity is a stub, so the page
+    can name who will build it."""
+    body = client.get(f"/games/{activity.slug}/play?topic=animals")                  .get_data(as_text=True)
     assert "built yet" in body
-    assert "#132" in body
+    assert activity.ticket in body
     assert "animals" in body
 
 
-def test_every_registered_activity_has_a_picker_and_a_stub(client, deck,
-                                                           with_key):
-    """A tile whose Start button led to a 404 would be worse than no tile."""
-    import games
+@pytest.mark.parametrize("activity", LANDED, ids=lambda a: a.slug)
+def test_an_activity_that_has_landed_plays_instead_of_apologising(
+        client, deck, activity):
+    """The other half of the same rule, and the one that would otherwise go
+    unnoticed: dropping `ticket=` has to actually take the stub away."""
+    body = client.get(f"/games/{activity.slug}/play?topic=animals")                  .get_data(as_text=True)
+    assert "built yet" not in body
+
+
+def test_every_registered_activity_has_a_picker_and_a_round(client, deck,
+                                                            with_key):
+    """A tile whose Start button led to a 404 would be worse than no tile —
+    whether what it reaches is a stub or a real round."""
     for activity in games.ACTIVITIES.values():
         if activity.kind == "quiz":
             continue
@@ -245,10 +267,11 @@ def test_every_registered_activity_has_a_picker_and_a_stub(client, deck,
         assert client.get(f"/games/{activity.slug}/play").status_code == 200
 
 
-def test_the_stub_does_not_list_every_topic_it_would_have_played(client, deck):
+@pytest.mark.skipif(not STUBBED, reason="every activity has landed")
+def test_a_stub_does_not_list_every_topic_it_would_have_played(client, deck):
     """A bare /play means the whole visible deck (#248), which in production is
     twenty-six names — a wall of text where one line was wanted."""
-    body = client.get("/games/real_or_fake/play").get_data(as_text=True)
+    body = client.get(f"/games/{STUBBED[0].slug}/play").get_data(as_text=True)
     assert "2 topics" in body
 
 
@@ -259,7 +282,6 @@ def test_the_panel_and_the_row_render_from_the_same_declaration(client, deck,
                                                                 with_key):
     """#233 warns that index.html and base.html already render topic tiles
     twice; this must not add a third copy of the same idea."""
-    import games
     body = client.get("/").get_data(as_text=True)
     row = _row(client.get("/flashcards/Work%20and%20careers").get_data(as_text=True))
     for activity in games.panel("game"):

@@ -9,6 +9,7 @@ and never write anywhere.
 
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,56 @@ def in_other(topics):
     grouping out, and get the empty-section heading exercised for free.
     """
     return [(CURRICULUM_SECTION, []), ("Other", list(topics))]
+
+
+@pytest.fixture()
+def stub_deck(app_module, monkeypatch):
+    """Point every card and topic read at an in-memory deck (#69).
+
+    One place that knows *what stubbing a deck means*, because the three game
+    test files had each grown their own and the copies were drifting: the same
+    three app functions, patched with slightly different signatures, so a stub
+    that no longer matched the real function was noticed only by its own file.
+
+    Call it with what a test needs:
+
+        stub_deck(cards=CARDS)                 topics inferred from the cards
+        stub_deck(topics=[("Work", 20)])       named topics, no cards
+        stub_deck(cards=CARDS, sections=...)   grouping spelled out in full
+
+    **Counts are inferred from the cards unless given**, which is the other
+    thing the copies kept getting wrong — a hand-written count beside a card
+    list is a second source of truth for the same fact, and only the page
+    notices when they disagree.
+
+    `sections` takes `get_topics_by_section()`'s full shape for the tests that
+    care about grouping and order; without it the topics are filed under
+    'Other' by `in_other()`, which is what a real database looks like today.
+
+    Returns the card list it installed, so a test can read ids off it.
+    """
+    def install(cards=(), topics=None, sections=None):
+        cards = [dict(card) for card in cards]
+        if sections is None:
+            if topics is None:
+                counts = Counter(card["topic"] for card in cards
+                                 if card.get("topic"))
+                topics = sorted(counts.items())
+            sections = in_other(topics)
+        # Copied per call so a test that mutates what it got back cannot
+        # change what the next read returns.
+        monkeypatch.setattr(
+            app_module, "get_topics_by_section",
+            lambda owner_id=None: [(name, list(pairs)) for name, pairs in sections])
+        monkeypatch.setattr(
+            app_module, "get_flashcards_by_topics",
+            lambda topics_, owner_id=None: [dict(c) for c in cards])
+        monkeypatch.setattr(
+            app_module, "get_flashcards_by_topic",
+            lambda topic, owner_id=None: [dict(c) for c in cards])
+        return cards
+
+    return install
 
 
 @pytest.fixture(autouse=True)
