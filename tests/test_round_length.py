@@ -15,6 +15,8 @@ import re
 
 import pytest
 
+import games
+
 
 # --- how many words a round asks (kuantorflow#250) ---------------------
 
@@ -42,11 +44,16 @@ def _asked(body):
     return re.findall(r'name="answer_(\d+)"', body)
 
 
-def test_a_round_asks_twenty_words_by_default(client, big_deck):
-    """Sixty cards is not a round, it is an afternoon."""
+def test_a_round_asks_the_default_number_of_words(client, big_deck):
+    """Sixty cards is not a round, it is an afternoon.
+
+    Read off `games.QUIZ_WORDS_DEFAULT` rather than written down, so tuning the
+    default is one edit in the app and none here — the number itself is a
+    product judgement that will move again."""
     body = client.get("/quiz?topic=Work").get_data(as_text=True)
-    assert len(_asked(body)) == 20
-    assert "(20 questions)" in body
+    default = games.QUIZ_WORDS_DEFAULT
+    assert len(_asked(body)) == default
+    assert f"({default} questions)" in body
 
 
 def test_the_word_count_can_be_asked_for_in_the_url(client, big_deck):
@@ -59,8 +66,10 @@ def test_asking_for_more_words_than_exist_plays_what_there_is(client, big_deck):
     assert len(_asked(body)) == 60
 
 
-@pytest.mark.parametrize("raw,expected", [("0", 1), ("-4", 1), ("9999", 60),
-                                          ("abc", 20), ("", 20)])
+@pytest.mark.parametrize("raw,expected", [
+    ("0", games.QUIZ_WORDS_MIN), ("-4", games.QUIZ_WORDS_MIN),
+    ("9999", 60),                       # clamped to the deck, not to the ceiling
+    ("abc", games.QUIZ_WORDS_DEFAULT), ("", games.QUIZ_WORDS_DEFAULT)])
 def test_an_unusable_word_count_is_clamped_or_ignored(client, big_deck,
                                                       raw, expected):
     """It arrives from a URL anybody can edit, and a round is not the place to
