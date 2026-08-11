@@ -1,4 +1,4 @@
-"""Mykola's fast thinking, as an opt-in setting (ai_agent#50).
+"""Mykola's fast thinking, on by default and switchable off (ai_agent#50).
 
 One switch over two levers, because the wait has two halves: `effort` decides
 how long Claude deliberates before any text exists, and a note in the prompt
@@ -12,8 +12,10 @@ each, against the real API — medians to the first word and to the last:
 Note what the middle row says: `effort` does not shorten the reply. That is
 why one switch moves two things — either alone leaves half the wait behind.
 
-**Off by default**, unlike the typewriter: this one really does change the
-answer, and shorter is not automatically better for somebody learning English.
+**On by default**: a learner typing into a corner of the page is asking for an
+answer, not an essay, and seven seconds of silence reads as broken long before
+it reads as thorough. It is still a real trade — the replies are much shorter —
+so the popup has to say what turning it *off* buys.
 """
 
 import inspect
@@ -26,27 +28,28 @@ import settings_store
 
 # --- the setting ------------------------------------------------------------
 
-def test_it_is_off_by_default():
-    """A trade, not a free win — so it waits to be asked for."""
-    assert settings_store.DEFAULTS["mykola_fast_thinking"] is False
+def test_it_is_on_by_default():
+    """The widget's job is a quick answer; the longer lesson is the opt-in."""
+    assert settings_store.DEFAULTS["mykola_fast_thinking"] is True
 
 
 @pytest.mark.parametrize("value,expected", [
     (True, True), (False, False),
-    ("yes", False), ("", False), (1, False), (None, False),   # keeps the default
+    ("yes", True), ("", True), (1, True), (None, True),   # keeps the default
 ])
 def test_it_is_validated_like_every_other_switch(value, expected):
     assert settings_store.sanitize(
         {"mykola_fast_thinking": value})["mykola_fast_thinking"] is expected
 
 
-def test_turning_it_on_is_stored(user_client, settings_dir):
-    resp = user_client.post("/settings", json={"mykola_fast_thinking": True})
+def test_turning_it_off_is_stored(user_client, settings_dir):
+    """The direction that matters now: opting out of the default."""
+    resp = user_client.post("/settings", json={"mykola_fast_thinking": False})
     assert resp.status_code == 200
-    assert resp.get_json()["settings"]["mykola_fast_thinking"] is True
+    assert resp.get_json()["settings"]["mykola_fast_thinking"] is False
     stored = json.loads(next(settings_dir.glob("config-7.json"))
                         .read_text(encoding="utf-8"))
-    assert stored["mykola_fast_thinking"] is True
+    assert stored["mykola_fast_thinking"] is False
 
 
 # --- the popup --------------------------------------------------------------
@@ -60,8 +63,9 @@ def test_the_popup_offers_it(user_client):
 
 
 def test_the_hint_says_what_is_traded(user_client):
-    """The label promises speed; the hint has to admit the cost, or somebody
-    turns it on and quietly gets a worse teacher."""
+    """On by default, so the hint carries more weight than the label: nobody
+    chose this, and the shorter answers have to be explained to the learner who
+    did not ask for them."""
     body = user_client.get("/").get_data(as_text=True)
     hint = body.split('name="mykola_fast_thinking"', 1)[1][:900]
     assert "short" in hint.lower()
@@ -79,15 +83,19 @@ def old_agent(question, history=None, user_name=None, hidden_languages=None):
 
 
 def test_it_is_passed_when_on(app_module, user_client, settings_dir):
-    user_client.post("/settings", json={"mykola_fast_thinking": True})
+    user_client.post("/settings", json={"mykola_fast_thinking": True})   # the default
     with app_module.app.test_request_context() as ctx:
         ctx.session["user"] = {"id": 7, "email": "test.user@example.com",
                                "name": "Test User"}
         assert app_module._agent_kwargs(new_agent).get("fast") is True
 
 
-def test_it_is_not_passed_when_off(app_module):
-    with app_module.app.test_request_context():
+def test_it_is_not_passed_when_off(app_module, user_client, settings_dir):
+    """Opting out has to actually reach the agent, or the setting is a lie."""
+    user_client.post("/settings", json={"mykola_fast_thinking": False})
+    with app_module.app.test_request_context() as ctx:
+        ctx.session["user"] = {"id": 7, "email": "test.user@example.com",
+                               "name": "Test User"}
         assert "fast" not in app_module._agent_kwargs(new_agent)
 
 
@@ -96,7 +104,6 @@ def test_an_older_agent_never_hears_about_it(app_module, user_client,
     """Feature-detected by signature, like every other agent kwarg: an agent
     that does not take `fast` must not be handed it, or every chat message
     raises TypeError until both repos are deployed."""
-    user_client.post("/settings", json={"mykola_fast_thinking": True})
     assert "fast" not in inspect.signature(old_agent).parameters
     with app_module.app.test_request_context() as ctx:
         ctx.session["user"] = {"id": 7, "email": "test.user@example.com",
