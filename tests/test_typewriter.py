@@ -97,6 +97,33 @@ def test_reduced_motion_turns_it_off(client, app_module, monkeypatch):
     assert "prefers-reduced-motion: reduce" in body
 
 
+def test_saving_the_setting_takes_effect_without_a_reload(user_client, app_module,
+                                                          monkeypatch):
+    """The typewriter is the one setting the *browser* acts on, not the server:
+    it lives in a variable inside the widget, set when the page was rendered.
+    Saving the popup does not re-render the page, so without a hand-over the
+    learner ticks the box, nothing changes, and the setting looks broken.
+
+    Every other setting in that popup is read server-side on the next request
+    and needs none of this."""
+    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    body = user_client.get("/").get_data(as_text=True)
+    assert "window.mykolaSetTypewriter = function" in body,         "the widget exposes no way to be told"
+    assert "window.mykolaSetTypewriter(settingsForm.mykola_typewriter.checked)" in body,         "saving the popup never tells the widget"
+    assert "if (window.mykolaSetTypewriter)" in body,         "unguarded, this throws on a page where Mykola is unavailable"
+
+
+def test_the_hand_over_cannot_override_reduced_motion(client, app_module,
+                                                      monkeypatch):
+    """A reader who asked their system for less motion keeps getting it, even
+    if the form says otherwise — so the rule is re-applied on the way in
+    rather than trusted from the caller."""
+    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    body = client.get("/").get_data(as_text=True)
+    setter = body.split("window.mykolaSetTypewriter = function", 1)[1][:200]
+    assert "reducedMotion()" in setter
+
+
 def test_the_closing_event_waits_for_the_typing_to_catch_up(client, app_module,
                                                             monkeypatch):
     """The answer is only settled — real bubble, sources, copy button, deck
