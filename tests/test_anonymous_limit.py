@@ -125,7 +125,11 @@ def test_widget_offers_sign_in_when_the_allowance_runs_out(client, app_module,
     body = client.get("/").get_data(as_text=True)
     assert 'id="mykola-signin-required"' in body
     assert "function showSignInRequired()" in body
-    assert "if (r.data.sign_in_required) showSignInRequired();" in body
+    # The offer is wired to whatever renders a chat error. Since ai_agent#50
+    # that is one function shared by the streamed and whole-answer paths, so
+    # this asserts the wiring rather than the line it used to live on — the
+    # refusal reaches the learner the same way however the answer travelled.
+    assert "if (data && data.sign_in_required) showSignInRequired();" in body
 
 
 def test_signed_in_widget_has_no_sign_in_offer(user_client, app_module, monkeypatch):
