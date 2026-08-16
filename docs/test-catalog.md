@@ -1193,7 +1193,7 @@ The core word-lookup flow: look a word up, review the proposed cards, add the on
 | `test_delete_missing_card_is_friendly` | A card that is not there says "Card not found" rather than failing. |
 | `test_delete_rejects_get` | `GET` on the delete URL answers 405 — deletion is not reachable by following a link. |
 
-## test_main_page_layout.py — the main page reordered (21 cases)
+## test_main_page_layout.py — the main page reordered (24 cases)
 
 kuantorflow#184. Three changes with one thread between them: the page should lead with what a returning learner came for. Browsing sat below two forms they only need when adding something new; the topics were pills, which have nowhere to put the picture #185 will give them; and a whole section was spent on a diagnostic.
 
@@ -1213,6 +1213,9 @@ kuantorflow#184. Three changes with one thread between them: the page should lea
 | `test_a_tile_carries_the_name_and_the_count` | The name and the card count are both on the tile. |
 | `test_one_card_is_not_one_cards` | The count is read on the tile, so it has to be grammatical in the singular. |
 | `test_the_pill_markup_is_gone` | No leftover `chip` class — a cached stylesheet would still render one as a pill, and it would not be square. |
+| `test_the_typed_topic_box_is_gone` | kuantorflow#290: the field, its label and the *Show flashcards* button are absent from the whole page, not merely from the panel. |
+| `test_the_browse_panel_holds_nothing_but_the_deck` | From the Browse heading to the next one: tiles, folds and the fold script, and no form, input or button. The box lived *beside* `#browse-topics`, since that block is wiped on every chat save. |
+| `test_a_topic_page_is_still_reachable_by_url` | #290 removed a way in, not the page — `/flashcards/<topic>` still answers, which is what the tiles, Mykola and any bookmark rely on. |
 | `test_the_empty_states_are_unchanged` | The tiles replaced the chips; they did not replace the explanations for having none (#127). |
 | `test_the_widget_rebuilds_tiles_not_chips` | Mykola refreshes this section in place after saving a card from chat (ai_agent#53), building the markup in JavaScript — so it has to change alongside the template, or a chat save quietly restores the old pills. |
 

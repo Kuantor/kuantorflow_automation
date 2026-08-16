@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from conftest import in_other
+from conftest import browse_panel, in_other
 
 TOPICS = [("basics", 12), ("it-vocab", 5), ("solo", 1)]
 
@@ -93,6 +93,42 @@ def test_the_pill_markup_is_gone(client, topics):
     assert 'class="topic-chips"' not in body
 
 
+def test_the_typed_topic_box_is_gone(client, topics):
+    """kuantorflow#290. Every topic worth opening is a tile, so typing a name
+    you can already see was the slower way to the same page. Asserted on the
+    whole page rather than on the panel: the field is what a stray copy would
+    reappear as, wherever it landed."""
+    body = client.get("/").get_data(as_text=True)
+    assert 'id="browse-topic"' not in body
+    assert "Or type a topic name" not in body
+    assert "Show flashcards" not in body
+
+
+def test_the_browse_panel_holds_nothing_but_the_deck(client, topics):
+    """The box lived *beside* `#browse-topics` rather than inside it — that
+    block is wiped and rebuilt on every chat save (#53), so nothing that has to
+    survive can live in there. The region worth asserting on is therefore the
+    whole panel, from its heading to the next one."""
+    body = client.get("/").get_data(as_text=True)
+    start = body.index("<h2>Browse flashcards</h2>")
+    panel = body[start:body.index("<h2>", start + 1)]
+
+    assert "<form" not in panel and "<input" not in panel
+    assert "<button" not in panel
+    assert 'class="topic-tile"' in panel and "topic-fold" in panel
+    # The one thing that does still sit out there, since #288.
+    assert "browse_folds.js" in panel
+
+
+def test_a_topic_page_is_still_reachable_by_url(client, topics, app_module,
+                                                 monkeypatch):
+    """#290 removed a way in, not the page — and the tiles, Mykola and any
+    bookmark all still point at it."""
+    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+                        lambda *a, **k: [])
+    assert client.get("/flashcards/basics").status_code == 200
+
+
 def test_the_empty_states_are_unchanged(client, app_module, monkeypatch):
     """The tiles replaced the chips; they did not replace the explanations
     for having none (#127)."""
@@ -106,8 +142,7 @@ def test_the_empty_states_are_unchanged(client, app_module, monkeypatch):
     # Scoped to the browse section (kuantorflow#253): the games panel reuses
     # `.topic-tiles` and always renders, empty deck or not, so a page-wide
     # check now finds its tiles instead of the deck's.
-    browse = body.split('id="browse-topics"')[1].split("</div>")[0]
-    assert 'class="topic-tiles"' not in browse
+    assert 'class="topic-tiles"' not in browse_panel(body)
 
 
 def test_the_widget_rebuilds_tiles_not_chips(client, app_module, monkeypatch):

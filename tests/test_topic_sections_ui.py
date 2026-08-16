@@ -19,7 +19,7 @@ import re
 
 import pytest
 
-from conftest import CURRICULUM_SECTION, in_other
+from conftest import CURRICULUM_SECTION, browse_panel, in_other
 
 TOPICS = [("basics", 12), ("solo", 1)]
 
@@ -28,8 +28,7 @@ HEADING = re.compile(r'<h3 class="topic-section">([^<]+)</h3>')
 
 def _browse(body):
     """The Browse panel only — the rest of the page has its own headings."""
-    start = body.index('id="browse-topics"')
-    return body[start:body.index("</div>", body.index("</form>", start))]
+    return browse_panel(body)
 
 
 def _layout(body):

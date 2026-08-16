@@ -28,7 +28,7 @@ import re
 
 import pytest
 
-from conftest import CURRICULUM_SECTION, in_other
+from conftest import CURRICULUM_SECTION, browse_panel, in_other
 
 TOPICS = [("basics", 12), ("solo", 1)]
 
@@ -47,8 +47,7 @@ def sections(app_module, monkeypatch):
 
 def _browse(body):
     """The Browse panel only — the rest of the page has its own headings."""
-    start = body.index('id="browse-topics"')
-    return body[start:body.index("</form>", start)]
+    return browse_panel(body)
 
 
 def _fold(body, section):
