@@ -1320,6 +1320,21 @@ kuantorflow#137, extending the `.mht` path. The glued-translation split calls Cl
 | `test_entry_from_line_rejects_plain_text` | An empty line and a line with no separator both yield nothing, rather than a junk card. |
 | `test_to_list_round_trip` | The DB text↔list helper handles None, a JSON array (including Cyrillic), newline-separated text, a bare string, and malformed JSON — which is kept whole rather than raising. |
 
+## test_popup_topic.py — the destination topic in the review popup (8 cases)
+
+kuantorflow#294. The popup carried every fact about a card except where it was going, and the topic was chosen two panels away before a lookup that takes seconds. Two things are pinned beyond "the line is there": it is the **resolved** topic, so an empty Topic box reads `general` — the only place that default is visible since #292 gave the chooser the move dialog's wording — and it **cannot disagree** with the hidden `topic` the cards will actually write. Both flows the popup opens in are covered, a word lookup and a parsed notes file, since only the second needs an account (#125).
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_popup_names_the_topic` | The lookup flow's popup names the topic, and rendering it still saves nothing. |
+| `test_the_file_review_names_it_too` | The same block through the upload path, which needs an account. |
+| `test_an_empty_topic_field_shows_where_the_cards_really_go` | An empty box reads `general`, which is a real destination rather than a placeholder. |
+| `test_the_line_agrees_with_what_the_cards_will_write` | The heading is compared against the cards' hidden `topic` inputs — a heading naming a different topic would be worse than none. |
+| `test_it_is_said_once_however_many_cards_there_are` | Once per popup, not once per card. |
+| `test_a_topic_name_is_text_not_markup` | The name comes from a free-text box (#292), so `Ann & "co" <b>` arrives escaped. |
+| `test_the_popup_still_asks_its_question` | An addition, not a replacement: the title still asks, and the order is title, topic, cards. |
+| `test_no_topic_line_without_a_popup` | It belongs to the popup, not to the page that renders the same template every time. |
+
 ## test_preferred_name.py — Mykola remembers what to call you (15 cases)
 
 ai_agent#62, the KuantorFlow half. The tool itself lives in `ai_agent`; what is tested here is the saver KuantorFlow injects into it — who may store a name, where it goes, and that the change is visible to the very next message rather than only after signing in again. The agent-side half is `ai_agent/test_preferred_name.py`.
