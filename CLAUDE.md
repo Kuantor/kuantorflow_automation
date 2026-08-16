@@ -14,7 +14,7 @@ imports the KuantorFlow Flask app from a sibling checkout.
 | Path | What |
 |---|---|
 | `tests/` | Offline app tests (import `app`, DB/network stubbed) + live smoke tests (marker `live`). |
-| `conftest.py` | Fixtures: `client` (through the gate), `user_client` (also signed in), `saved` (captures `save_flashcard`), autouse `settings_dir` (per-test temp), `app_module`. |
+| `conftest.py` | Fixtures: `client` (through the gate), `user_client` (also signed in), `saved` (captures `save_flashcard`), autouse `settings_dir` (per-test temp), `app_module`. Shared helpers too: `in_other()` and `browse_panel()` — **cut the index page's deck out with the latter**, never by slicing to a landmark, because the games panel reuses `.topic-tile` and an unscoped search counts five activities as topics. |
 | `gate.py` | `enter_gate()` — the one helper for getting a scripted session past the keyword gate. |
 | `backup/` | `backup_db.py` (gzip `mysqldump`, retention) + `restore_db.py`. |
 | `maintenance/` | `dedup_flashcards.py` (remove pre-existing duplicate cards). |

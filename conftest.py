@@ -8,6 +8,7 @@ and never write anywhere.
 """
 
 import os
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -30,6 +31,34 @@ TEST_KEYWORD = "test-keyword"
 # The curriculum section #215 creates empty and #203 will fill. Named here
 # because tests assert on it by name and it is spelled with an en dash.
 CURRICULUM_SECTION = "B2–C1 Conversational Topics"
+
+
+def browse_panel(body):
+    """The `#browse-topics` block of the index page, as it was rendered.
+
+    **Scoping this block is not optional.** The games panel deliberately reuses
+    `.topic-tiles` / `.topic-tile` (kuantorflow#233), so a page-wide search for
+    a tile finds five activities alongside the deck's topics — which is why
+    four different files had grown their own way of cutting this block out.
+
+    Every one of them ended it at the typed topic box's `</form>`, and
+    kuantorflow#290 removed the box. One helper now, matching the block's own
+    closing tag by counting depth.
+
+    Raw HTML rather than a parsed node, because several tests assert on the
+    markup itself — a valueless `open` attribute, an escaped `data-section` —
+    and re-serialising through BeautifulSoup rewrites both (`open` becomes
+    `open=""`, `&#39;` becomes `'`), so the tests would be asserting against
+    the parser rather than against the page.
+    """
+    marker = body.index('id="browse-topics"')
+    start = body.rindex("<div", 0, marker)
+    depth = 0
+    for tag in re.finditer(r"<(/?)div\b", body[start:]):
+        depth += -1 if tag.group(1) else 1
+        if depth == 0:
+            return body[start:start + tag.end() + 1]
+    raise AssertionError("#browse-topics is never closed")
 
 
 def in_other(topics):

@@ -23,6 +23,7 @@ import re
 import pytest
 
 import games
+from conftest import browse_panel
 
 TOPICS = [("Work and careers", 20), ("animals", 3)]
 
@@ -130,8 +131,7 @@ def test_the_panel_sits_outside_the_block_mykola_rebuilds(client, deck):
     /topics.json when a card is saved from chat. A panel in there would be
     wiped on the first chat save."""
     body = client.get("/").get_data(as_text=True)
-    browse = body.split('id="browse-topics"')[1].split("<form")[0]
-    assert "Practise your words" not in browse
+    assert "Practise your words" not in browse_panel(body)
 
 
 def test_the_panel_renders_on_an_empty_deck(client, app_module, monkeypatch):

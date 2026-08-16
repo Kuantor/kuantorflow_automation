@@ -23,7 +23,7 @@ import re
 
 import pytest
 
-from conftest import CURRICULUM_SECTION, in_other
+from conftest import CURRICULUM_SECTION, browse_panel, in_other
 
 TOPICS = [("Work and careers", 20), ("Daily life and routines", 21)]
 
@@ -40,8 +40,8 @@ def _tiles(body):
     the same tile classes, deliberately, so an unscoped search over the page
     returns five activity tiles alongside the deck's.
     """
-    browse = body.split('id="browse-topics"')[1].split("<form")[0]
-    return re.findall(r'<a class="(topic-tile[^"]*)"(.*?)</a>', browse, re.S)
+    return re.findall(r'<a class="(topic-tile[^"]*)"(.*?)</a>',
+                      browse_panel(body), re.S)
 
 
 # --- the slug rule ------------------------------------------------------
