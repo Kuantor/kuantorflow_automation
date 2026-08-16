@@ -107,6 +107,24 @@ def test_the_hint_is_said_once_under_the_lookup_panel(client, topics):
         "the move dialog's second sentence does not apply here"
 
 
+def test_the_hint_sits_with_the_topic_field(client, topics):
+    """In the Topic column, not under the row. The row is two fields wide, so a
+    hint below it is as much a note about the Word box as about this one — and
+    it is the Topic box the sentence is describing.
+
+    Parsed rather than sliced: this is a claim about which element contains
+    which, and the answer has to survive somebody reflowing the markup."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(client.get("/").get_data(as_text=True), "html.parser")
+    field = soup.find(id="word-topic")
+    hint = soup.find("p", class_="form-hint")
+
+    assert hint.parent is field.parent, "the hint left the Topic column"
+    assert field.find_next("p", class_="form-hint") is hint, \
+        "the hint should follow the field it describes"
+
+
 # --- what is in the list ------------------------------------------------
 
 

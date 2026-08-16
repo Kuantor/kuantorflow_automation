@@ -526,7 +526,7 @@ kuantorflow#203. What only a database can prove: that `place_topic()` puts the c
 | `test_an_unknown_owner_email_is_refused_before_anything_is_written` | Refused rather than falling back to nobody, and before a single lookup. |
 | `test_a_dry_run_changes_nothing` | No topics, no cards, no lookups. |
 | `test_a_dry_run_reports_a_topic_it_would_move` | `current_placement()` reads the real table, which is what turns "18 would be created" into "one of yours would be moved". |
-## test_topic_chooser.py — choosing a topic when saving (14 tests, 16 cases)
+## test_topic_chooser.py — choosing a topic when saving (15 tests, 17 cases)
 
 kuantorflow#292. *Look up a word* and *Upload notes* used to take a topic as bare text, so filing a card meant remembering what your topics are called and spelling one correctly — and a typo does not fail, it makes a second topic one letter from the right one. Both fields now carry the control the move dialog has always had: a free-text input with a `<datalist>` of existing topics. Not the **topic picker** below (#250), which ticks several topics for a game round; this chooses one destination. The server contract is deliberately untouched, and asserted here as unchanged.
 
@@ -536,6 +536,7 @@ kuantorflow#292. *Look up a word* and *Upload notes* used to take a topic as bar
 | `test_the_field_is_still_free_text_named_topic` | Still `type=text name=topic` and not `required` — a `<select>` would have made a new topic unreachable, and an empty field still means `general`. (2 cases) |
 | `test_the_two_fields_share_one_list` | One `<datalist>`, two references. Two copies of the same options would drift. |
 | `test_the_hint_is_said_once_under_the_lookup_panel` | The move dialog's sentence, minus its second half about moving, between the two panel headings and not repeated below. |
+| `test_the_hint_sits_with_the_topic_field` | Parsed, not sliced: the hint is inside the Topic column and follows that field. Under the two-field row it would read as a note about the Word box as much as the Topic one. |
 | `test_the_options_are_the_topics_the_tiles_show` | Rendered from the same `sections` the tiles were drawn from, compared through `browse_panel()` so the games panel's tiles are not counted. |
 | `test_a_hidden_topic_is_not_suggested` | With `individual_cards` on (#127), a chooser that suggested other people's topics would hand back the very names the setting hides, and nothing else on the page would show them. |
 | `test_an_empty_deck_leaves_an_empty_list_not_a_missing_one` | No options is a plain text box, which is right when there is nothing to suggest. |
