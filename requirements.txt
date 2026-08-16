@@ -9,3 +9,9 @@ authlib
 mysql-connector-python
 beautifulsoup4
 lxml
+
+# The report tooling: imported by test_report_render_check.py (md_to_pdf.py
+# parses Markdown through md_to_docx.py, hence python-docx), and needed to
+# render a verification report into test_reports/.
+python-docx
+pypdf
