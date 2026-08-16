@@ -213,10 +213,16 @@ def test_schema_sql_is_its_tables_in_dependency_order(schema_sql):
     # users and topics before flashcards, and topic_sections before topics
     # (#215): every foreign key needs its target to exist first, and the file is
     # applied in the order it is written.
+    #
+    # text_generation_usage (#237) sits with anonymous_usage at the top and has
+    # no foreign key at all — deliberately, since it holds day-scoped counters
+    # rather than attribution — so its position is only tidiness.
     assert [s.name for s in steps] == [
-        "anonymous_usage", "users", "topic_sections", "topics", "flashcards"]
+        "anonymous_usage", "text_generation_usage", "users", "topic_sections",
+        "topics", "flashcards"]
     assert [s.target for s in steps] == [
-        Table("anonymous_usage"), Table("users"), Table("topic_sections"),
+        Table("anonymous_usage"), Table("text_generation_usage"),
+        Table("users"), Table("topic_sections"),
         Table("topics"), Table("flashcards")]
 
 
@@ -468,11 +474,13 @@ def test_a_pre_89_database_gets_the_column_index_and_key(schema_sql):
     db = FakeDatabase(_pre_89_objects(), unmigrated=True)
     created, present = apply_schema.run(
         apply_schema.schema_steps(schema_sql), apply_schema.Schema(db), db)
-    # topics (#207) and topic_sections (#215) did not exist before, so both are
-    # created; the three tables that were already there are left alone.
-    assert (created, present) == (2, 3)
+    # topics (#207), topic_sections (#215) and text_generation_usage (#237) did
+    # not exist before, so all three are created; the three tables that were
+    # already there are left alone.
+    assert (created, present) == (3, 3)
     assert Table("topics") in db.objects
     assert Table("topic_sections") in db.objects
+    assert Table("text_generation_usage") in db.objects
 
     # The steps that alter `topics` are skipped, because the pass above just
     # created that table complete — columns, index and foreign key included.
