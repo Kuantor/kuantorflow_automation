@@ -1312,6 +1312,20 @@ kuantorflow#137, extending the `.mht` path. The glued-translation split calls Cl
 | `test_empty_upload_reports_no_entries` | A parseable-looking file with no entries says so plainly. |
 | `test_upload_panel_lists_the_three_formats` | The panel advertises all three formats and its file input accepts them. |
 
+## test_panel_spacing.py — the gap between a panel's fields and its button (7 cases)
+
+kuantorflow#298. *Look up & save* sat 52px below its fields while *Upload & save* sat 14px below its own. 14px is `button { margin-top: 0.9rem }`, which both have; the other 38px was #292's hint, which lives in the **Topic** column — and a flex row is as tall as its tallest column, so a caption belonging to the right column pushed the button down under the left one. The fix takes the hint out of the row's flow, which makes three lines load-bearing in ways that fail silently. All three are CSS, so this file reads the stylesheet; the geometry was measured in a browser at 1280px, 620px, 601px and 375px.
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_hint_is_out_of_the_rows_flow` | `position: absolute` with `top: 100%` — the whole fix, and in flow the buttons drift apart again. |
+| `test_the_hint_is_anchored_to_its_own_column` | `position: relative` on the column, or the hint anchors to some other ancestor and lands somewhere unrelated. |
+| `test_the_button_still_carries_the_only_gap` | The 14px comes from the button's own margin rather than from anything panel-specific; a second source is how the two drift apart. |
+| `test_the_hint_adds_no_margin_below_itself` | The old `0.9rem` bottom margin is gone, checked exactly — `0.3rem 0 0.9rem` starts with `0.3rem 0 0` and would pass a substring check. |
+| `test_the_hint_returns_to_the_flow_when_the_row_stacks` | Below 600px the Topic box is the last field, so out of flow the hint would sit on the button. |
+| `test_the_row_still_stacks_at_the_same_width` | The two rules are a pair; splitting them by a pixel leaves a width with a hint on top of a button. |
+| `test_the_hint_is_still_inside_the_topic_column` | Parsed markup: the CSS is only true while the hint is in that column, and moving it back under the row would satisfy every rule above. |
+
 ## test_parsers.py — MHT extraction and list round-tripping (3 cases)
 
 | Test | What it checks |
