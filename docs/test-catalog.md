@@ -1320,6 +1320,20 @@ kuantorflow#137, extending the `.mht` path. The glued-translation split calls Cl
 | `test_entry_from_line_rejects_plain_text` | An empty line and a line with no separator both yield nothing, rather than a junk card. |
 | `test_to_list_round_trip` | The DB text↔list helper handles None, a JSON array (including Cyrillic), newline-separated text, a bare string, and malformed JSON — which is kept whole rather than raising. |
 
+## test_popup_dismissal.py — how the review popup can be dismissed (7 cases)
+
+kuantorflow#296. Clicking the page outside the dialog closed the popup and threw away every card not yet added — cards that cost a lookup against two providers, or a parsed file. The fix is a deletion, so most of these assert an **absence**, which is easy to get accidentally right: they are therefore scoped to the popup's own script block rather than to the page, and the duplicate-warning modal is asserted to *still have* the dismissal it keeps, so a search-and-replace across every dialog fails here instead of passing quietly. The blocking itself needed no change and is pinned in CSS.
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_click_outside_the_review_popup_does_nothing` | No overlay click listener in the popup's script — the overlay is the target for everything outside the dialog, so a listener on it is a listener on the whole page. |
+| `test_the_cross_still_closes_it` | The deliberate way out, and the only one that says what it does. |
+| `test_escape_still_closes_it` | Kept on purpose: a deliberate keypress, and what a keyboard user expects. If it should go, it goes with this test. |
+| `test_the_per_card_controls_are_untouched` | Removing one card and adding one card are the popup's actual work. |
+| `test_the_duplicate_warning_still_dismisses_on_an_outside_click` | The scope of the fix from the other side — dismissing that modal costs nothing, so it keeps the convenience. |
+| `test_the_overlay_covers_the_whole_viewport` | `position: fixed; inset: 0` is why removing the listener was the whole fix: the click never reached the page. |
+| `test_mykola_sits_above_the_overlay` | The one thing that should still work from inside the popup does so by z-index rather than by any code. |
+
 ## test_popup_topic.py — the destination topic in the review popup (8 cases)
 
 kuantorflow#294. The popup carried every fact about a card except where it was going, and the topic was chosen two panels away before a lookup that takes seconds. Two things are pinned beyond "the line is there": it is the **resolved** topic, so an empty Topic box reads `general` — the only place that default is visible since #292 gave the chooser the move dialog's wording — and it **cannot disagree** with the hidden `topic` the cards will actually write. Both flows the popup opens in are covered, a word lookup and a parsed notes file, since only the second needs an account (#125).
