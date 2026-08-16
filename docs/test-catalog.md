@@ -1415,6 +1415,21 @@ kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests rep
 | `test_wrong_answers_reveal_expected` | A wrong or empty answer shows the accepted translations. |
 | `test_empty_topic_message` | A topic with no cards says there is nothing to quiz on. |
 
+## test_report_render_check.py — the report render check (8 tests, 9 cases)
+
+kuantorflow#282, over `reports/scripts/md_to_pdf.py`. Headless Edge exits before it has rendered, so the converter reads the finished PDF back rather than trusting the exit code (kuantorflow#211) — and the check has to keep two things apart: a PDF that **is** Edge's "File not found" page, and a report that *writes about* that trap and quotes the string. Searching the whole document could not, and refused the 15 August 2026 edition twice. What separates them is shape: the error page is a single page that is almost nothing but the message. `_read_back()` is stubbed, since it is the only part that touches pypdf and a file on disk.
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_error_page_is_refused_by_the_message_it_always_had` | A one-page, 92-character Edge error page is still refused, with the wording that names the hand-off failure rather than a generic bad render. |
+| `test_the_error_page_is_caught_before_the_length_check` | Both rules match that document, so order decides the message: the specific one wins. |
+| `test_either_marker_alone_identifies_it` | `ERR_FILE_NOT_FOUND` and `File not found` are checked separately, so losing one to a future Edge still leaves the page recognisable. |
+| `test_a_report_that_quotes_the_error_string_verifies` | The issue itself: six pages that mention the string once verify instead of being refused. |
+| `test_a_one_page_report_may_quote_it_too` | Page count alone is not the rule — what identifies the error page is that the message is *all there is*. |
+| `test_a_render_that_produced_almost_nothing_is_refused` | A near-empty PDF with no marker still fails the length check. |
+| `test_a_long_render_missing_a_heading_is_refused` | The strong signal is untouched: a render that lost a heading from the source is bad whatever else it says. |
+| `test_nothing_can_switch_the_check_off` | No environment variable, no flag, no optional parameter on `verify()` — kuantorflow#211's rule, re-checked after narrowing the scope. |
+
 ## test_reset_auth.py — Reset Auth (6 cases)
 
 kuantorflow#98. The gate pass and the Google identity both live in the signed session cookie; `POST /auth/reset` clears it entirely.
