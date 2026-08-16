@@ -188,8 +188,8 @@ def test_an_empty_database_gets_the_whole_schema(scratch_db):
     result = _apply()
     assert result.returncode == 0, result.stderr
     tables = sorted(r[0] for r in _query("SHOW TABLES"))
-    assert tables == ["anonymous_usage", "flashcards", "topic_sections",
-                      "topics", "users"]
+    assert tables == ["anonymous_usage", "flashcards", "text_generation_usage",
+                      "topic_sections", "topics", "users"]
     # The tables schema.sql creates need no migrations on top of them.
     columns = _columns()
     assert "added_by_user_id" in columns

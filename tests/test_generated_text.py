@@ -1,0 +1,387 @@
+"""Writing a text out of the learner's own words (kuantorflow#237).
+
+The one activity that *produces* language rather than testing it, and the only
+one that costs real money every time it runs. Which is what most of this file is
+about: the call is stubbed throughout, so the suite stays offline and free, and
+the tests that matter most are the ones proving the call did **not** happen —
+a refused generation, a held text being re-read, a page merely being opened.
+
+The seam is `textgen._ask_claude`, the one function that touches the network.
+Everything above it — the prompt, the bounds, the highlighting, the log line —
+stays in the path, because those are what is being tested.
+"""
+
+import re
+
+import pytest
+
+import games
+import textgen
+
+
+CARDS = [
+    {"id": 1, "word": "resign", "pos": "verb", "topic": "Work",
+     "explanation_en": "to give up a job or position",
+     "translation_ukr": "звільнятися", "translation_rus": "увольняться",
+     "examples_en": ["He resigned from the board."]},
+    {"id": 2, "word": "tactic", "pos": "noun", "topic": "Work",
+     "explanation_en": "a method used to achieve something",
+     "translation_ukr": "тактика", "translation_rus": "тактика"},
+    {"id": 3, "word": "apply", "pos": "verb", "topic": "Work",
+     "translation_ukr": "подавати заяву", "translation_rus": "подавать заявление"},
+]
+
+PASSAGE = ("She applied for the job in March. The tactics were obvious to "
+           "everyone, and by June she had resigned.")
+
+PLAY = "/games/read_a_text/play"
+ONE_TOPIC = f"{PLAY}?topic=Work"
+
+
+@pytest.fixture()
+def deck(stub_deck):
+    return stub_deck(cards=CARDS)
+
+
+@pytest.fixture(autouse=True)
+def has_key(monkeypatch):
+    """A key is present unless a test says otherwise — read at request time on
+    purpose, so setting it here is enough (kuantorflow#237)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+
+
+@pytest.fixture(autouse=True)
+def no_ceilings(app_module, monkeypatch):
+    """No database behind the daily counters. Tests about the ceilings patch
+    this themselves; every other test would otherwise write to a real one."""
+    monkeypatch.setattr(app_module, "claim_text_generation",
+                        lambda user_id, user_limit, daily: (True, None, 1))
+    monkeypatch.setattr(app_module, "GENERATION_ANON_LIMIT", 0)
+
+
+@pytest.fixture()
+def claude(monkeypatch):
+    """The model call replaced by a recorder. Returns the list of prompts."""
+    prompts = []
+
+    def fake(prompt, length):
+        prompts.append((prompt, length))
+        return PASSAGE
+
+    monkeypatch.setattr(textgen, "_ask_claude", fake)
+    return prompts
+
+
+def _write(client, url=ONE_TOPIC, **form):
+    """Press the button, then follow the redirect the way a browser does."""
+    return client.post(url, data=form, follow_redirects=True)
+
+
+def _passage(body):
+    """The rendered text with its markup taken back off.
+
+    Necessary rather than fussy: the highlighting cuts the passage into runs,
+    so `"she had resigned"` is not a substring of the page — `resigned` is
+    inside a `<strong>` of its own. Asserting on the raw HTML would mean
+    asserting on where the bold happened to fall.
+    """
+    found = re.search(r'<div class="panel reader-text">(.*?)</div>', body, re.S)
+    return re.sub(r"<[^>]+>", "", found.group(1)).strip() if found else ""
+
+
+def _bold(body):
+    return re.findall(r'<strong class="reader-word">(.*?)</strong>', body)
+
+
+def _used(body):
+    return re.findall(r'<span class="reader-word-used">(.*?)</span>', body)
+
+
+def _unused(body):
+    return re.findall(r'<span class="reader-word-unused">(.*?)</span>', body)
+
+
+# --- it is a real activity now ----------------------------------------------
+
+def test_the_activity_is_no_longer_a_stub():
+    """`ticket` is present exactly while an activity is a stub (#253), and
+    dropping it is what lights up the tile, the topic row and the round."""
+    assert games.ACTIVITIES["read_a_text"].ticket == ""
+
+
+def test_the_picker_counts_words_of_prose_not_questions(client, deck):
+    """One box, two meanings: a quiz's number is questions asked, this one is
+    words of prose, and a picker offering 1–200 words would be wrong."""
+    body = client.get("/games/read_a_text").get_data(as_text=True)
+    assert f'min="{games.GENERATED_WORDS_MIN}"' in body
+    assert f'max="{games.GENERATED_WORDS_MAX}"' in body
+    assert f'value="{games.GENERATED_WORDS_DEFAULT}"' in body
+    assert games.GENERATED_WORDS.hint in body
+
+
+def test_the_quiz_picker_still_counts_questions(client, deck):
+    body = client.get("/quiz").get_data(as_text=True)
+    assert f'max="{games.QUIZ_WORDS_MAX}"' in body
+    assert f'value="{games.QUIZ_WORDS_DEFAULT}"' in body
+    assert "picker-words-hint" not in body
+
+
+def test_only_the_reader_asks_what_it_should_be_about(client, deck):
+    assert 'name="about"' in client.get("/games/read_a_text").get_data(as_text=True)
+    assert 'name="about"' not in client.get("/quiz").get_data(as_text=True)
+
+
+# --- opening the page spends nothing ----------------------------------------
+
+def test_opening_the_page_does_not_call_the_model(client, deck, claude):
+    """The whole reason Start does not generate: a tile, a link and a bookmark
+    all land here, and none of them asked to spend anything."""
+    body = client.get(ONE_TOPIC).get_data(as_text=True)
+    assert claude == []
+    assert "Write my text" in body
+
+
+# --- writing one ------------------------------------------------------------
+
+def test_pressing_the_button_writes_a_text(client, deck, claude):
+    body = _write(client).get_data(as_text=True)
+    assert len(claude) == 1
+    assert "she had resigned" in _passage(body)
+
+
+def test_the_words_are_highlighted_by_matching_not_by_the_model(client, deck,
+                                                                claude):
+    """The model was asked for plain prose and never emits markup of its own;
+    the bold is found afterwards, inflections and all."""
+    body = _write(client).get_data(as_text=True)
+    assert sorted(_bold(body)) == ["applied", "resigned", "tactics"]
+
+
+def test_the_words_that_appeared_and_the_ones_that_did_not_are_both_listed(
+        client, deck, monkeypatch):
+    """No claimed coverage that was not checked. A missing word is information,
+    not a failure — the text is still shown."""
+    monkeypatch.setattr(textgen, "_ask_claude",
+                        lambda prompt, length: "She resigned in March.")
+    body = _write(client).get_data(as_text=True)
+    assert _used(body) == ["resign"]
+    assert sorted(_unused(body)) == ["apply", "tactic"]
+    assert _passage(body) == "She resigned in March."
+
+
+def test_a_generation_writes_one_log_line_naming_the_model(client, deck, claude,
+                                                           action_logs):
+    _write(client)
+    line = (action_logs / "dict.log").read_text(encoding="utf-8")
+    assert "GENERATE" in line
+    assert f"model={textgen.TEXT_MODEL}" in line
+    assert "supplied=3" in line and "used=3" in line
+
+
+# --- the prompt -------------------------------------------------------------
+
+def test_the_prompt_carries_the_words_alone(client, deck, claude):
+    """No explanation, no examples, no translations — the card's other fields
+    are exactly what #237 says not to send, and they are most of its bulk."""
+    _write(client)
+    prompt, _ = claude[0]
+    for word in ("resign", "tactic", "apply"):
+        assert word in prompt
+    assert "to give up a job or position" not in prompt      # explanation_en
+    assert "He resigned from the board." not in prompt       # examples_en
+    assert "звільнятися" not in prompt                       # translation_ukr
+
+
+def test_the_learners_line_reaches_the_prompt_on_one_line(client, deck, claude):
+    _write(client, about="a letter\nof   complaint\r\nto a hotel")
+    prompt, _ = claude[0]
+    assert "a letter of complaint to a hotel" in prompt
+
+
+def test_the_learners_line_is_capped(client, deck, claude):
+    """Free text on its way into a model prompt, capped and flattened for the
+    reason clean_preferred_name() gives (ai_agent#62)."""
+    _write(client, about="x" * 5000)
+    prompt, _ = claude[0]
+    assert "x" * (textgen.INSTRUCTION_MAX_CHARS + 1) not in prompt
+
+
+@pytest.mark.parametrize("length", [50, 150, 400])
+def test_at_most_twenty_words_go_into_one_text(length):
+    """A passage using two hundred words would be unreadable, and the rest of
+    the deck is what the next text is for."""
+    many = [{"word": f"word{i}"} for i in range(200)]
+    chosen = textgen.words_for_text(many, length)
+    assert textgen.WORDS_PER_TEXT_MIN <= len(chosen) <= textgen.WORDS_PER_TEXT_MAX
+
+
+def test_a_word_that_is_two_cards_is_asked_for_once(deck):
+    """#101 keeps one card per word *and part of speech*, so a word that is
+    both a noun and a verb is two cards — and one of the dozen places a text
+    has should not go to the same word twice."""
+    both = [{"word": "resign"}, {"word": "Resign"}, {"word": "tactic"}]
+    assert sorted(textgen.words_for_text(both, 150)) == ["resign", "tactic"]
+
+
+def test_max_tokens_leaves_room_for_the_length_asked_for(client, deck,
+                                                          monkeypatch):
+    """English runs about 1.3 tokens a word, so a 1:1 cap stops the passage
+    mid-sentence. The cap still makes a runaway impossible."""
+    assert textgen.max_tokens(150) > 150
+    assert textgen.max_tokens(150) < 150 * 3
+
+
+def test_the_requested_length_reaches_the_call(client, deck, claude):
+    _write(client, f"{PLAY}?topic=Work&words=300")
+    _, length = claude[0]
+    assert length == 300
+
+
+def test_a_length_from_the_url_is_clamped_rather_than_refused(client, deck,
+                                                              claude):
+    """It arrives from a URL anybody can edit, and a round is not the place to
+    argue about it."""
+    _write(client, f"{PLAY}?topic=Work&words=99999")
+    assert claude[0][1] == games.GENERATED_WORDS_MAX
+
+
+# --- generate once ----------------------------------------------------------
+
+def test_re_reading_a_held_text_costs_nothing(client, deck, claude):
+    """A stray refresh, a flip back, a bookmark — none of them may spend."""
+    _write(client)
+    for _ in range(3):
+        body = client.get(ONE_TOPIC).get_data(as_text=True)
+        assert "she had resigned" in _passage(body)
+    assert len(claude) == 1
+
+
+def test_writing_the_text_redirects_so_a_refresh_is_a_get(client, deck, claude):
+    """Post/redirect/get is what makes the refresh above a plain GET rather
+    than a resubmitted POST."""
+    posted = client.post(ONE_TOPIC, data={})
+    assert posted.status_code == 302
+    assert "/games/read_a_text/play" in posted.headers["Location"]
+
+
+def test_regenerating_is_explicit_and_spends_again(client, deck, claude):
+    _write(client)
+    _write(client)
+    assert len(claude) == 2
+
+
+def test_changing_the_instruction_offers_a_fresh_text(client, deck, claude):
+    """The held text is keyed on what produced it, so a different request does
+    not silently show a text about something else."""
+    _write(client, about="a news report")
+    body = client.get(f"{ONE_TOPIC}&about=a+letter").get_data(as_text=True)
+    assert "she had resigned" not in _passage(body)
+    assert "Write my text" in body
+    assert len(claude) == 1
+
+
+def test_a_different_length_offers_a_fresh_text(client, deck, claude):
+    _write(client, f"{PLAY}?topic=Work&words=150")
+    body = client.get(f"{PLAY}?topic=Work&words=300").get_data(as_text=True)
+    assert "she had resigned" not in _passage(body)
+
+
+# --- the ceilings, all checked before the call ------------------------------
+
+def test_an_anonymous_visitor_gets_one_text_then_the_sign_in_prompt(
+        client, deck, claude, app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "GENERATION_ANON_LIMIT", 1)
+    _write(client)
+    body = _write(client, about="something else").get_data(as_text=True)
+    assert len(claude) == 1, "the refused text must not reach the model"
+    # By the reader's own class: both the words "Sign in with Google" and
+    # the shared `signin-required-go` styling appear in base.html on every
+    # page, so neither can say whether *this* refusal offered a way on.
+    assert "reader-signin" in body
+
+
+def test_a_refusal_keeps_the_text_the_learner_already_has(
+        client, deck, claude, app_module, monkeypatch):
+    """Being told you cannot have a second text is no reason to lose the
+    first."""
+    monkeypatch.setattr(app_module, "GENERATION_ANON_LIMIT", 1)
+    _write(client)
+    body = _write(client, about="something else").get_data(as_text=True)
+    assert "she had resigned" in _passage(body)
+
+
+def test_the_daily_account_ceiling_says_so_plainly(client, deck, claude,
+                                                   app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "claim_text_generation",
+                        lambda *a: (False, "user", 10))
+    body = _write(client).get_data(as_text=True)
+    assert claude == []
+    assert "today" in body.lower()
+    assert "reader-signin" not in body         # signing in does not help here
+
+
+def test_the_site_wide_ceiling_says_so_plainly(client, deck, claude,
+                                               app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "claim_text_generation",
+                        lambda *a: (False, "daily", 100))
+    body = _write(client).get_data(as_text=True)
+    assert claude == []
+    assert "tomorrow" in body.lower()
+
+
+def test_a_blocked_account_cannot_spend_anything(client, deck, claude,
+                                                 app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "is_blocked", lambda: True)
+    _write(client)
+    assert claude == []
+
+
+def test_a_dead_counter_does_not_take_the_activity_down(client, deck, claude,
+                                                        app_module, monkeypatch):
+    """Best-effort in the same direction as #164's counter: an unreachable
+    database cannot enforce a ceiling, and it has already made the deck
+    unreadable."""
+    def boom(*a):
+        raise RuntimeError("database is away")
+
+    monkeypatch.setattr(app_module, "claim_text_generation", boom)
+    assert "she had resigned" in _passage(_write(client).get_data(as_text=True))
+
+
+# --- no key, no activity ----------------------------------------------------
+
+def test_with_no_api_key_the_activity_is_not_there_at_all(client, deck,
+                                                          monkeypatch):
+    """Hide what the learner cannot act on (#233), exactly as
+    MYKOLA_AVAILABLE=False removes the chat widget. There is no fallback —
+    nothing else can write the text."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert client.get("/games/read_a_text").status_code == 404
+    assert client.get(ONE_TOPIC).status_code == 404
+    assert "/games/read_a_text" not in client.get("/").get_data(as_text=True)
+
+
+def test_the_other_games_do_not_need_a_key(client, deck, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert client.get("/games/scrambled").status_code == 200
+
+
+# --- when the call fails ----------------------------------------------------
+
+def test_a_failed_call_is_reported_and_logged(client, deck, monkeypatch,
+                                              action_logs):
+    """A silent fallback reads as a bug (#30), and there is no fallback here
+    worth the name — so it says so, and the log says why."""
+    def boom(prompt, length):
+        raise RuntimeError("anthropic is away")
+
+    monkeypatch.setattr(textgen, "_ask_claude", boom)
+    body = _write(client).get_data(as_text=True)
+    assert "could not be written" in body
+    log = (action_logs / "dict.log").read_text(encoding="utf-8")
+    assert "GENERATE" in log and "anthropic is away" in log
+
+
+def test_an_empty_reply_counts_as_a_failure(client, deck, monkeypatch):
+    monkeypatch.setattr(textgen, "_ask_claude", lambda prompt, length: "   ")
+    assert "could not be written" in _write(client).get_data(as_text=True)
