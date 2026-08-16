@@ -1123,6 +1123,25 @@ The trap it is built around is **NULL**. `added_by_user_id = 5` is never true fo
 | `test_the_checkbox_is_in_the_settings_popup` | The control and its label are present. |
 | `test_the_checkbox_is_disabled_for_an_anonymous_visitor` | There is no account to filter by, and the default config is shared. |
 
+## test_interrupted_question.py — a question the page was left before (12 cases)
+
+kuantorflow#304. Ask Mykola something and follow any link before the answer arrives, and two things were lost at once: the **answer**, because the stream is read with `fetch` in that page's JavaScript and the navigation tears the context down; and the **question**, in the sense that matters — it stayed on screen, because the user message persists immediately, but `history` is only ever assigned from a reply, so the transcript and the model's view of it had silently diverged and every later turn was answered as though it had never been asked. The widget now records the question it is waiting on and the next page asks it again. The behaviour was driven in a browser — asked, navigated to a topic page mid-answer, answer arrived there; asked again, navigated to the card deck, follow-up arrived there and read as a follow-up — and these hold the script that does it.
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_pending_question_is_part_of_the_saved_state` | The request cannot survive the navigation; this is what does. |
+| `test_it_is_recorded_before_the_message_is_added` | Order is the point: between marking it pending and the save is exactly the window a click falls into. |
+| `test_an_answer_clears_it` | `finishAnswer()` is where both delivery paths end up. |
+| `test_an_error_clears_it` | Left set, the question would re-ask itself on every page load for the session — worse than the bug. |
+| `test_a_cut_stream_that_delivered_something_clears_it` | Half an answer is still an answer to this question. |
+| `test_a_network_failure_clears_it` | The `catch` around the request, which is not the error path. |
+| `test_a_restored_pending_question_is_asked_again` | On any page, after any navigation — the state is restored the same way everywhere. |
+| `test_resuming_wins_over_restarting_a_stale_chat` | Both can be true after a long absence, and restarting first wipes the unanswered question away. |
+| `test_the_question_is_put_back_if_it_is_not_on_screen` | Otherwise an answer to a question nobody can see. |
+| `test_resuming_does_not_steal_the_focus` | Sending earns the caret back; a page load finishing an old request does not, and a phone would open its keyboard. |
+| `test_the_retry_carries_the_same_conversation` | Same chat id and history — a re-ask in a new thread would answer out of context and split the log. |
+| `test_both_delivery_paths_go_through_the_one_asker` | `askStreaming()` falls back to `askWhole()` itself, so the non-streaming server needs no second copy of any of this. |
+
 ## test_language_visibility.py — hiding a translation language (10 cases)
 
 kuantorflow#46/#79/#111. The Settings checkboxes hide a language everywhere — flashcards, the lookup review popup, the quiz and Mykola's answers — while the underlying data stays stored.

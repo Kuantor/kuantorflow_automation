@@ -238,9 +238,21 @@ def test_slider_shows_the_stored_hours(user_client, app_module, monkeypatch):
 
 
 def test_widget_asks_the_server_on_load(client, app_module, monkeypatch):
+    """The check runs from the restore path, on a conversation that exists.
+
+    Asserted by what the code does rather than by the line it is written on:
+    kuantorflow#304 made it the `else` of resuming an interrupted question —
+    both can be true after a long absence, and restarting first would wipe the
+    unanswered question away — so the one-line spelling this used to match is
+    gone while the rule it was protecting is not.
+    """
     monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert "function maybeRestartChat()" in body
     assert "/mykola/restart-check" in body
-    assert "if (hasConversation()) maybeRestartChat();" in body
     assert "last_message_at: lastMessageAt" in body
+
+    restore = body[body.index("function restoreState()"):]
+    restore = restore[:restore.index("})();")]
+    assert "hasConversation()" in restore
+    assert "maybeRestartChat()" in restore
