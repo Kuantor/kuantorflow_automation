@@ -619,6 +619,29 @@ Guards the exact bug where restore fed compressed bytes to `mysql` and silently 
 | --- | --- |
 | `test_deleted_card_reappears_after_restore` | Insert a sentinel card → back up → delete it → restore: the card is back. A restore that quietly does nothing fails here. |
 
+## test_browse_folds.py — folding a section away (16 cases)
+
+kuantorflow#288. A section of *Browse flashcards* folds by clicking its heading and stays folded. Almost all of that is the browser's work — the markup is a real `<details>`, which folds, takes the keyboard and announces itself without a line of JavaScript — so the tests follow that split: the markup on the rendered page, the twin renderer in `refreshBrowseTopics()` which must rebuild the folds *and* restore their state after a chat save (#53), and the storage rules read out of `browse_folds.js`. Deliberately absent: whether a click folds the section, which is `<details>` doing its job.
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_section_with_topics_is_a_disclosure` | Each section with topics is a `<details class="topic-fold">` carrying its name, rather than a heading with a click handler. |
+| `test_the_heading_stays_a_heading_inside_the_summary` | The `<h3>` survives inside the `<summary>`, so the section keeps its place in the page outline. |
+| `test_the_tiles_live_inside_the_fold` | The grid is inside the `<details>` — a sibling grid would fold nothing and look identical. |
+| `test_every_section_is_rendered_open` | The server renders every fold open: it cannot know what this device folded, and expanded is the safe way to be wrong. |
+| `test_an_empty_section_gets_a_plain_heading_and_no_fold` | #218's empty-section heading stays a plain heading; a disclosure would offer to reveal nothing. |
+| `test_the_section_name_is_what_identifies_a_fold` | `data-section` carries the name as-is and is escaped — a quote in a section name would otherwise break out of the attribute. |
+| `test_an_empty_deck_still_says_so` | No headings, no folds, one sentence — #218's rule, unchanged. |
+| `test_the_script_is_loaded_where_the_panel_is` | `browse_folds.js` loads on the index page, after the panel and **without** `defer`, so a folded section is never painted open first. |
+| `test_it_is_not_loaded_on_pages_without_the_panel` | It is the index page's script, not the site's. |
+| `test_the_storage_key_is_versioned_and_pinned` | `kf_browse_folds_v1` spelled out, because renaming it silently forgets what every existing device folded. |
+| `test_it_stores_what_is_closed_rather_than_what_is_open` | The default rests on this: an untouched or brand-new section is absent from the list and therefore open. |
+| `test_apply_is_exported_for_the_rebuild` | `window.kfBrowseFolds.apply` exists — two renderers, one restore. |
+| `test_blocked_storage_cannot_break_the_page` | Both the read and the write ask `hasStorage()` and are wrapped anyway; a private mode costs the fold, not the front page. |
+| `test_the_rebuild_builds_folds_too` | `refreshBrowseTopics()` creates the same `details`/`summary` markup, or a chat save would flatten the panel until the next load. |
+| `test_the_rebuild_restores_what_was_folded` | It calls back into the module — the half that would be missed, since the markup would look right and every section would still spring open. |
+| `test_the_rebuild_leaves_an_empty_section_unfolded` | The empty-section rule holds in the other renderer too. |
+
 ## test_blocked_accounts.py — blocking an account (33 tests, 36 cases)
 
 kuantorflow#126. A blocked user keeps reading — flashcards, the deck, the quiz, word lookups and their own settings — but cannot change the database or talk to Mykola, and is shown the admin's address so they can ask for access back. The block lives on the users row and is read live on each request rather than stamped into the session: a session cookie lasts 30 days, and a block has to take effect on the blocked person's next request, not their next sign-in.
