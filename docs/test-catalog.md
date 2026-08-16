@@ -1402,6 +1402,43 @@ ai_agent#62, the KuantorFlow half. The tool itself lives in `ai_agent`; what is 
 | `test_no_rows_updated_is_reported` | An id that matches nothing reports False. |
 | `test_no_account_never_reaches_the_database` | No id means no connection is opened at all — the stub raises if it is. |
 
+## test_pronounce_button.py — hear the word (18 cases)
+
+kuantorflow#283/#268, extended to the review popup by #301. The app's first audio, and all of it happens in the visitor's browser — no key, no round trip, nothing stored — so what is testable offline is the markup and the wiring. Two rules in `speech.js` come from iOS and are why this file asserts on JavaScript at all: `speak()` must be reachable **synchronously from the press**, and an **empty** voice list is not the same as no English voice. Both are invisible in a screenshot and silent when broken.
+
+**The helper, and the buttons**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_helper_is_loaded_site_wide` | Loaded from `base.html`, so the next surface needs markup and nothing else. |
+| `test_no_template_touches_the_speech_api_itself` | Every caller goes through the helper; a template reaching for `speechSynthesis` would be a second implementation of three rules. |
+| `test_every_card_on_the_topic_page_offers_one` | One per card, labelled. |
+| `test_the_deck_offers_one_on_the_front_face` | The deck's variant, on the side showing the word. |
+| `test_the_label_names_the_word` | Forty identical speaker icons are no help to a screen reader. |
+| `test_the_button_carries_the_word_rather_than_an_id` | `data-say` holds the text, so nothing has to fetch a word in order to say it. |
+| `test_the_buttons_start_hidden` | Revealed by `speech.js` once it knows the browser can speak — an icon that does nothing reads as a broken page. |
+
+**The rules that keep it working on a phone**
+
+| Test | What it checks |
+| --- | --- |
+| `test_the_click_is_handled_in_the_capture_phase` | The deck flips on click and the button sits on its face; a bubbling listener ran too late and flipped the card every time. |
+| `test_speaking_is_reachable_without_awaiting_anything` | iOS withdraws permission to make a sound the moment the handler waits. |
+| `test_an_unknown_voice_list_still_speaks` | An empty `getVoices()` means "not yet", so the helper falls back to a language rather than refusing. |
+| `test_pressing_again_cancels_first` | A second press repeats the word rather than queueing, and clears the state iOS is left in after a screen lock. |
+| `test_a_local_voice_is_preferred` | Some browsers synthesise their nicer voices on the vendor's servers; the device can usually do it, and preferring that keeps the word here. |
+
+**The review popup (#301)**
+
+| Test | What it checks |
+| --- | --- |
+| `test_every_proposed_card_offers_one` | Hearing the word is part of deciding whether to keep the card. |
+| `test_the_button_cannot_submit_the_card` | The detail that matters here and nowhere else: the card is a form whose submit is *Add*, so `type="submit"` would **save** the card instead of pronouncing it. |
+| `test_the_popup_buttons_start_hidden` | Same reveal rule as every other surface. |
+| `test_the_popup_label_names_the_word` | A popup can hold a dozen cards. |
+| `test_a_file_review_offers_them_too` | The upload flow through the same block, which needs an account (#125). |
+| `test_the_popup_adds_no_javascript_of_its_own` | Markup and nothing else, as the helper's docstring promises. |
+
 ## test_providers.py — translation and dictionary providers (40 tests, 45 cases)
 
 kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests replace the backend functions, the fetcher tests replace `requests.get`/`post` (or the Bing API seam) with responses captured from the real services.

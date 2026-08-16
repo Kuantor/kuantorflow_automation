@@ -145,3 +145,94 @@ def test_a_local_voice_is_preferred():
     here."""
     js = read_speech_js()
     assert "localService" in js
+
+
+# --- the review popup (kuantorflow#301) -------------------------------------
+#
+# The surface the first test in this file predicted: "the next caller — the
+# review popup — should need markup and nothing else." It did. What is new
+# here, and the reason for most of these, is that a proposal card **is a
+# form** whose submit button is *Add*.
+
+PROPOSED = [
+    {"word": "probability", "pos": "noun", "translation_ukr": "імовірність"},
+    {"word": "take for granted", "translation_ukr": "сприймати як належне"},
+]
+
+
+@pytest.fixture()
+def popup(client, app_module, monkeypatch, saved):
+    """The page with the review popup open, from a word lookup."""
+    monkeypatch.setattr(
+        app_module, "lookup_word",
+        lambda word, topic=None, **providers: [dict(c, topic=topic)
+                                               for c in PROPOSED])
+    return client.post("/", data={"action": "parse_word", "word": "probability",
+                                  "topic": "vocab"}).get_data(as_text=True)
+
+
+def _cards(body):
+    """Each proposal card's markup, in render order."""
+    import re
+
+    return re.findall(r'<form class="proposal-card".*?</form>', body, re.S)
+
+
+def test_every_proposed_card_offers_one(popup):
+    """Hearing the word is part of deciding whether to keep the card, which is
+    the one thing this popup is for."""
+    cards = _cards(popup)
+    assert len(cards) == len(PROPOSED)
+    for card, proposed in zip(cards, PROPOSED):
+        assert f'data-say="{proposed["word"]}"' in card
+
+
+def test_the_button_cannot_submit_the_card(popup):
+    """The detail that matters more here than anywhere else this button has
+    been used: the card is a form whose submit is *Add*, so a speaker that
+    defaulted to `type="submit"` would **save the card** instead of
+    pronouncing it. speech.js's capture-phase preventDefault already stops
+    that; this is the second lock, and the cheaper one to keep."""
+    for card in _cards(popup):
+        say = card[card.index("data-say=") - 300:card.index("data-say=")]
+        assert 'type="button"' in say
+
+
+def test_the_popup_buttons_start_hidden(popup):
+    """Same rule as everywhere else: revealed only once speech.js knows the
+    browser can speak."""
+    for card in _cards(popup):
+        assert "hidden" in card[card.index("data-say=") - 300:card.index("data-say=")]
+
+
+def test_the_popup_label_names_the_word(popup):
+    """A popup can hold a dozen cards, and "Pronounce" twelve times tells a
+    screen-reader user nothing."""
+    for proposed in PROPOSED:
+        assert f'aria-label="Pronounce {proposed["word"]}"' in popup
+
+
+def test_a_file_review_offers_them_too(user_client, saved):
+    """The other flow through the same block — an upload needs an account
+    (#125), which is the only difference between them here."""
+    import io
+
+    body = user_client.post(
+        "/",
+        data={"action": "upload_notes", "topic": "vocab",
+              "notes_file": (io.BytesIO("probability - імовірність\n".encode()),
+                             "notes.txt")},
+        content_type="multipart/form-data",
+        follow_redirects=True).get_data(as_text=True)
+
+    assert "Review the cards parsed from your file" in body
+    assert 'data-say="probability"' in body
+    assert saved == [], "reviewing is not saving"
+
+
+def test_the_popup_adds_no_javascript_of_its_own(popup):
+    """Markup and nothing else, as the helper's own docstring promises. A
+    listener here would be a second implementation of the iOS gesture rule and
+    the cancel-before-speak rule."""
+    assert "speechSynthesis" not in popup
+    assert popup.count('addEventListener("click", function (event)') == 0
