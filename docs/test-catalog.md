@@ -526,6 +526,28 @@ kuantorflow#203. What only a database can prove: that `place_topic()` puts the c
 | `test_an_unknown_owner_email_is_refused_before_anything_is_written` | Refused rather than falling back to nobody, and before a single lookup. |
 | `test_a_dry_run_changes_nothing` | No topics, no cards, no lookups. |
 | `test_a_dry_run_reports_a_topic_it_would_move` | `current_placement()` reads the real table, which is what turns "18 would be created" into "one of yours would be moved". |
+## test_topic_chooser.py — choosing a topic when saving (15 tests, 17 cases)
+
+kuantorflow#292. *Look up a word* and *Upload notes* used to take a topic as bare text, so filing a card meant remembering what your topics are called and spelling one correctly — and a typo does not fail, it makes a second topic one letter from the right one. Both fields now carry the control the move dialog has always had: a free-text input with a `<datalist>` of existing topics. Not the **topic picker** below (#250), which ticks several topics for a game round; this chooses one destination. The server contract is deliberately untouched, and asserted here as unchanged.
+
+| Test | What it checks |
+| --- | --- |
+| `test_both_fields_are_choosers` | Both fields carry `list=`, the move dialog's placeholder, and `autocomplete="off"` so browser form history does not compete with the suggestions. (2 cases) |
+| `test_the_field_is_still_free_text_named_topic` | Still `type=text name=topic` and not `required` — a `<select>` would have made a new topic unreachable, and an empty field still means `general`. (2 cases) |
+| `test_the_two_fields_share_one_list` | One `<datalist>`, two references. Two copies of the same options would drift. |
+| `test_the_hint_is_said_once_under_the_lookup_panel` | The move dialog's sentence, minus its second half about moving, between the two panel headings and not repeated below. |
+| `test_the_hint_sits_with_the_topic_field` | Parsed, not sliced: the hint is inside the Topic column and follows that field. Under the two-field row it would read as a note about the Word box as much as the Topic one. |
+| `test_the_options_are_the_topics_the_tiles_show` | Rendered from the same `sections` the tiles were drawn from, compared through `browse_panel()` so the games panel's tiles are not counted. |
+| `test_a_hidden_topic_is_not_suggested` | With `individual_cards` on (#127), a chooser that suggested other people's topics would hand back the very names the setting hides, and nothing else on the page would show them. |
+| `test_an_empty_deck_leaves_an_empty_list_not_a_missing_one` | No options is a plain text box, which is right when there is nothing to suggest. |
+| `test_a_dead_database_still_renders_both_panels` | `sections` falls back to `[]`; looking a word up is how a learner would find out anything is wrong. |
+| `test_a_topic_name_with_quotes_survives_the_option` | The value is a name somebody typed, so it is escaped rather than trusted. |
+| `test_the_list_sits_outside_the_block_a_chat_save_rebuilds` | A datalist inside `#browse-topics` would be deleted by the first chat save and the fields would silently lose their suggestions. |
+| `test_the_rebuild_updates_the_options` | `refreshTopicOptions(sections)` is called, and before the empty-deck early return. |
+| `test_the_options_are_left_alone_when_the_topics_have_not_changed` | The comparison gates the rewrite rather than being a note taken on the way past — most chat saves change no topic, and replacing the list swaps it out from under an open dropdown. |
+| `test_the_rebuild_reads_the_same_shape_the_page_rendered` | Sections, not the flat `topics` list also in the response, so the dropdown is not reshuffled on an unrelated save. |
+| `test_the_rebuild_is_harmless_on_pages_without_the_list` | The widget is on every page; the chooser is on one. |
+
 ## test_topic_icons.py — pictures on the topic tiles (13 tests, 22 cases)
 
 kuantorflow#223. A topic finds its icon by **name** — `static/img/topics/<slug>.webp` — so the feature is a convention plus a directory listing. Two things pull in opposite directions and both are pinned: the slug rule, which is the only thing joining a database row to a file on disk, and the **absence** of a file, which is the common case rather than the edge one (everything in `Other`, and anything a learner invents by looking a word up). The icon directory is stubbed in most tests — a test that passed only because someone had committed a matching file would be asserting the state of `static/`, not the behaviour of the code.
