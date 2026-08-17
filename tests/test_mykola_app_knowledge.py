@@ -96,16 +96,62 @@ def test_every_activity_is_described(guide):
             f"the guide never mentions {activity.name!r}"
 
 
+def _games_table(guide):
+    """The rows of the guide's list of games, as `{name: description}`."""
+    rows = {}
+    for line in guide.splitlines():
+        if not line.startswith("|") or set(line) <= set("| -"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) == 2:
+            rows[cells[0].strip("*").lower()] = cells[1].lower()
+    return rows
+
+
 def test_an_activity_that_ships_is_no_longer_called_unbuilt(guide):
     """The failure this replaces: the guide called *Generate a text* "not yet
-    built" for as long as it took anyone to notice it had shipped."""
+    built" for as long as it took anyone to notice it had shipped.
+
+    Read off `ticket`, which is the app's own record of whether a game exists
+    (#253): the field is present exactly while an activity is a stub, so this
+    cannot disagree with the front page."""
     import games
 
-    unbuilt = guide.split("### Not yet built", 1)[-1].split("##", 1)[0].lower()
+    rows = _games_table(guide)
     for activity in games.ACTIVITIES.values():
-        if not activity.ticket:                     # ticket gone = it is built
-            assert activity.name.lower() not in unbuilt, \
-                f"{activity.name!r} has shipped but is still listed as unbuilt"
+        described = rows.get(activity.name.lower())
+        if described is None:
+            continue
+        shipped = not activity.ticket
+        says_unbuilt = "not built" in described or "not yet built" in described
+        assert shipped != says_unbuilt, (
+            f"{activity.name!r}: ticket={activity.ticket!r} but the guide says "
+            f"{described!r}")
+
+
+def test_the_games_are_listed_somewhere_all_together(guide):
+    """A learner asks "tell me about the games", not "tell me about Scrambled".
+
+    Chunks split on headings, so a section per game answers the specific
+    question and *nothing* answers the general one — which is exactly what
+    happened: with a heading each and no list, "which games are there?"
+    retrieved nothing at all. One section has to name them all, so there is a
+    single chunk for the question people actually ask first.
+    """
+    import games
+
+    sections = guide.split("\n### ")
+    names = [a.name.lower() for a in games.ACTIVITIES.values()]
+    assert any(all(name in section.lower() for name in names)
+               for section in sections), \
+        "no single section names every game — the general question has no chunk"
+
+
+def test_the_guide_calls_them_games(guide):
+    """The word the app and its learners use. The guide once managed to
+    describe all six without using it once, so a question containing "games"
+    matched no chunk in the document at all."""
+    assert "game" in guide.lower()
 
 
 def test_every_setting_is_described(guide):
@@ -123,7 +169,11 @@ def test_every_setting_is_described(guide):
     """
     import settings_store
 
-    table = [line for line in guide.splitlines()
+    # Scoped to the Settings section: the guide has a table of games too, and
+    # counting every row in the document would let this pass while the settings
+    # table was empty.
+    section = guide.split("## Settings", 1)[-1].split("\n## ", 1)[0]
+    table = [line for line in section.splitlines()
              if line.startswith("|") and not set(line) <= set("| -")]
     rows = len(table) - 1                       # minus the header row
     assert rows >= len(settings_store.DEFAULTS) - 1, (
