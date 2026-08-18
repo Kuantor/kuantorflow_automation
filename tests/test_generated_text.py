@@ -385,3 +385,93 @@ def test_a_failed_call_is_reported_and_logged(client, deck, monkeypatch,
 def test_an_empty_reply_counts_as_a_failure(client, deck, monkeypatch):
     monkeypatch.setattr(textgen, "_ask_claude", lambda prompt, length: "   ")
     assert "could not be written" in _write(client).get_data(as_text=True)
+
+
+# --- the text's own title (kuantorflow#315) ----------------------------------
+
+def _title(body):
+    found = re.search(r'<h2 class="reader-title">(.*?)</h2>', body, re.S)
+    return re.sub(r"<[^>]+>", "", found.group(1)).strip() if found else None
+
+
+def titled(text):
+    """A reply shaped the way the prompt asks for: title, blank line, prose."""
+    return lambda prompt, length: text
+
+
+@pytest.mark.parametrize("reply, title", [
+    ("A Trial In Three Acts\n\nShe resigned in March.", "A Trial In Three Acts"),
+    ("# Local Man Acquitted\n\nShe resigned in March.", "Local Man Acquitted"),
+    ("Title: The Long Wait\n\nShe resigned in March.", "The Long Wait"),
+    ('"Quiet Streets"\n\nShe resigned in March.', "Quiet Streets"),
+    ("“Quiet Streets”\n\nShe resigned in March.", "Quiet Streets"),
+])
+def test_the_title_is_parsed_out_of_whatever_shape_arrives(client, deck,
+                                                           monkeypatch,
+                                                           reply, title):
+    """One call, not two: the title rides in the same reply, and the model
+    decorates it differently from run to run."""
+    monkeypatch.setattr(textgen, "_ask_claude", titled(reply))
+    assert _title(_write(client).get_data(as_text=True)) == title
+
+
+def test_a_first_line_that_is_really_prose_is_left_alone(client, deck,
+                                                         monkeypatch):
+    """The failure worth protecting against: eating the opening sentence of the
+    passage is worse than showing no title at all."""
+    prose = ("The defendant in yesterday's trial was acquitted of all charges.\n\n"
+             "She resigned in March.")
+    monkeypatch.setattr(textgen, "_ask_claude", titled(prose))
+    body = _write(client).get_data(as_text=True)
+    assert _title(body) is None
+    assert "The defendant in yesterday" in _passage(body)
+
+
+def test_a_reply_with_no_second_line_is_all_text(client, deck, monkeypatch):
+    """A one-line reply is a short text, not a title with nothing under it."""
+    monkeypatch.setattr(textgen, "_ask_claude",
+                        titled("She resigned in March and never looked back"))
+    body = _write(client).get_data(as_text=True)
+    assert _title(body) is None
+    assert "never looked back" in _passage(body)
+
+
+def test_a_word_only_in_the_title_still_counts_as_used(client, deck, monkeypatch):
+    """#315's one real rule. The learner reads the title, so reporting a word
+    as unused while it sits in bold two lines above would be exactly the
+    unverified claim #237 exists to avoid."""
+    monkeypatch.setattr(textgen, "_ask_claude",
+                        titled("The Tactics Of Delay\n\nShe applied in March."))
+    body = _write(client).get_data(as_text=True)
+    assert "tactic" in _used(body)
+    assert "tactic" not in _unused(body)
+    assert "Tactics" in re.findall(
+        r'<strong class="reader-word">(.*?)</strong>',
+        re.search(r'<h2 class="reader-title">(.*?)</h2>', body, re.S).group(1))
+
+
+def test_the_title_survives_a_refresh(client, deck, monkeypatch):
+    """It is stored beside the text and the marking is recomputed on read, so
+    the re-read has to reach the same answer the generation did."""
+    monkeypatch.setattr(textgen, "_ask_claude",
+                        titled("A Trial In Three Acts\n\nShe resigned in March."))
+    _write(client)
+    assert _title(client.get(ONE_TOPIC).get_data(as_text=True)) == "A Trial In Three Acts"
+
+
+def test_the_prompt_asks_for_a_title(client, deck, claude):
+    """It used to forbid one — the model wrote a headline anyway."""
+    _write(client)
+    prompt, _ = claude[0]
+    assert "title" in prompt.lower()
+    assert "no title" not in prompt.lower()
+
+
+def test_the_title_is_capped(client, deck, monkeypatch):
+    """Held in a signed cookie with measured headroom, so an enormous first
+    line cannot be stored whole."""
+    monkeypatch.setattr(textgen, "_ask_claude",
+                        titled("Word " * 40 + "\n\nShe resigned in March."))
+    body = _write(client).get_data(as_text=True)
+    # 40 words is past TITLE_MAX_WORDS, so it is not a title at all
+    assert _title(body) is None
