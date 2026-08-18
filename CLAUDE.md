@@ -17,7 +17,7 @@ imports the KuantorFlow Flask app from a sibling checkout.
 | `conftest.py` | Fixtures: `client` (through the gate), `user_client` (also signed in), `saved` (captures `save_flashcard`), autouse `settings_dir` (per-test temp), `app_module`. Shared helpers too: `in_other()` and `browse_panel()` — **cut the index page's deck out with the latter**, never by slicing to a landmark, because the games panel reuses `.topic-tile` and an unscoped search counts five activities as topics. |
 | `gate.py` | `enter_gate()` — the one helper for getting a scripted session past the keyword gate. |
 | `backup/` | `backup_db.py` (gzip `mysqldump`, retention) + `restore_db.py`. |
-| `maintenance/` | `dedup_flashcards.py` (remove pre-existing duplicate cards). |
+| `maintenance/` | `dedup_flashcards.py` (remove pre-existing duplicate cards), `block_user.py`, `delete_account.py`, `backfill_examples.py` (fill `examples_en` on cards saved before kuantorflow#225). Repairs for data that predates a fix: each calls the app's own functions rather than writing SQL, and each is a dry run until `--apply`. |
 | `test_reports/` | Per-PR verification reports (`.md` + `.pdf`). |
 | `docs/` | The test catalog. |
 | `presentation/` | Reusable python-pptx deck tooling. |
@@ -70,5 +70,11 @@ regression.
 ## Backup / dedup on PythonAnywhere
 
 The production MySQL is only reachable from **inside** PythonAnywhere, so clone
-this repo there to run `backup/backup_db.py` (schedule it) and
-`maintenance/dedup_flashcards.py` against the live DB.
+this repo there to run `backup/backup_db.py` (schedule it) and anything in
+`maintenance/` against the live DB.
+
+On PythonAnywhere the three repos sit **flat in the home directory**, where this
+repo's path fallbacks — which count directories upward for the nested local
+layout — resolve one level short. `KUANTORFLOW_PATH=$HOME/kuantorflow` in the
+`.env` there is what makes `block_user.py`, `delete_account.py` and
+`backfill_examples.py` able to import the app at all.
