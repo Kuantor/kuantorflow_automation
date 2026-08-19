@@ -194,13 +194,42 @@ def test_no_option_is_repeated():
 
 def test_a_question_carries_exactly_one_misspelling():
     """The mix #130 settled on: not three typos, which makes it a spelling
-    test and puts three wrong spellings of the target word on screen at once."""
+    test and puts three wrong spellings on screen at once."""
     for seed in range(25):
         options = games.question_options("appraisal", POOL, rng=random.Random(seed))
         slips = [o for o in options if o not in POOL]
         assert len(slips) == 1, options
+
+
+def test_the_misspelling_is_a_slip_of_some_word_on_the_page_or_the_deck():
+    """It is derived from one of the four options — which one is drawn at
+    random — so it is always one slip from a real word rather than noise."""
+    for seed in range(30):
+        options = games.question_options("appraisal", POOL, rng=random.Random(seed))
+        slip = next(o for o in options if o not in POOL)
         # One Damerau edit; two by plain Levenshtein when it is a swap.
-        assert games.edit_distance("appraisal", slips[0]) <= 2, slips
+        assert any(games.edit_distance(slip, real, 2) <= 2
+                   for real in POOL), (slip, options)
+
+
+def test_the_correct_answer_is_never_the_word_that_gets_mistyped():
+    """The defect this game was shipped with, and the reason it is now a rule.
+
+    Mistyping the answer puts a near-identical pair on the page, and the
+    correctly spelled half of such a pair is always what was asked for — so the
+    round was winnable with no English at all: find the twins, pick the tidy
+    one. Drawing the source from all four options was tried in between and only
+    made it rarer; a tell that fires on a fifth of the questions is still a
+    tell.
+
+    Checked over sixty seeds because a single draw would pass on the seeds
+    where a distractor happened to be chosen."""
+    for seed in range(60):
+        options = games.question_options("appraisal", POOL, rng=random.Random(seed))
+        assert "appraisal" in options, options
+        twins = [o for o in options
+                 if o != "appraisal" and games.edit_distance(o, "appraisal", 1) <= 1]
+        assert not twins, (twins, options)
 
 
 def test_the_other_two_options_are_real_words_from_the_deck():
@@ -243,6 +272,19 @@ def test_a_question_that_cannot_be_filled_is_none():
     """None is the eligibility rule: a three-option question is an easier game,
     and dealing one silently would make the score mean two things."""
     assert games.question_options("aid", ["aid"], rng=random.Random(1)) is None
+
+
+def test_a_slip_of_a_distractor_can_never_collide_with_the_answer():
+    """Substitution and transposition both preserve length, so a typo of a
+    same-length distractor really can land on the answer — `beat` slips to
+    `bear` — which would put the correct word on the page twice, once marked
+    wrong."""
+    for seed in range(60):
+        options = games.question_options("bear", ["bear", "beat", "heat", "peat"],
+                                         rng=random.Random(seed))
+        if options is None:
+            continue
+        assert len([o for o in options if o.casefold() == "bear"]) == 1, options
 
 
 # --- the round -----------------------------------------------------------
