@@ -293,7 +293,10 @@ def test_a_pair_is_slightly_less_often_the_answers_than_a_wrong_ones():
     rng = random.Random(99)
     real = {w.casefold() for w in DECK_WORDS}
     tidy_is_answer = tidy_is_wrong = 0
-    for _ in range(20):
+    # 45 passes rather than 20: a question carries half a slip on average under
+    # #319's weighting, so pairs accumulate slowly and a few hundred of them is
+    # too thin a base for a band this narrow.
+    for _ in range(45):
         for answer in DECK_WORDS:
             options = games.question_options(answer, DECK_WORDS, rng=rng)
             if options is None:
