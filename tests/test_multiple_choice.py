@@ -269,19 +269,31 @@ def test_the_answers_own_spelling_is_always_on_the_page():
         assert options.count("appraisal") == 1, options
 
 
-def test_a_pair_is_as_often_a_wrong_one_as_the_answers():
-    """The whole of #319. A slip sits beside the word it was made from, so the
-    page shows a near-identical pair — and the pair only says nothing if its
-    tidily spelled half is the answer about as often as it is a wrong option.
+def test_a_pair_is_slightly_less_often_the_answers_than_a_wrong_ones():
+    """The whole of #319, and the one number the design turns on.
 
-    Sourcing uniformly from the words on the page would make the answer the
-    source a third of the time, and a learner who noticed could profitably bet
-    against the tidy half. Measured over the real deck rather than `POOL`,
-    because six words cannot show a distribution."""
+    A slip sits beside the word it was made from, so the page shows a
+    near-identical pair — and the pair only says nothing if its tidily spelled
+    half is the answer about as often as it is a wrong option. Sourcing
+    uniformly from the words on the page would make it the answer a third of
+    the time, and a learner who noticed could profitably bet against the tidy
+    half.
+
+    Aimed **just under** half rather than exactly at it: the answer is the word
+    being learned, and a misspelling of it is the one slip on the page that
+    could teach the wrong spelling, so it is not worth mistyping as often as a
+    wrong option. Not far under, though — measured against the deck, a learner
+    who assumes the tidy half is wrong gains nothing at 48% and +2.4 points by
+    43%, so the band has a floor as well as a ceiling and both edges are real.
+
+    Seeded, so this is a characterisation test: it is meant to move when the
+    algorithm moves, and to be looked at rather than widened when it does.
+    Measured over `DECK_WORDS` rather than `POOL`, because six words run out of
+    choices and hand back the same pairs."""
     rng = random.Random(99)
     real = {w.casefold() for w in DECK_WORDS}
     tidy_is_answer = tidy_is_wrong = 0
-    for _ in range(6):
+    for _ in range(20):
         for answer in DECK_WORDS:
             options = games.question_options(answer, DECK_WORDS, rng=rng)
             if options is None:
@@ -297,11 +309,13 @@ def test_a_pair_is_as_often_a_wrong_one_as_the_answers():
                         tidy_is_wrong += 1
                     break
     pairs = tidy_is_answer + tidy_is_wrong
-    assert pairs > 200, f"only {pairs} pairs to judge from"
+    assert pairs > 500, f"only {pairs} pairs to judge from"
     share = tidy_is_answer / pairs
-    assert 0.35 < share < 0.65, (
-        f"the tidy half of a pair was the answer {100*share:.0f}% of the time — "
-        "near half is what makes a pair uninformative")
+    assert 0.42 < share < 0.50, (
+        f"the tidy half of a pair was the answer {100*share:.1f}% of the time — "
+        "wanted just under half: at or above half the answer is mistyped more "
+        "often than a wrong option, and much below it a learner profits from "
+        "betting the tidy half is wrong")
 
 
 def test_the_wrong_options_are_real_words_apart_from_the_slips():
