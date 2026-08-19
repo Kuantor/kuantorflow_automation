@@ -212,29 +212,24 @@ def test_the_misspelling_is_a_slip_of_some_word_on_the_page_or_the_deck():
                    for real in POOL), (slip, options)
 
 
-def test_the_word_that_gets_mistyped_is_sometimes_the_answer_and_sometimes_not():
-    """The amendment to #130's first cut. Always mistyping the answer made the
-    round winnable with no English: a near-identical pair, of which the tidily
-    spelled half is always what was asked for. Drawing the source from all four
-    means three questions in four have no pair to find, so hunting for one
-    stops being a strategy."""
-    paired = 0
-    for seed in range(60):
-        options = games.question_options("appraisal", POOL, rng=random.Random(seed))
-        if any(o != "appraisal" and games.edit_distance(o, "appraisal", 1) <= 1
-               for o in options):
-            paired += 1
-    assert 0 < paired < 60, (
-        f"the answer supplied the slip in {paired} of 60 rounds — it should be "
-        "some of them, not none and not all")
+def test_the_correct_answer_is_never_the_word_that_gets_mistyped():
+    """The defect this game was shipped with, and the reason it is now a rule.
 
+    Mistyping the answer puts a near-identical pair on the page, and the
+    correctly spelled half of such a pair is always what was asked for — so the
+    round was winnable with no English at all: find the twins, pick the tidy
+    one. Drawing the source from all four options was tried in between and only
+    made it rarer; a tell that fires on a fifth of the questions is still a
+    tell.
 
-def test_the_answer_survives_even_when_it_is_the_word_mistyped():
-    """The slip always lands in a *wrong* slot. Overwriting the answer with a
-    misspelling of itself would leave the question with nothing to pick."""
+    Checked over sixty seeds because a single draw would pass on the seeds
+    where a distractor happened to be chosen."""
     for seed in range(60):
         options = games.question_options("appraisal", POOL, rng=random.Random(seed))
         assert "appraisal" in options, options
+        twins = [o for o in options
+                 if o != "appraisal" and games.edit_distance(o, "appraisal", 1) <= 1]
+        assert not twins, (twins, options)
 
 
 def test_the_other_two_options_are_real_words_from_the_deck():
