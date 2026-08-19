@@ -212,7 +212,7 @@ def test_the_round_says_why_it_is_shorter_than_the_selection(client, mixed_deck)
     learner who ticked eight and was asked five cannot otherwise tell that from
     the word limit."""
     body = client.get("/quiz?topic=Work&words=20&lang=ukr").get_data(as_text=True)
-    assert "3 cards in this selection have no Ukrainian translation" in _flat(body)
+    assert "3 cards here are not usable for this game" in _flat(body)
     assert "they are not asked" in _flat(body)
 
 
@@ -232,7 +232,7 @@ def test_one_missing_card_is_described_in_the_singular(client, app_module,
         + [{"id": 99, "word": "lonely", "topic": "Work",
             "translation_ukr": None, "translation_rus": "рус"}])
     body = client.get("/quiz?topic=Work&words=20&lang=ukr").get_data(as_text=True)
-    assert "1 card in this selection has no Ukrainian translation" in _flat(body)
+    assert "1 card here is not usable for this game" in _flat(body)
     assert "it is not asked" in _flat(body)
 
 

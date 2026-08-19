@@ -191,7 +191,8 @@ def test_a_selection_too_thin_for_a_round_says_so(client, stub_deck):
                       "explanation_en": "", "examples_en": []}])
     body = client.get("/games/real_or_fake/play?topic=Crime") \
                  .get_data(as_text=True)
-    assert "enough words here for a round" in body
+    assert "enough real words here for a round" in body
+    assert "Choose different topics" in body
 
 
 # --- grading ------------------------------------------------------------

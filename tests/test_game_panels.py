@@ -19,6 +19,7 @@ Two rules run through them:
 """
 
 import re
+from urllib.parse import quote_plus
 
 import pytest
 
@@ -121,8 +122,9 @@ def test_every_tile_carries_an_icon_and_a_sub_line(client, deck):
     """The set of activities is closed and known, so unlike topics every one
     ships with a picture; the no-icon path stays only as a safety net."""
     panel = _games_panel(client.get("/").get_data(as_text=True))
-    assert panel.count("topic-tile--image") == 5
-    assert panel.count('class="topic-tile-img"') == 5
+    tiles = len(games.panel("quiz")) + len(games.panel("game"))
+    assert panel.count("topic-tile--image") == tiles
+    assert panel.count('class="topic-tile-img"') == tiles
     assert "Type the translation" in panel and "Pick from four" in panel
 
 
@@ -149,7 +151,8 @@ def test_the_panel_renders_on_an_empty_deck(client, app_module, monkeypatch):
                         lambda owner_id=None: [])
     body = client.get("/").get_data(as_text=True)
     assert "Practise your words" in body
-    assert _games_panel(body).count("topic-tile--image") == 5
+    assert (_games_panel(body).count("topic-tile--image")
+            == len(games.panel("quiz")) + len(games.panel("game")))
 
 
 def test_no_tile_judges_whether_a_selection_can_play(client, app_module,
@@ -283,12 +286,28 @@ LANDED = [a for a in games.ACTIVITIES.values()
           if a.kind in games.GAMES_URL_KINDS and not a.ticket]
 
 
+def _enough_topics(activity):
+    """A `?topic=` query big enough to clear the activity's `min_topics`.
+
+    kuantorflow#266 lets a game ask for several topics — odd one out needs two,
+    since the stranger has to come from somewhere else — and a round asked for
+    fewer meets *that* page rather than the one under test.
+
+    Drawn from `TOPICS` rather than invented, because a name the deck does not
+    have is dropped in silence (#248) and would leave the selection short
+    again. From the end, so `animals` is in every query and the assertion that
+    the stub names its selection holds whatever `min_topics` says."""
+    names = [name for name, _ in TOPICS][-activity.min_topics:]
+    return "&".join(f"topic={quote_plus(name)}" for name in names)
+
+
 @pytest.mark.parametrize("activity", STUBBED, ids=lambda a: a.slug)
 def test_an_activity_that_still_carries_a_ticket_renders_a_stub(
         client, deck, activity):
     """`ticket=` is present exactly while an activity is a stub, so the page
     can name who will build it."""
-    body = client.get(f"/games/{activity.slug}/play?topic=animals")                  .get_data(as_text=True)
+    url = f"/games/{activity.slug}/play?{_enough_topics(activity)}"
+    body = client.get(url).get_data(as_text=True)
     assert "built yet" in body
     assert activity.ticket in body
     assert "animals" in body

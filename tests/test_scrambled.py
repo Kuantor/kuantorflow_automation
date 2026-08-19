@@ -119,7 +119,10 @@ def test_the_round_says_how_many_words_were_too_short(client, deck):
     no translation."""
     body = client.get("/games/scrambled/play?topic=Work&words=20").get_data(as_text=True)
     flat = " ".join(body.split())
-    assert "2 words were too short to scramble" in flat
+    # kuantorflow#266 made this sentence shared by every round, and it now
+    # names what the game needs in the activity's own words.
+    assert "2 cards here are not usable for this game" in flat
+    assert "four letters or more" in flat
 
 
 def test_the_round_length_follows_the_word_count(client, deck):
@@ -134,6 +137,9 @@ def test_a_selection_with_nothing_scrambleable_says_so(client, app_module,
                                                        dict(CARDS[4])])
     body = client.get("/games/scrambled/play?topic=Work").get_data(as_text=True)
     assert "No words here can be scrambled yet" in body
+    # One page for "this selection cannot produce a round" (#266), with
+    # the picker a click away and the selection still ticked.
+    assert "Choose different topics" in body
 
 
 # --- grading ------------------------------------------------------------
