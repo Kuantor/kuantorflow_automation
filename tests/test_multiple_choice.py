@@ -18,6 +18,7 @@ the answer appearing twice all turn a question into one with two right answers,
 and the score stops meaning anything.
 """
 
+import collections
 import random
 import re
 
@@ -177,6 +178,22 @@ def test_a_capped_distance_stops_counting_rather_than_lying():
 
 POOL = ["delegate", "resign", "burnout", "commute", "appraisal", "tenant"]
 
+# A deck big enough to show a *distribution* rather than a single draw. POOL is
+# six words, which cannot: with three wrong slots to fill it runs out of choices
+# and the same pairs keep coming back. Kept deliberately plain -- ordinary B2
+# vocabulary of assorted lengths, since a list of very short words would starve
+# the typo model and a list of very long ones would never exercise its floor.
+DECK_WORDS = [
+    "delegate", "resign", "burnout", "commute", "appraisal", "tenant",
+    "custody", "customs", "petition", "quotation", "amenity", "retention",
+    "offset", "ferment", "acquit", "hedging", "arson", "coursework",
+    "memorise", "congestion", "deforestation", "interrogate", "loathe",
+    "scholarship", "methodology", "garnish", "malware", "validate",
+    "appetite", "chronic", "biodiversity", "vaccination", "mundane",
+    "prognosis", "tactic", "parole", "zoning", "nausea", "inference",
+    "observation", "conservation", "censorship", "coalition", "wildlife",
+]
+
 
 def test_a_question_has_four_options_and_the_answer_among_them():
     options = games.question_options("resign", POOL, rng=random.Random(4))
@@ -192,51 +209,127 @@ def test_no_option_is_repeated():
         assert len(set(o.casefold() for o in options)) == 4, options
 
 
-def test_a_question_carries_exactly_one_misspelling():
-    """The mix #130 settled on: not three typos, which makes it a spelling
-    test and puts three wrong spellings on screen at once."""
-    for seed in range(25):
+def test_how_many_options_are_misspelled_varies_from_none_to_three():
+    """#319's headline. Drawn per question, so a learner cannot read the count
+    off the first one and rely on it for the rest of the round."""
+    seen = {len([o for o in games.question_options("appraisal", POOL,
+                                                   rng=random.Random(seed))
+                 if o not in POOL])
+            for seed in range(200)}
+    assert seen == {0, 1, 2, 3}, seen
+
+
+def test_the_count_follows_the_declared_weighting():
+    """40 / 30 / 20 / 10, weighted toward none: four correctly spelled words is
+    the plainest form of the game, and a slip should read as an occasional
+    intrusion rather than the norm.
+
+    Asserted loosely — this is a random draw, and pinning it tightly would make
+    a passing test a matter of which seeds were chosen."""
+    counts = collections.Counter(games.misspelled_count(random.Random(seed))
+                                 for seed in range(4000))
+    share = {k: 100 * counts[k] / 4000 for k in range(4)}
+    for k, target in enumerate(games.MISSPELLED_WEIGHTS):
+        assert abs(share[k] - target) < 5, (share, games.MISSPELLED_WEIGHTS)
+    assert share[0] > share[1] > share[2] > share[3], share
+
+
+def test_the_misspelling_is_a_slip_of_a_real_word():
+    """Derived from a real word by #131's model rather than being noise —
+    whether or not that word is itself on the page."""
+    for seed in range(40):
         options = games.question_options("appraisal", POOL, rng=random.Random(seed))
-        slips = [o for o in options if o not in POOL]
-        assert len(slips) == 1, options
+        for slip in [o for o in options if o not in POOL]:
+            # One Damerau edit; two by plain Levenshtein when it is a swap.
+            assert any(games.edit_distance(slip, real, 2) <= 2
+                       for real in POOL), (slip, options)
 
 
-def test_the_misspelling_is_a_slip_of_some_word_on_the_page_or_the_deck():
-    """It is derived from one of the four options — which one is drawn at
-    random — so it is always one slip from a real word rather than noise."""
-    for seed in range(30):
+def test_the_correct_answer_can_be_the_word_that_gets_mistyped():
+    """#319 reverses the rule #130 shipped with, and the reversal is the point.
+
+    Making the answer ineligible removed the giveaway pair, but only by making
+    the shape never occur — and left a smaller tell in its place, that a
+    misspelled option was reliably a wrong one. The answer being mistypeable is
+    half of what makes a pair mean nothing."""
+    mistyped = 0
+    for seed in range(120):
         options = games.question_options("appraisal", POOL, rng=random.Random(seed))
-        slip = next(o for o in options if o not in POOL)
-        # One Damerau edit; two by plain Levenshtein when it is a swap.
-        assert any(games.edit_distance(slip, real, 2) <= 2
-                   for real in POOL), (slip, options)
+        if any(o != "appraisal" and games.edit_distance(o, "appraisal", 1) <= 1
+               for o in options):
+            mistyped += 1
+    assert mistyped, "the answer was never the word mistyped in 120 draws"
 
 
-def test_the_correct_answer_is_never_the_word_that_gets_mistyped():
-    """The defect this game was shipped with, and the reason it is now a rule.
-
-    Mistyping the answer puts a near-identical pair on the page, and the
-    correctly spelled half of such a pair is always what was asked for — so the
-    round was winnable with no English at all: find the twins, pick the tidy
-    one. Drawing the source from all four options was tried in between and only
-    made it rarer; a tell that fires on a fifth of the questions is still a
-    tell.
-
-    Checked over sixty seeds because a single draw would pass on the seeds
-    where a distractor happened to be chosen."""
-    for seed in range(60):
+def test_the_answers_own_spelling_is_always_on_the_page():
+    """A slip of the answer is an *extra* option, never a replacement.
+    Replacing it would leave the question with nothing right to pick."""
+    for seed in range(200):
         options = games.question_options("appraisal", POOL, rng=random.Random(seed))
-        assert "appraisal" in options, options
-        twins = [o for o in options
-                 if o != "appraisal" and games.edit_distance(o, "appraisal", 1) <= 1]
-        assert not twins, (twins, options)
+        assert options.count("appraisal") == 1, options
 
 
-def test_the_other_two_options_are_real_words_from_the_deck():
-    for seed in range(25):
+def test_a_pair_is_slightly_less_often_the_answers_than_a_wrong_ones():
+    """The whole of #319, and the one number the design turns on.
+
+    A slip sits beside the word it was made from, so the page shows a
+    near-identical pair — and the pair only says nothing if its tidily spelled
+    half is the answer about as often as it is a wrong option. Sourcing
+    uniformly from the words on the page would make it the answer a third of
+    the time, and a learner who noticed could profitably bet against the tidy
+    half.
+
+    Aimed **just under** half rather than exactly at it: the answer is the word
+    being learned, and a misspelling of it is the one slip on the page that
+    could teach the wrong spelling, so it is not worth mistyping as often as a
+    wrong option. Not far under, though — measured against the deck, a learner
+    who assumes the tidy half is wrong gains nothing at 48% and +2.4 points by
+    43%, so the band has a floor as well as a ceiling and both edges are real.
+
+    Seeded, so this is a characterisation test: it is meant to move when the
+    algorithm moves, and to be looked at rather than widened when it does.
+    Measured over `DECK_WORDS` rather than `POOL`, because six words run out of
+    choices and hand back the same pairs."""
+    rng = random.Random(99)
+    real = {w.casefold() for w in DECK_WORDS}
+    tidy_is_answer = tidy_is_wrong = 0
+    # 45 passes rather than 20: a question carries half a slip on average under
+    # #319's weighting, so pairs accumulate slowly and a few hundred of them is
+    # too thin a base for a band this narrow.
+    for _ in range(45):
+        for answer in DECK_WORDS:
+            options = games.question_options(answer, DECK_WORDS, rng=rng)
+            if options is None:
+                continue
+            slips = [o for o in options if o.casefold() not in real]
+            for slip in slips:
+                for other in options:
+                    if other in slips or games.edit_distance(slip, other, 2) > 2:
+                        continue
+                    if other == answer:
+                        tidy_is_answer += 1
+                    else:
+                        tidy_is_wrong += 1
+                    break
+    pairs = tidy_is_answer + tidy_is_wrong
+    assert pairs > 500, f"only {pairs} pairs to judge from"
+    share = tidy_is_answer / pairs
+    assert 0.42 < share < 0.50, (
+        f"the tidy half of a pair was the answer {100*share:.1f}% of the time — "
+        "wanted just under half: at or above half the answer is mistyped more "
+        "often than a wrong option, and much below it a learner profits from "
+        "betting the tidy half is wrong")
+
+
+def test_the_wrong_options_are_real_words_apart_from_the_slips():
+    """Whatever is not a slip is a real word from the deck, so a question never
+    quietly becomes four inventions."""
+    for seed in range(40):
         options = games.question_options("resign", POOL, rng=random.Random(seed))
-        real = [o for o in options if o != "resign" and o in POOL]
-        assert len(real) == 2, options
+        slips = [o for o in options if o not in POOL]
+        clean = [o for o in options if o in POOL]
+        assert len(slips) + len(clean) == 4, options
+        assert "resign" in clean, options
 
 
 def test_a_word_too_short_to_mistype_still_gets_a_full_question():
