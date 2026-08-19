@@ -103,7 +103,15 @@ def test_a_tile_with_no_round_yet_is_greyed_and_goes_nowhere(client, deck):
 def test_a_greyed_tile_says_why_on_hover(client, deck):
     """It stays on the page and explains itself rather than vanishing — the
     same treatment the card controls get (#162/#176/#177), and what keeps the
-    set of activities legible."""
+    set of activities legible.
+
+    Skipped once every game has landed, which happened with kuantorflow#130:
+    there is no greyed tile left to hover. Kept rather than deleted because
+    the rule it guards is about the *next* stub — anything promoted out of
+    #236 gets a tile before it gets a round, and this is what says the tile
+    must explain itself."""
+    if all(not a.ticket for a in games.panel("game")):
+        pytest.skip("no game is a stub — nothing on the panel is greyed")
     panel = _games_panel(client.get("/").get_data(as_text=True))
     assert 'aria-disabled="true"' in panel
     assert "under construction" in panel
