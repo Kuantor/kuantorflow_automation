@@ -194,13 +194,47 @@ def test_no_option_is_repeated():
 
 def test_a_question_carries_exactly_one_misspelling():
     """The mix #130 settled on: not three typos, which makes it a spelling
-    test and puts three wrong spellings of the target word on screen at once."""
+    test and puts three wrong spellings on screen at once."""
     for seed in range(25):
         options = games.question_options("appraisal", POOL, rng=random.Random(seed))
         slips = [o for o in options if o not in POOL]
         assert len(slips) == 1, options
+
+
+def test_the_misspelling_is_a_slip_of_some_word_on_the_page_or_the_deck():
+    """It is derived from one of the four options — which one is drawn at
+    random — so it is always one slip from a real word rather than noise."""
+    for seed in range(30):
+        options = games.question_options("appraisal", POOL, rng=random.Random(seed))
+        slip = next(o for o in options if o not in POOL)
         # One Damerau edit; two by plain Levenshtein when it is a swap.
-        assert games.edit_distance("appraisal", slips[0]) <= 2, slips
+        assert any(games.edit_distance(slip, real, 2) <= 2
+                   for real in POOL), (slip, options)
+
+
+def test_the_word_that_gets_mistyped_is_sometimes_the_answer_and_sometimes_not():
+    """The amendment to #130's first cut. Always mistyping the answer made the
+    round winnable with no English: a near-identical pair, of which the tidily
+    spelled half is always what was asked for. Drawing the source from all four
+    means three questions in four have no pair to find, so hunting for one
+    stops being a strategy."""
+    paired = 0
+    for seed in range(60):
+        options = games.question_options("appraisal", POOL, rng=random.Random(seed))
+        if any(o != "appraisal" and games.edit_distance(o, "appraisal", 1) <= 1
+               for o in options):
+            paired += 1
+    assert 0 < paired < 60, (
+        f"the answer supplied the slip in {paired} of 60 rounds — it should be "
+        "some of them, not none and not all")
+
+
+def test_the_answer_survives_even_when_it_is_the_word_mistyped():
+    """The slip always lands in a *wrong* slot. Overwriting the answer with a
+    misspelling of itself would leave the question with nothing to pick."""
+    for seed in range(60):
+        options = games.question_options("appraisal", POOL, rng=random.Random(seed))
+        assert "appraisal" in options, options
 
 
 def test_the_other_two_options_are_real_words_from_the_deck():
@@ -243,6 +277,19 @@ def test_a_question_that_cannot_be_filled_is_none():
     """None is the eligibility rule: a three-option question is an easier game,
     and dealing one silently would make the score mean two things."""
     assert games.question_options("aid", ["aid"], rng=random.Random(1)) is None
+
+
+def test_a_slip_of_a_distractor_can_never_collide_with_the_answer():
+    """Substitution and transposition both preserve length, so a typo of a
+    same-length distractor really can land on the answer — `beat` slips to
+    `bear` — which would put the correct word on the page twice, once marked
+    wrong."""
+    for seed in range(60):
+        options = games.question_options("bear", ["bear", "beat", "heat", "peat"],
+                                         rng=random.Random(seed))
+        if options is None:
+            continue
+        assert len([o for o in options if o.casefold() == "bear"]) == 1, options
 
 
 # --- the round -----------------------------------------------------------
