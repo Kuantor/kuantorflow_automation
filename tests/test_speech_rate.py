@@ -130,3 +130,39 @@ def test_saving_rewrites_the_document_value(client):
     speech.js reads the attribute on every utterance rather than caching it."""
     body = client.get("/").get_data(as_text=True)
     assert "document.body.dataset.speechRate" in body
+
+
+# --- reopening the popup shows what was saved -----------------------------
+#
+# The bug this section exists for: save 50%, reopen, and the slider sat at the
+# centre while the label still read 50%.
+#
+# `form.reset()` restores each control's *default*, which is the value the
+# server rendered at page load — so after an in-place save the defaults are
+# stale. The save handler moved them forward for checkboxes and radios and for
+# one named slider, so any control not on that list kept the old behaviour.
+#
+# Confirmed in a real browser rather than reasoned about. With the old
+# narrow sync, a range edited to 50 and a number edited to 6 both came back as
+# 100 and 10 after `reset()`, while a ticked checkbox held; with the loop, all
+# three hold.
+
+
+def test_every_input_has_its_default_moved_forward_after_a_save(client):
+    """A loop rather than a hand-kept list, because the list is what failed —
+    `speech_rate` was added without a line in it, and `gapped_deck_size` had
+    the same gap from the day it landed."""
+    body = client.get("/").get_data(as_text=True)
+    assert 'settingsForm.querySelectorAll("input").forEach' in body
+    # The old selector only ever reached checkboxes and radios.
+    old_selector = 'input[type=checkbox], input[type=radio]'
+    assert old_selector not in body
+
+
+def test_the_number_beside_the_slider_is_refreshed_when_the_popup_opens(client):
+    """`reset()` moves the slider but not the text beside it, so the number
+    would keep whatever the last drag left there — which is how a 50% label
+    ended up over a thumb sitting at 100."""
+    body = client.get("/").get_data(as_text=True)
+    opener = body.split("function openSettings()")[1].split("}")[0]
+    assert "updateSpeechRate()" in opener
