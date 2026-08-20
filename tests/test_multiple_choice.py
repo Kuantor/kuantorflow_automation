@@ -413,7 +413,10 @@ def test_the_round_says_how_many_cards_had_no_translation(client, deck):
     """The picker counts cards, not cards this game can use, so a round
     shorter than the count looks like a bug unless it says otherwise."""
     flat = " ".join(_play(client).split())
-    assert "1 card here has no Ukrainian translation" in flat
+    # One shared sentence since kuantorflow#266, naming what the game
+    # needs in the activity's own words.
+    assert "1 card here is not usable for this game" in flat
+    assert "a translation in the language you chose" in flat
 
 
 def test_the_round_length_follows_the_word_count(client, deck):
@@ -443,7 +446,12 @@ def test_a_deck_too_small_to_fill_a_question_says_so(client, stub_deck):
     rather than showing an empty form."""
     stub_deck(cards=[dict(CARDS[0])])
     body = _play(client)
-    assert "aren&rsquo;t enough words here" in body
+    # Jinja escapes a plain apostrophe as &#39;, and the older templates
+    # wrote &rsquo; by hand -- normalise both rather than matching either.
+    flat = body.replace("&rsquo;", "'").replace("&#39;", "'")
+    assert "aren't enough words here" in flat
+    # #266: the shared page, with the picker a click away.
+    assert "Choose different topics" in body
     assert _groups(body) == {}
 
 
