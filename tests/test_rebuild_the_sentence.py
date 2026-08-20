@@ -203,6 +203,35 @@ def test_every_chip_is_a_button_that_cannot_submit(client, deck):
     assert all('type="button"' in chip for chip in chips)
 
 
+def test_the_handler_is_not_bound_to_the_first_form_on_the_page(client, deck):
+    """The bug this shipped with, and the one thing pytest *can* see about the
+    interaction.
+
+    The script used `document.querySelector("form")`, which returns the first
+    form in the **document** — and base.html renders the settings popup's form
+    hundreds of lines above the page content. So the listener went on the
+    settings form, no chip ever moved, and the round looked dead.
+
+    It passed a standalone probe page because that page had one form. The real
+    page has five. Asserting the handler is delegated on the document is the
+    closest a markup test can get to "the chips actually move"."""
+    body = _play(client)
+    script = next(block for block in re.findall(r"<script>(.*?)</script>",
+                                                body, re.S)
+                  if "rebuild-answer" in block)
+    # Comments stripped first: the script *explains* this bug, quoting the call
+    # it no longer makes, and a substring check would match the prose. Assert
+    # against the code rather than the commentary.
+    code = re.sub(r"/\*.*?\*/", " ", script, flags=re.S)
+    code = re.sub(r"^\s*//.*$", " ", code, flags=re.M)
+    assert 'querySelector("form")' not in code
+    assert "document.addEventListener" in code
+    # And the page really does carry other forms ahead of this one, which is
+    # what made the shortcut wrong rather than merely fragile.
+    assert body.count("<form") > 1
+    assert body.index('id="settings-form"') < body.index('class="panel question rebuild"')
+
+
 def test_the_page_says_so_when_scripting_is_off(client, deck):
     """The chips cannot move without it, so the page must not look merely
     broken."""
