@@ -308,7 +308,7 @@ def test_an_activity_that_still_carries_a_ticket_renders_a_stub(
     can name who will build it."""
     url = f"/games/{activity.slug}/play?{_enough_topics(activity)}"
     body = client.get(url).get_data(as_text=True)
-    assert "built yet" in body
+    assert "isn&rsquo;t built yet" in body
     assert activity.ticket in body
     assert "animals" in body
 
@@ -317,9 +317,16 @@ def test_an_activity_that_still_carries_a_ticket_renders_a_stub(
 def test_an_activity_that_has_landed_plays_instead_of_apologising(
         client, deck, activity):
     """The other half of the same rule, and the one that would otherwise go
-    unnoticed: dropping `ticket=` has to actually take the stub away."""
-    body = client.get(f"/games/{activity.slug}/play?topic=animals")                  .get_data(as_text=True)
-    assert "built yet" not in body
+    unnoticed: dropping `ticket=` has to actually take the stub away.
+
+    Matched on the stub's **whole sentence** rather than on "built yet".
+    kuantorflow#271 collided with the loose version: a landed round explaining
+    that no sentence here can be *rebuilt yet* contains "built yet" and was
+    read as a stub. The marker has to be a phrase only game_stub.html can
+    produce."""
+    url = f"/games/{activity.slug}/play?{_enough_topics(activity)}"
+    body = client.get(url).get_data(as_text=True)
+    assert "isn&rsquo;t built yet" not in body
 
 
 def test_every_registered_activity_has_a_picker_and_a_round(client, deck,
