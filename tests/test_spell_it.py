@@ -289,10 +289,17 @@ def test_the_picker_offers_the_hint_mode(client, deck):
     assert 'name="hint" value="first_last"' in body
 
 
-def test_no_other_activity_offers_it(client):
-    """False by default, so a new game inherits no control it cannot explain."""
-    offering = [a.slug for a in games.ACTIVITIES.values() if a.picks_hint]
-    assert offering == ["spell_it"]
+def test_only_the_two_games_that_need_it_offer_it(client):
+    """Empty by default, so a new game inherits no control it cannot explain.
+
+    #334 gave *Fill the gap* one too, and the sets differ: this game has no
+    "no hint" mode, because a bare "type the word for this meaning" is a
+    different exercise."""
+    offering = {a.slug: a.hint_modes for a in games.ACTIVITIES.values()
+                if a.hint_modes}
+    assert set(offering) == {"spell_it", "fill_the_gap"}
+    assert offering["spell_it"] == games.HINTS
+    assert games.HINT_NONE not in offering["spell_it"]
 
 
 def test_the_round_is_registered_rather_than_stubbed(app_module):
