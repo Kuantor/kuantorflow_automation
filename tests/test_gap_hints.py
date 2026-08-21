@@ -3,10 +3,11 @@
 *Fill the gap* can show the first letter of the missing word, or the first and
 the last. Three decisions shaped it, and each is a test here:
 
-* **the length is never shown** — the run is three characters whatever the
-  word, so #235's fixed-width gap survives in every mode. This is where #334
-  parts company with #270, which shows one dash per letter *because* the
-  learner has already been told the meaning.
+* **the length is implied, never stated** — the run is about half the letters,
+  floored at three and capped at seven, so a long word does not hide behind a
+  stub while the exact count stays withheld. This is where #334 parts company
+  with #270, which shows one dash per letter *because* the learner has already
+  been told the meaning.
 * **an expression is masked word by word**, like #270 and unlike the single gap
   this game used before — so the word count shows and the letter count does
   not.
@@ -40,13 +41,41 @@ def test_the_last_letter_joins_it_in_the_other_mode():
     assert games.mask_gap("resign", games.HINT_FIRST_LAST) == "r___n"
 
 
-@pytest.mark.parametrize("word", ["resign", "biodiversity", "cat", "understand"])
-def test_the_run_never_changes_length(word):
-    """The whole point: the gap must not become a letter count. Three is
-    plainly too short to be most words, so it reads as a mark rather than a
-    measurement — and every gap in a round is the same width."""
-    for hint in (games.HINT_FIRST, games.HINT_FIRST_LAST):
-        assert games.mask_gap(word, hint).count("_") == len(games.GAP_RUN) == 3
+def test_a_longer_word_gets_a_longer_run():
+    """A fixed three was tried first and looked absurd behind a long word —
+    `n___d` standing in for *neighbourhood*. The run now implies the size."""
+    short = games.mask_gap("resign", games.HINT_FIRST_LAST)
+    long_ = games.mask_gap("neighbourhood", games.HINT_FIRST_LAST)
+    assert short.count("_") < long_.count("_")
+
+
+def test_the_run_is_never_the_letter_count():
+    """Implying the size is not stating it. Halved, the run cannot be read as
+    a dash per letter — which is the line between this and #270's mask."""
+    for word in ("resign", "curriculum", "neighbourhood", "aesthetic"):
+        run = games.mask_gap(word, games.HINT_FIRST).count("_")
+        assert run != len(word), word
+
+
+def test_several_word_lengths_share_a_run():
+    """What stops it being a count. In the middle of the range a run covers two
+    lengths; at the ends the clamps collapse several together."""
+    assert games.gap_run(9) == games.gap_run(10)
+    assert games.gap_run(2) == games.gap_run(6)
+    assert games.gap_run(13) == games.gap_run(14)
+
+
+def test_the_run_stays_within_its_bounds():
+    """Floored so a two-letter word still reads as a gap, capped so a very long
+    one does not stretch the line."""
+    for letters in range(1, 40):
+        assert games.GAP_RUN_MIN <= len(games.gap_run(letters)) <= games.GAP_RUN_MAX
+
+
+def test_a_six_letter_word_is_unchanged_from_the_first_cut():
+    """`resign` sat at three underscores before the run began to scale, and it
+    still does — the change lifts long words rather than moving everything."""
+    assert games.mask_gap("resign", games.HINT_FIRST_LAST) == "r___n"
 
 
 def test_the_run_is_underscores_and_not_dots():
@@ -63,7 +92,7 @@ def test_the_run_is_underscores_and_not_dots():
 def test_an_expression_is_masked_word_by_word():
     """The word count shows; the letter count does not."""
     assert games.mask_gap("take for granted", games.HINT_FIRST_LAST) \
-        == "t___e   f___   g___d"
+        == "t___e   f___   g____d"
 
 
 def test_a_short_word_in_an_expression_keeps_its_last_letter_hidden():
@@ -99,9 +128,11 @@ def test_the_sentence_carries_the_letters_when_asked():
 
 def test_the_letters_come_from_what_was_matched_not_the_headword():
     """The span may be an inflection, and the mask covers what was cut out —
-    so `resigned` gives `r___d`, not `r___n`."""
+    so `resigned` gives `r____d`, not `r___n`. Note the run is a letter longer
+    too: it scales with what was matched, which is eight letters rather than
+    six."""
     assert games.gap_sentence("He resigned last year.", "resign",
-                              games.HINT_FIRST_LAST) == "He r___d last year."
+                              games.HINT_FIRST_LAST) == "He r____d last year."
 
 
 def test_an_expression_with_an_object_shows_its_shape():
