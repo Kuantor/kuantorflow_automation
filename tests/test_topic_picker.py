@@ -201,6 +201,55 @@ def test_a_remembered_topic_that_has_gone_is_dropped_and_the_rest_survive(
     assert 'value="Work"' not in body
 
 
+# --- what a round writes back (#342) -----------------------------------
+#
+# `/quiz` cannot have this problem: no `topic` parameter there means *the
+# picker*, so nothing is ever resolved and remembered behind the learner's
+# back. A game's round has its own `/play` URL, where an absent parameter
+# safely means the whole deck -- and that is exactly where the expansion could
+# be mistaken for a choice.
+
+
+def _ticked(body, name):
+    at = body.index(f'value="{name}"')
+    return "checked" in body[at:at + 300]
+
+
+def test_a_round_that_named_no_topics_remembers_nothing(client, deck):
+    """A bare `/play` plays over the whole visible deck (#248), which is what
+    keeps a shared link meaningful. Writing that expansion back is a different
+    claim: it rewrites *I named no topics* as *I chose all of them*, and the
+    picker then opens fully ticked for somebody who chose nothing.
+    """
+    client.get("/games/fill_the_gap/play")
+
+    with client.session_transaction() as sess:
+        assert games.SELECTION_KEY not in sess,             "a round with no topics in its URL expressed no preference"
+
+    body = client.get("/games/fill_the_gap").get_data(as_text=True)
+    assert not any(_ticked(body, n) for n in ("Work", "Travel", "animals"))
+
+
+def test_choosing_every_topic_explicitly_is_still_remembered(client, deck):
+    """The case a careless fix breaks. *Select all* submits every name, so the
+    URL really did name them and the picker must reopen on all three --
+    `remembered_selection()` promises exactly this."""
+    client.get("/games/fill_the_gap/play"
+               "?topic=Work&topic=Travel&topic=animals")
+    body = client.get("/games/fill_the_gap").get_data(as_text=True)
+    assert all(_ticked(body, n) for n in ("Work", "Travel", "animals"))
+
+
+def test_a_bare_round_does_not_overwrite_a_real_choice(client, deck):
+    """Following a shared link that names no topics must not wipe what the
+    learner picked last time."""
+    client.get("/games/fill_the_gap/play?topic=Travel")
+    client.get("/games/fill_the_gap/play")
+    body = client.get("/games/fill_the_gap").get_data(as_text=True)
+    assert _ticked(body, "Travel")
+    assert not _ticked(body, "Work")
+
+
 # --- game slugs --------------------------------------------------------
 
 
