@@ -12,6 +12,8 @@ stays in the path, because those are what is being tested.
 """
 
 import re
+import sys
+import types
 
 import pytest
 
@@ -475,3 +477,127 @@ def test_the_title_is_capped(client, deck, monkeypatch):
     body = _write(client).get_data(as_text=True)
     # 40 words is past TITLE_MAX_WORDS, so it is not a title at all
     assert _title(body) is None
+
+
+# --- a reply the model did not finish (kuantorflow#344) ----------------------
+#
+# The ceiling stops the model mid-flow and the API says so, in
+# `stop_reason == "max_tokens"`. That used to be discarded, so a passage
+# reached the learner ending "increases your success rate considerably. You".
+#
+# The stub in most of this file replaces `_ask_claude` itself, which is above
+# the place the truncation is reported -- so these tests stub the SDK instead,
+# one layer lower, and are the only ones here that do.
+
+
+class _FakeMessage:
+    def __init__(self, text, stop_reason):
+        self.content = [types.SimpleNamespace(type="text", text=text)]
+        self.stop_reason = stop_reason
+
+
+class _FakeMessages:
+    def __init__(self, message, calls):
+        self._message, self._calls = message, calls
+
+    def create(self, **kwargs):
+        self._calls.append(kwargs)
+        return self._message
+
+
+@pytest.fixture()
+def api(monkeypatch):
+    """A stub `anthropic` module, and the recorder of what was sent to it.
+
+    Installed into `sys.modules` rather than monkeypatched onto the real
+    package, because **the SDK is deliberately not installed in this venv** --
+    the suite is offline, and `_ask_claude()` imports `anthropic` inside the
+    function precisely so it can be. That import picks up whatever is in
+    `sys.modules` at call time, which is what makes this possible at all.
+
+    `arm(text, stop_reason)` sets the reply and returns the list of keyword
+    arguments each `messages.create` was given, so a test can assert on the
+    ceiling that actually went out.
+    """
+    calls = []
+
+    def arm(text, stop_reason):
+        message = _FakeMessage(text, stop_reason)
+
+        class _Client:
+            def __init__(self, *a, **k):
+                self.messages = _FakeMessages(message, calls)
+
+        monkeypatch.setitem(sys.modules, "anthropic",
+                            types.SimpleNamespace(Anthropic=_Client))
+        return calls
+
+    return arm
+
+
+TRUNCATED = ("A Quiet Week\n\nHe resigned in March. Professional support, "
+             "whether counselling or medication, increases your success "
+             "rate considerably. You")
+
+
+def test_a_truncated_reply_is_cut_back_to_its_last_whole_sentence(api):
+    api(TRUNCATED, "max_tokens")
+    text = textgen._ask_claude("prompt", 150)
+    assert text.endswith("increases your success rate considerably.")
+    assert not text.endswith("You")
+
+
+def test_a_finished_reply_is_passed_through_untouched(api):
+    """`end_turn` means the model stopped because it was done. Trimming there
+    would silently drop a last sentence that legitimately has no full stop."""
+    api(TRUNCATED, "end_turn")
+    assert textgen._ask_claude("prompt", 150).endswith("You")
+
+
+def test_a_reply_cut_before_any_whole_sentence_is_a_failure(api):
+    """Half a sentence is not a text. Raised rather than returned, so
+    `generate()` reports it the way it reports any other failed call."""
+    api("Quitting smoking is one of the best decisions you can possibly",
+        "max_tokens")
+    with pytest.raises(ValueError):
+        textgen._ask_claude("prompt", 150)
+
+
+def test_the_ceiling_that_was_sent_is_the_one_max_tokens_computed(api):
+    calls = api(TRUNCATED, "end_turn")
+    textgen._ask_claude("prompt", 150)
+    assert calls[0]["max_tokens"] == textgen.max_tokens(150)
+
+
+# --- the ceiling itself -----------------------------------------------------
+
+@pytest.mark.parametrize("text,expected", [
+    ("He resigned. Then he left. And she", "He resigned. Then he left."),
+    ('She said "no." Then', 'She said "no."'),
+    ("Ends already.", "Ends already."),
+    ("A question? Yes! But", "A question? Yes!"),
+])
+def test_trim_to_sentence_keeps_whole_sentences(text, expected):
+    assert textgen.trim_to_sentence(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "", "   ", "no terminal punctuation at all",
+    # More than half the reply would go: a stub, not a text.
+    "Short. " + "and then it kept going without ever stopping again " * 3,
+])
+def test_trim_to_sentence_refuses_to_return_a_stub(text):
+    assert textgen.trim_to_sentence(text) is None
+
+
+def test_the_ceiling_leaves_room_for_the_words_that_were_asked_for():
+    """The bug was a ceiling sitting on top of the measurement: a generated
+    passage runs about 1.45 tokens a word, and the ratio was 1.5."""
+    assert textgen.max_tokens(150) / 150 >= 1.8
+
+
+def test_the_ceiling_never_passes_what_the_cookie_can_hold():
+    """The held text lives in a signed cookie Werkzeug drops past ~4 KB, and
+    600 tokens was the measured worst case that fits (kuantorflow#237)."""
+    assert textgen.max_tokens(games.GENERATED_WORDS_MAX) == 600
+    assert textgen.max_tokens(10_000) == 600
