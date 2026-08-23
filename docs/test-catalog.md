@@ -1775,6 +1775,36 @@ kuantorflow#170. The widget keeps its whole thread in `localStorage`. Nothing on
 
 ---
 
+## test_worksheet.py — the printable gap-fill worksheet (23 tests, 25 cases)
+
+kuantorflow#340, over `/games/read_a_text/worksheet`. The sheet is a *view* of the passage #237 already holds in the session, so the two properties worth pinning hardest are the ones that would quietly make it something else: that it never generates, and that it can never disagree with the reader page about which words were used. Both assertions were **proved to fail** with the behaviour removed — and both were vacuous first time. `textgen.generate()` catches every exception and reports it (`# noqa: BLE001 - reported, never raised`), so a stub that raised was swallowed and a route that generated still answered 200; the fixture records the call instead. And the title test's fixture used a body whose first studied word was also the title's, so blank 1 read the same either way.
+
+| Test | What it checks |
+| --- | --- |
+| `test_blanks_are_numbered_in_document_order` | `worksheet_blanks()` numbers the marked runs 1..n in the order they appear. |
+| `test_prose_runs_pass_through_untouched` | An unmarked run is copied verbatim and carries no number. |
+| `test_start_continues_one_sequence` | `start` carries the title's count into the body, so the sheet never has two blanks called 1. |
+| `test_the_key_records_what_was_matched_not_the_headword` | `resign` matched as *resigned* is answered *resigned* — keying the headword would mark a student wrong for reading correctly. |
+| `test_the_hint_changes_the_blank_and_never_the_answer` | All three of #334's styles (none, first, first and last) change the gap and leave the key alone. |
+| `test_a_blank_for_every_answer` | Every numbered gap on the sheet has the matching numbered entry in the key. |
+| `test_an_expression_gaps_whole_and_keeps_its_object` | "takes it for granted" is one blank, not a blank with a stray word inside it. |
+| `test_a_word_in_the_title_is_gapped_and_numbers_first` | The title is gapped too — `textgen.mark()` counts it (#315), so leaving it intact prints an answer above its own blank. |
+| `test_every_occurrence_becomes_its_own_blank` | Two uses of the same word are two gaps, as in *Fill the gap*. |
+| `test_words_the_passage_never_used_are_named_not_dropped` | The key names the supplied words the text never used, rather than hiding them. |
+| `test_the_sheet_never_calls_the_model` | The assertion the route exists to keep true: a printable page that can spend is not one. Recorded, not raised. |
+| `test_the_sheet_refuses_a_post` | GET only — a POST route here would be a second way to generate. |
+| `test_no_held_text_explains_itself_and_generates_nothing` | With nothing held it says so and writes nothing, rather than erroring or generating. |
+| `test_it_is_not_a_round` | Outside `GAME_ROUNDS` on purpose: as a round it would appear in the picker and on the front-page tile. |
+| `test_back_from_the_sheet_returns_to_the_same_text` | Following the link back shows the passage again rather than the write form — reported from the browser. |
+| `test_the_back_link_carries_what_produced_the_text` | Topics, length and instruction all travel, because `_held_for()` compares all three. |
+| `test_the_back_link_is_white_on_blue` | `crumbs` goes on the wrapper: the class carries the blue background and `.crumbs a` the white text, so an anchor wearing it directly comes out blue on blue. |
+| `test_the_link_is_a_button_on_the_reader_page` | The way in is a blue button, not body text — it has to be seen. |
+| `test_the_button_link_shares_the_button_rule_rather_than_copying_it` | `a.button-link` is in the same selector list as `button`, so the link and the button beside it cannot drift apart. |
+| `test_the_sheet_and_the_reader_agree_on_which_words_were_used` | The regression that catches reaching for `games.mark_words()` instead of `textgen.mark()`. |
+| `test_a_fresh_visitor_gets_no_hint` | Defaults to the plain gap, and an unrecognised `?hint=` falls back rather than erroring. |
+| `test_the_chosen_style_is_remembered` | Read from the query and remembered, exactly as a round's hint is. |
+| `test_it_does_not_change_the_fill_the_gap_hint` | Its own session key (#334's precedent): a choice made for a printed sheet is not a choice about the next round on screen. |
+
 ## Keeping this current (issue #14)
 
 This document goes stale silently — it claimed 94 tests while the suite had

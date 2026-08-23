@@ -50,12 +50,24 @@ def _rule(css_text, selector, within=None):
     All of them, not the first: `.form-row > div` is set where the row is
     defined and could be extended anywhere below, and a helper that stopped at
     the first match would report a rule that has since been overridden.
+
+    **A selector counts wherever it appears in the list, not only alone on its
+    own line.** This used to anchor on `^\\s*<selector> {`, which quietly
+    reported "no rule" the moment `button` joined a comma-separated list
+    (kuantorflow#340 put `a.button-link` beside it so the two could not drift).
+    Grouping a selector does not change what it declares, and a helper that
+    says otherwise fails on a refactor rather than on a regression.
     """
     scopes = _blocks(css_text, within) if within else [css_text]
-    found = [" ".join(m.group(1).split())
-             for scope in scopes
-             for m in re.finditer(rf"^\s*{re.escape(selector)} \{{(.*?)\}}",
-                                  scope, re.M | re.S)]
+    found = []
+    for scope in scopes:
+        # Comments first: one containing a brace would otherwise close a block
+        # early and truncate the declarations being read.
+        stripped = re.sub(r"/\*.*?\*/", "", scope, flags=re.S)
+        for m in re.finditer(r"([^{}@]+?)\{([^{}]*?)\}", stripped, re.S):
+            names = [n.strip() for n in m.group(1).split(",")]
+            if selector in names:
+                found.append(" ".join(m.group(2).split()))
     assert found, (f"no rule for {selector}"
                    + (f" in @media {within}" if within else ""))
     return " ".join(found)
