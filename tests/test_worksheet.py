@@ -10,10 +10,12 @@ raises. A worksheet that generates is a bug with a bill attached, and a stub
 that quietly returns a passage would let that bug pass.
 """
 
+import pathlib
 import re
 
 import pytest
 
+import conftest
 import games
 
 
@@ -208,6 +210,34 @@ def test_it_is_not_a_round(client, deck):
 def app_rounds():
     import app
     return set(app.GAME_ROUNDS)
+
+
+# --- the way in -------------------------------------------------------------
+
+def test_the_link_is_a_button_on_the_reader_page(client, app_module, deck):
+    """It has to be *seen*, so it carries the same class the blue submit
+    buttons use rather than looking like body text."""
+    _held(client, app_module)
+    body = client.get(f"{PLAY}?topic=Work&words=60").get_data(as_text=True)
+    assert '<a class="button-link" href="/games/read_a_text/worksheet"' in body
+
+
+def test_the_button_link_shares_the_button_rule_rather_than_copying_it():
+    """`a.button-link` sits in the same selector list as `button`, not in a
+    second set of declarations that happens to say the same thing today.
+
+    Pinned because copies drift silently. The whole point of the class is that
+    the link and the button beside it cannot come apart, and a test that only
+    checked the rendered colours would pass right up until one of the two
+    copies was edited -- which is the failure it exists to prevent.
+    """
+    css = (pathlib.Path(conftest.KUANTORFLOW_PATH)
+           / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    rule = re.search(r"\nbutton,\na\.button-link \{(.*?)\}", css, re.S)
+    assert rule, "button and a.button-link are no longer one rule"
+    body = rule.group(1)
+    for prop in ("background: var(--blue)", "color: #fff", "border-radius"):
+        assert prop in body, prop
 
 
 # --- it cannot disagree with the page it was made from ----------------------

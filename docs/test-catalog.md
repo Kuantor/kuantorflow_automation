@@ -1775,7 +1775,7 @@ kuantorflow#170. The widget keeps its whole thread in `localStorage`. Nothing on
 
 ---
 
-## test_worksheet.py — the printable gap-fill worksheet (18 tests, 20 cases)
+## test_worksheet.py — the printable gap-fill worksheet (20 tests, 22 cases)
 
 kuantorflow#340, over `/games/read_a_text/worksheet`. The sheet is a *view* of the passage #237 already holds in the session, so the two properties worth pinning hardest are the ones that would quietly make it something else: that it never generates, and that it can never disagree with the reader page about which words were used. Both assertions were **proved to fail** with the behaviour removed — and both were vacuous first time. `textgen.generate()` catches every exception and reports it (`# noqa: BLE001 - reported, never raised`), so a stub that raised was swallowed and a route that generated still answered 200; the fixture records the call instead. And the title test's fixture used a body whose first studied word was also the title's, so blank 1 read the same either way.
 
@@ -1795,6 +1795,8 @@ kuantorflow#340, over `/games/read_a_text/worksheet`. The sheet is a *view* of t
 | `test_the_sheet_refuses_a_post` | GET only — a POST route here would be a second way to generate. |
 | `test_no_held_text_explains_itself_and_generates_nothing` | With nothing held it says so and writes nothing, rather than erroring or generating. |
 | `test_it_is_not_a_round` | Outside `GAME_ROUNDS` on purpose: as a round it would appear in the picker and on the front-page tile. |
+| `test_the_link_is_a_button_on_the_reader_page` | The way in is a blue button, not body text — it has to be seen. |
+| `test_the_button_link_shares_the_button_rule_rather_than_copying_it` | `a.button-link` is in the same selector list as `button`, so the link and the button beside it cannot drift apart. |
 | `test_the_sheet_and_the_reader_agree_on_which_words_were_used` | The regression that catches reaching for `games.mark_words()` instead of `textgen.mark()`. |
 | `test_a_fresh_visitor_gets_no_hint` | Defaults to the plain gap, and an unrecognised `?hint=` falls back rather than erroring. |
 | `test_the_chosen_style_is_remembered` | Read from the query and remembered, exactly as a round's hint is. |
