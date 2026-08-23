@@ -10,6 +10,7 @@ raises. A worksheet that generates is a bug with a bill attached, and a stub
 that quietly returns a passage would let that bug pass.
 """
 
+import html
 import pathlib
 import re
 
@@ -238,6 +239,55 @@ def test_the_button_link_shares_the_button_rule_rather_than_copying_it():
     body = rule.group(1)
     for prop in ("background: var(--blue)", "color: #fff", "border-radius"):
         assert prop in body, prop
+
+
+# --- the way back ------------------------------------------------------------
+
+def test_back_from_the_sheet_returns_to_the_same_text(client, app_module, deck):
+    """Following the link back shows the passage again, not the write form.
+
+    The round only renders a held text when the request asks for the topics,
+    length and instruction that produced it, so a bare link resolves to the
+    whole visible deck at the default length and drops the learner on the
+    write form as though their text had gone. Reported from the browser.
+    """
+    _held(client, app_module)
+    sheet = client.get(WORKSHEET).get_data(as_text=True)
+    back = html.unescape(re.search(
+        r'<a href="([^"]+)">&larr; Back to the text</a>', sheet).group(1))
+
+    page = client.get(back).get_data(as_text=True)
+    assert '<div class="panel reader-text">' in page, "landed on the write form"
+    assert "/games/read_a_text/worksheet" in page
+
+
+def test_the_back_link_carries_what_produced_the_text(client, app_module, deck):
+    """Topics, length and instruction all travel, because `_held_for()`
+    compares all three."""
+    with client.session_transaction() as sess:
+        sess[app_module.GENERATED_TEXT_KEY] = {
+            "title": "T", "text": PASSAGE, "words": list(WORDS),
+            "topics": ["Work"], "length": 150,
+            "instruction": "a letter of complaint", "error": None}
+    sheet = client.get(WORKSHEET).get_data(as_text=True)
+    back = html.unescape(re.search(
+        r'<a href="([^"]+)">&larr; Back to the text</a>', sheet).group(1))
+    assert "topic=Work" in back
+    assert "words=150" in back
+    assert "about=a+letter+of+complaint" in back
+
+
+def test_the_back_link_is_white_on_blue(client, app_module, deck):
+    """`crumbs` on the wrapper, never on the anchor.
+
+    The class carries the blue background and `.crumbs a` carries the white
+    text, so an anchor wearing it directly comes out blue on blue — which is
+    exactly how it shipped first time.
+    """
+    _held(client, app_module)
+    sheet = client.get(WORKSHEET).get_data(as_text=True)
+    assert '<a class="crumbs"' not in sheet
+    assert re.search(r'<p class="crumbs">.*?<a href=', sheet, re.S)
 
 
 # --- it cannot disagree with the page it was made from ----------------------

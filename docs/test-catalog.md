@@ -1775,7 +1775,7 @@ kuantorflow#170. The widget keeps its whole thread in `localStorage`. Nothing on
 
 ---
 
-## test_worksheet.py — the printable gap-fill worksheet (20 tests, 22 cases)
+## test_worksheet.py — the printable gap-fill worksheet (23 tests, 25 cases)
 
 kuantorflow#340, over `/games/read_a_text/worksheet`. The sheet is a *view* of the passage #237 already holds in the session, so the two properties worth pinning hardest are the ones that would quietly make it something else: that it never generates, and that it can never disagree with the reader page about which words were used. Both assertions were **proved to fail** with the behaviour removed — and both were vacuous first time. `textgen.generate()` catches every exception and reports it (`# noqa: BLE001 - reported, never raised`), so a stub that raised was swallowed and a route that generated still answered 200; the fixture records the call instead. And the title test's fixture used a body whose first studied word was also the title's, so blank 1 read the same either way.
 
@@ -1795,6 +1795,9 @@ kuantorflow#340, over `/games/read_a_text/worksheet`. The sheet is a *view* of t
 | `test_the_sheet_refuses_a_post` | GET only — a POST route here would be a second way to generate. |
 | `test_no_held_text_explains_itself_and_generates_nothing` | With nothing held it says so and writes nothing, rather than erroring or generating. |
 | `test_it_is_not_a_round` | Outside `GAME_ROUNDS` on purpose: as a round it would appear in the picker and on the front-page tile. |
+| `test_back_from_the_sheet_returns_to_the_same_text` | Following the link back shows the passage again rather than the write form — reported from the browser. |
+| `test_the_back_link_carries_what_produced_the_text` | Topics, length and instruction all travel, because `_held_for()` compares all three. |
+| `test_the_back_link_is_white_on_blue` | `crumbs` goes on the wrapper: the class carries the blue background and `.crumbs a` the white text, so an anchor wearing it directly comes out blue on blue. |
 | `test_the_link_is_a_button_on_the_reader_page` | The way in is a blue button, not body text — it has to be seen. |
 | `test_the_button_link_shares_the_button_rule_rather_than_copying_it` | `a.button-link` is in the same selector list as `button`, so the link and the button beside it cannot drift apart. |
 | `test_the_sheet_and_the_reader_agree_on_which_words_were_used` | The regression that catches reaching for `games.mark_words()` instead of `textgen.mark()`. |
