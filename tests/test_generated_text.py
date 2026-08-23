@@ -601,3 +601,111 @@ def test_the_ceiling_never_passes_what_the_cookie_can_hold():
     600 tokens was the measured worst case that fits (kuantorflow#237)."""
     assert textgen.max_tokens(games.GENERATED_WORDS_MAX) == 600
     assert textgen.max_tokens(10_000) == 600
+
+
+# --- how many of the learner's words a text carries (kuantorflow#346) --------
+
+@pytest.mark.parametrize("length,expected", [
+    (games.GENERATED_WORDS_MIN, textgen.WORDS_PER_TEXT_MIN),
+    (games.GENERATED_WORDS_MAX, textgen.WORDS_PER_TEXT_MAX),
+])
+def test_the_band_ends_where_the_length_control_ends(length, expected):
+    assert textgen.words_wanted(length) == expected
+
+
+def test_a_longer_text_never_carries_fewer_words():
+    counts = [textgen.words_wanted(n) for n in range(
+        games.GENERATED_WORDS_MIN, games.GENERATED_WORDS_MAX + 1, 10)]
+    assert counts == sorted(counts)
+
+
+def test_a_long_text_does_not_thin_out():
+    """The band exists to stop a long passage becoming filler, and at a maximum
+    of 20 it did not: density fell five-fold across the range. The check is on
+    the *ratio* rather than on 40, so it survives the number being tuned."""
+    short = games.GENERATED_WORDS_MIN / textgen.words_wanted(games.GENERATED_WORDS_MIN)
+    long_ = games.GENERATED_WORDS_MAX / textgen.words_wanted(games.GENERATED_WORDS_MAX)
+    assert long_ / short <= 3.0, (
+        f"one word every {short:.1f} words of prose at the short end and every "
+        f"{long_:.1f} at the long end — the long text is thinning out")
+
+
+def test_the_page_says_where_the_words_came_from(client, deck, claude):
+    """"16 of your 18 words appeared" read as *the 18 words you have*, and a
+    learner with four topics and a hundred cards took it for a bug.
+
+    Whitespace is normalised before matching: the sentence wraps across source
+    lines in the template, so the phrase is not contiguous in the HTML. The
+    first version of this test asserted on the raw body and failed against a
+    page that was perfectly correct.
+    """
+    body = " ".join(_write(client).get_data(as_text=True).split())
+    assert "words drawn from your selection" in body
+    assert "of your 3 words appeared" not in body, "the old, ambiguous phrasing"
+
+
+def test_the_length_control_says_it_governs_the_word_count(client, deck):
+    """Where it is actionable: the count is scaled by length, not by how many
+    topics are selected, which is not guessable from the picker."""
+    assert "A longer text carries more of your words" in \
+        client.get(ONE_TOPIC).get_data(as_text=True)
+
+
+# --- the cookie the whole feature is bounded by ------------------------------
+
+def test_the_worst_case_still_fits_in_the_session_cookie(app_module):
+    """The number the feature is designed around, pinned for the first time.
+
+    #237 records that 600 tokens of deliberately incompressible text, a
+    signed-in identity and an eighteen-topic selection measured 3.2 KB of the
+    4 KB a signed cookie can carry before Werkzeug drops it in silence — which
+    signs the learner out. That figure lived only in a comment, so widening
+    anything held in the session (#346 doubled the word list) was a change
+    nobody could check.
+
+    Random letters rather than English: the cookie is compressed, so real prose
+    understates the worst case. Word *lengths* are kept realistic — the first
+    attempt at this used 7-to-13-letter words, which made a "400-word text"
+    nearly twice the size of real prose and reported a limit breach that was
+    not there.
+    """
+    import random
+    import string
+
+    rng = random.Random(7)
+
+    def rnd(n, lo, hi):
+        return ["".join(rng.choice(string.ascii_lowercase)
+                        for _ in range(rng.randint(lo, hi))) for _ in range(n)]
+
+    topics = [f"{a.capitalize()} and {b}"
+              for a, b in zip(rnd(18, 4, 9), rnd(18, 4, 9))]
+    payload = {
+        "access_granted": True,
+        "user": {"id": 7, "email": "a.learner@example.com",
+                 "name": "A Learner", "given_name": "A",
+                 "family_name": "Learner", "preferred_name": "A"},
+        games.SELECTION_KEY: topics,
+        games.GAP_HINT_KEY: games.HINT_FIRST_LAST,
+        games.WORKSHEET_HINT_KEY: games.HINT_FIRST_LAST,
+        games.HINT_KEY: games.HINT_FIRST_LAST,
+        "generated_texts": 9,
+        "generated_about": "x" * textgen.INSTRUCTION_MAX_CHARS,
+        app_module.GENERATED_TEXT_KEY: {
+            "title": " ".join(rnd(6, 4, 9)),
+            "text": " ".join(rnd(games.GENERATED_WORDS_MAX, 3, 8)),
+            "words": rnd(textgen.WORDS_PER_TEXT_MAX, 4, 12),
+            "topics": topics,
+            "length": games.GENERATED_WORDS_MAX,
+            "instruction": "x" * textgen.INSTRUCTION_MAX_CHARS,
+            "error": None},
+    }
+
+    app = app_module.app
+    value = app.session_interface.get_signing_serializer(app).dumps(payload)
+    # What the browser sees: the cookie value, its name, and the attributes
+    # Werkzeug counts against the same limit.
+    size = len(value) + len("session=") + 48
+    assert size <= 4093, (
+        f"the worst-case session is {size} bytes, past what a browser keeps — "
+        "Werkzeug drops it in silence and the learner is signed out")
