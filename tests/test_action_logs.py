@@ -195,10 +195,23 @@ def test_lookup_logs_the_fallback_provider(action_logs, monkeypatch):
 
 
 def test_failed_lookup_is_logged(action_logs, monkeypatch):
+    """Both halves empty, which since #349 is what a failed lookup *is*.
+
+    No translations is no longer enough on its own -- a lookup that still gets
+    definitions now produces a card with empty translation fields. The word
+    here used to be the whole fixture, and it stopped reaching this case for a
+    good reason: Reverso really does define "zzzz", as an interjection meaning
+    someone is asleep or bored. Both providers are stubbed silent instead, so
+    the test states the condition rather than relying on a word nobody defines
+    -- and stops making live calls while it is at it.
+    """
     monkeypatch.setattr(parsers, "_google_dictionary", lambda word, code: {})
+    monkeypatch.setattr(parsers, "_fetch_oxford_entry", lambda word: ({}, {}))
+    monkeypatch.setattr(parsers, "_fetch_definitions", lambda word: {})
     with pytest.raises(ValueError):
         parsers.lookup_word("zzzz", translator="google")
-    assert "error='no translations'" in _find(action_logs, "dict", "FAILED")[0]
+    assert ("error='no translations and no definitions'"
+            in _find(action_logs, "dict", "FAILED")[0])
 
 
 def test_lookup_route_logs_the_user_and_their_providers(client, saved, app_module,
