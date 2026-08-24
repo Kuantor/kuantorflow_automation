@@ -1805,6 +1805,23 @@ kuantorflow#340, over `/games/read_a_text/worksheet`. The sheet is a *view* of t
 | `test_the_chosen_style_is_remembered` | Read from the query and remembered, exactly as a round's hint is. |
 | `test_it_does_not_change_the_fill_the_gap_hint` | Its own session key (#334's precedent): a choice made for a printed sheet is not a choice about the next round on screen. |
 
+## test_lookup_without_translations.py — a card from the dictionary alone (10 tests, 10 cases)
+
+kuantorflow#349, over `parsers.lookup_word()` and `utils.fill_missing_fields()`. Prompted by kuantorflow#348, where both translator backends went down at once — Google rate-limiting, Bing's auth endpoint gone — and looking any word up failed completely while Oxford answered perfectly throughout. The lookup now degrades instead of dying, and the file guards two halves: that the fallback exists, and that the *usual* rule still applies when a translator answers, since #349 could easily have replaced #228's rule rather than backing it up. Everything is stubbed — no network, no database.
+
+| Test | What it checks |
+| --- | --- |
+| `test_a_card_is_made_from_the_dictionary_when_no_translator_answers` | The cards take their parts of speech from the dictionary, carry its explanation and examples, and leave the translation fields empty. |
+| `test_the_translator_still_decides_the_cards_when_it_answers` | The inversion is the fallback, not the new rule: a verb the dictionary cannot explain survives with its translation and no English text (#228). |
+| `test_nothing_from_either_side_is_still_a_failure` | Both halves empty still raises — and the message blames the service, not the word, which is what sent #348's investigation at the wrong provider. |
+| `test_a_degraded_lookup_says_so_in_the_log` | Its own `DEGRADED` action, so "how long was this broken, and how many cards carry the scar" can be answered later. |
+| `test_a_later_lookup_fills_the_empty_columns` | The exit from #101's trap: a card saved during an outage gains its translations when the service returns. |
+| `test_a_column_that_holds_something_is_never_overwritten` | The rule that makes the fill safe to run on every skipped duplicate — it repairs gaps and cannot edit. |
+| `test_an_empty_json_list_counts_as_empty` | `examples_en` is stored as JSON, so a card that never had examples holds `[]` rather than NULL and looks full to a plain IS NULL test. |
+| `test_an_empty_value_in_the_new_entry_is_not_offered` | A failed lookup carries plenty of empty keys; none is an instruction to blank a column. |
+| `test_no_such_card_fills_nothing` | No matching row means no UPDATE. |
+| `test_a_filled_duplicate_is_still_not_a_save` | `_save_and_log()` returns False and logs `FILL`, never `CREATE` — a fill reported as a save is kuantorflow#308 again. |
+
 ## Keeping this current (issue #14)
 
 This document goes stale silently — it claimed 94 tests while the suite had
