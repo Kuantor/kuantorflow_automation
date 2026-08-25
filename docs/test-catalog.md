@@ -1805,7 +1805,7 @@ kuantorflow#340, over `/games/read_a_text/worksheet`. The sheet is a *view* of t
 | `test_the_chosen_style_is_remembered` | Read from the query and remembered, exactly as a round's hint is. |
 | `test_it_does_not_change_the_fill_the_gap_hint` | Its own session key (#334's precedent): a choice made for a printed sheet is not a choice about the next round on screen. |
 
-## test_lookup_without_translations.py — a card from the dictionary alone (10 tests, 10 cases)
+## test_lookup_without_translations.py — a card from the dictionary alone (15 tests, 19 cases)
 
 kuantorflow#349, over `parsers.lookup_word()` and `utils.fill_missing_fields()`. Prompted by kuantorflow#348, where both translator backends went down at once — Google rate-limiting, Bing's auth endpoint gone — and looking any word up failed completely while Oxford answered perfectly throughout. The lookup now degrades instead of dying, and the file guards two halves: that the fallback exists, and that the *usual* rule still applies when a translator answers, since #349 could easily have replaced #228's rule rather than backing it up. Everything is stubbed — no network, no database.
 
@@ -1820,6 +1820,11 @@ kuantorflow#349, over `parsers.lookup_word()` and `utils.fill_missing_fields()`.
 | `test_an_empty_json_list_counts_as_empty` | `examples_en` is stored as JSON, so a card that never had examples holds `[]` rather than NULL and looks full to a plain IS NULL test. |
 | `test_an_empty_value_in_the_new_entry_is_not_offered` | A failed lookup carries plenty of empty keys; none is an instruction to blank a column. |
 | `test_no_such_card_fills_nothing` | No matching row means no UPDATE. |
+| `test_the_popup_carries_the_notice_where_the_learner_is_looking` | **Inside the dialog** — the assertion that would have caught the first version, which sat behind a fixed opaque overlay and was in the document but invisible. |
+| `test_the_banner_covers_the_path_that_has_no_popup` | With *Add cards automatically* on there is no dialog, so the page-level banner is the only place left to say it. |
+| `test_the_notice_is_inside_the_scrolling_pane` | Above the pane it added height to a dialog whose scroll region was capped at a fixed 65vh, and the cards ran out past the popup's bottom edge. |
+| `test_the_dialog_contains_its_own_content` | The declarations that keep the popup's content inside it — `min-height: 0` on the body and the pane being the load-bearing pair, since a flex item refuses to shrink below its content by default. |
+| `test_neither_is_shown_when_translations_arrived` | The half that rots quietly: a notice on every lookup is worse than none. |
 | `test_a_filled_duplicate_is_still_not_a_save` | `_save_and_log()` returns False and logs `FILL`, never `CREATE` — a fill reported as a save is kuantorflow#308 again. |
 
 ## Keeping this current (issue #14)
