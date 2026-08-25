@@ -248,26 +248,62 @@ def test_claude_caps_the_terms_per_part_of_speech(claude_sdk, keys):
 
 # --- the Settings panel -----------------------------------------------------
 
-def test_the_panel_offers_what_is_configured(client, keys):
-    keys("claude", "deepl")
+def _radio(body, slug):
+    """The `<input>` for one provider, or "" — whitespace collapsed, because
+    the attributes wrap across template lines."""
+    import re
+    found = re.search(rf'<input[^>]*value="{slug}"[^>]*>',
+                      " ".join(body.split()))
+    return found.group(0) if found else ""
+
+
+def test_every_provider_is_listed(client, keys):
+    """Including the ones this deployment cannot use. #261's call for an
+    unfinished game tile: absent reads as *this app cannot do that*, greyed
+    reads as *this copy is not set up for it*."""
+    keys("claude")
     body = client.get("/").get_data(as_text=True)
-    assert 'value="claude"' in body and 'value="deepl"' in body
-    assert 'value="microsoft"' not in body
+    for option in parsers.TRANSLATORS:
+        assert _radio(body, option.slug), f"{option.slug} is not on the panel"
 
 
-def test_the_panel_explains_an_unconfigured_deployment(client, keys):
-    """Rather than an empty box — and it names the variables, because the
-    person reading it is the one who can set them."""
+def test_a_provider_without_its_key_is_disabled(user_client, keys):
+    """Signed in, because #102 makes *every* setting read-only for an
+    anonymous visitor — against `client` this test passes whatever the code
+    does, which is how it was written the first time."""
+    keys("claude")
+    body = user_client.get("/").get_data(as_text=True)
+    assert "disabled" not in _radio(body, "claude")
+    assert "disabled" in _radio(body, "deepl")
+    assert "disabled" in _radio(body, "microsoft")
+
+
+def test_a_disabled_provider_names_the_key_it_needs(user_client, keys):
+    """The person reading the panel is the one who can set it."""
+    keys("claude")
+    body = " ".join(user_client.get("/").get_data(as_text=True).split())
+    assert "needs <code>DEEPL_API_KEY</code>" in body
+    assert "needs <code>MS_TRANSLATOR_KEY</code>" in body
+
+
+def test_the_panel_explains_an_unconfigured_deployment(user_client, keys):
+    """Every option greyed, and a line saying what that means for the cards —
+    the panel should not leave the learner to infer it from four dead radios.
+
+    Signed in for the same reason as the test above: anonymous disables
+    everything anyway (#102), so the assertion would hold vacuously.
+    """
     keys()
-    body = client.get("/").get_data(as_text=True)
-    assert "No translation service is configured" in body
-    assert "ANTHROPIC_API_KEY" in body
-    assert 'name="translator"' not in body
+    body = user_client.get("/").get_data(as_text=True)
+    assert "None of these is configured" in body
+    assert "explanation and examples" in body
+    for option in parsers.TRANSLATORS:
+        assert "disabled" in _radio(body, option.slug)
 
 
-def test_a_provider_that_cannot_group_says_so_in_the_panel(client, keys):
+def test_a_provider_that_cannot_group_says_so_in_the_panel(user_client, keys):
     """DeepL and Google Cloud give one card per word. That is a real
     difference between the options and belongs where the choice is made."""
     keys("deepl")
-    body = client.get("/").get_data(as_text=True)
+    body = user_client.get("/").get_data(as_text=True)
     assert "one card per word" in body
