@@ -148,12 +148,25 @@ def test_settings_popup_read_only_for_anonymous(client):
     assert "disabled" in save.group(0)
 
 
-def test_settings_popup_editable_for_signed_in(user_client):
+def test_settings_popup_editable_for_signed_in(user_client, monkeypatch):
+    """Signed in, every control this deployment can honour is editable.
+
+    "nothing is disabled" stopped being the right assertion with
+    kuantorflow#353: a translator whose key is not set is listed and greyed
+    (#261's rule for an unfinished game tile), so the popup legitimately
+    carries disabled inputs that have nothing to do with permissions. All four
+    keys are configured here, which restores the state this test means —
+    nothing greyed for lack of a key, so anything still disabled would be the
+    read-only bug it was written to catch.
+    """
+    for key in ("ANTHROPIC_API_KEY", "MS_TRANSLATOR_KEY", "DEEPL_API_KEY",
+                "GOOGLE_TRANSLATE_API_KEY"):
+        monkeypatch.setenv(key, "test-key-never-used")
+
     body = user_client.get("/").get_data(as_text=True)
     modal = body.split('id="settings-modal"')[1].split("</form>")[0]
     assert "read-only" not in modal
     assert "Saved for test.user@gmail.com" in modal
-    # signed in, both languages visible: nothing in the popup is disabled
     assert "disabled" not in modal
 
 
