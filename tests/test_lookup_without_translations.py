@@ -218,10 +218,16 @@ def test_a_filled_duplicate_is_still_not_a_save(
 
 
 def _dialog(body):
-    """The review popup's own markup, or "" when no popup was rendered."""
+    """The review popup's markup with its whitespace collapsed, or "".
+
+    Collapsed because the prose in it wraps across template lines, so a phrase
+    is not contiguous in the HTML — an assertion on the raw markup fails
+    against a page that is perfectly correct. That has now caught me three
+    times in this suite.
+    """
     import re
     found = re.search(r'<div class="modal modal-dialog proposal-dialog.*', body, re.S)
-    return found.group(0) if found else ""
+    return " ".join(found.group(0).split()) if found else ""
 
 
 def _banners(body):
@@ -289,3 +295,53 @@ def test_neither_is_shown_when_translations_arrived(
 
     assert "proposal-degraded" not in body
     assert "No translation service is answering" not in _banners(body)
+
+
+# --- and it must not break the popup it lives in ---------------------------
+
+def test_the_notice_is_inside_the_scrolling_pane(
+        user_client, saved, action_logs, silent_translators, oxford):
+    """Above the pane it added its own height to a dialog whose scroll region
+    was capped at a fixed 65vh, and the cards ran out past the popup's bottom
+    edge. Inside it, it costs the layout nothing and scrolls with the cards.
+    """
+    body = _look_up(user_client)
+    pane_opens = body.index('class="modal-scroll proposal-cards-pane"')
+    first_card = body.index('class="proposal-card"', pane_opens)
+    notice = body.index('class="proposal-degraded"')
+
+    # Position rather than a regex over the pane's extent: what matters is that
+    # the notice is inside the scrolling region and above the cards, and that
+    # does not depend on which tag happens to close the pane.
+    assert pane_opens < notice < first_card
+
+
+@pytest.mark.parametrize("selector,declaration", [
+    (".proposal-dialog", "flex-direction: column"),
+    (".proposal-dialog .proposal-body", "min-height: 0"),
+    (".proposal-dialog .proposal-cards-pane", "min-height: 0"),
+    (".proposal-dialog .proposal-cards-pane", "max-height: none"),
+    (".proposal-dialog--source .proposal-body", "flex-direction: row"),
+])
+def test_the_dialog_contains_its_own_content(client, selector, declaration):
+    """The four declarations that keep the popup's content inside it, pinned
+    the way #298 pinned its three.
+
+    `min-height: 0` is the load-bearing pair: a flex item defaults to
+    `min-height: auto` and refuses to shrink below its content, which is
+    exactly how a child escapes its container. And the row direction is
+    restated for the upload variant because the column rule above it would
+    otherwise silently turn two panes into one.
+
+    Measured in a browser at 1280x720, 375x560 and 360x380: the dialog stays
+    inside the viewport, the pane inside the dialog, and no card is painted
+    below the dialog's edge.
+    """
+    import re
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    stripped = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    for match in re.finditer(r"([^{}@]+?)\{([^{}]*?)\}", stripped, re.S):
+        if selector in [n.strip() for n in match.group(1).split(",")]:
+            if declaration in " ".join(match.group(2).split()):
+                return
+    raise AssertionError(f"{selector} no longer sets {declaration}")
