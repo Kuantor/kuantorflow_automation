@@ -1466,8 +1466,8 @@ kuantorflow#20/#21. Network access is stubbed throughout: the dispatch tests rep
 
 | Test | What it checks |
 | --- | --- |
-| `test_default_lookup_uses_google` | The default translator is Google, and Bing is not called at all. |
-| `test_bing_translator_is_used_when_selected` | Choosing Bing calls Bing and not Google. |
+| `test_default_lookup_uses_claude` | The default provider translates, and no other is called — `claude` since kuantorflow#353 retired the scraped backends. |
+| `test_microsoft_translator_is_used_when_selected` | Choosing a provider uses that one, and only that one. |
 | `test_failing_bing_falls_back_to_google` | A connection error on the chosen provider falls back rather than failing the lookup. |
 | `test_empty_bing_falls_back_to_google` | So does an empty result — a provider that answers with nothing is as useless as one that errors. |
 | `test_selected_dictionary_provides_definitions` | The chosen dictionary supplies the explanation, and no fallback is attempted when it delivered. |
