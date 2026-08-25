@@ -205,51 +205,87 @@ def test_a_filled_duplicate_is_still_not_a_save(
 
 
 # --- and what the learner is told ------------------------------------------
+#
+# **Where** matters as much as whether. A page-level banner is unreadable
+# behind the review popup: `.modal-overlay` is `position: fixed; inset: 0`,
+# 75% opaque and blurred, and that popup is the default path. The first
+# version of this notice was a banner only, so most learners never saw it --
+# and the test that covered it passed, because it asked whether the words
+# were in the document rather than whether they were in the dialog.
+#
+# So these assert on the **dialog**, and the banner is checked only where
+# there is no dialog to be behind.
+
+
+def _dialog(body):
+    """The review popup's own markup, or "" when no popup was rendered."""
+    import re
+    found = re.search(r'<div class="modal modal-dialog proposal-dialog.*', body, re.S)
+    return found.group(0) if found else ""
+
 
 def _banners(body):
     import re
-    return [" ".join(b.split()) for b in re.findall(
-        r'<div class="banner confirmation">\s*(.*?)\s*(?:<a |</div>)', body, re.S)]
+    return " ".join(" ".join(b.split()) for b in re.findall(
+        r'<div class="banner confirmation">\s*(.*?)\s*(?:<a |</div>)', body, re.S))
+
+
+def _look_up(client, word="perspicacious"):
+    return client.post("/", data={"action": "parse_word", "word": word,
+                                  "topic": "Education"},
+                       follow_redirects=True).get_data(as_text=True)
 
 
 @pytest.fixture()
-def degraded(monkeypatch, silent_translators, oxford):
-    """A lookup that can only reach the dictionary, as in #348."""
+def automatically():
+    """Turn *Add cards automatically* on — the one path with no popup.
 
-
-@pytest.mark.parametrize("automatically", [False, True])
-def test_the_learner_is_told_no_translation_service_answered(
-        user_client, saved, action_logs, degraded, app_module, monkeypatch,
-        automatically):
-    """Said once, at lookup, because it is true of the review popup and the
-    automatic save alike — and a banner that quietly stops rendering is the
-    kind of thing only a test notices.
+    Written through `settings_store` for the signed-in test identity, the way
+    the Settings popup writes it, rather than by patching `current_settings()`
+    — that reads the session and cannot be called outside a request.
+    `settings_dir` (autouse) already points the store at a temp directory.
     """
     import settings_store
-    prefs = settings_store.load(7, "test.user@gmail.com")
-    prefs["cards_automatically"] = automatically
-    settings_store.save(7, "test.user@gmail.com", prefs)
 
-    body = user_client.post(
-        "/", data={"action": "parse_word", "word": "scholar",
-                   "topic": "Education"}, follow_redirects=True
-    ).get_data(as_text=True)
+    from conftest import TEST_USER_EMAIL, TEST_USER_ID
 
-    said = " ".join(_banners(body))
-    assert "No translation service is answering" in said
-    assert "will be filled in" in said, "and that it is worth trying again"
+    def on(value=True):
+        prefs = settings_store.load(TEST_USER_ID, TEST_USER_EMAIL)
+        prefs["cards_automatically"] = value
+        settings_store.save(prefs, TEST_USER_ID, TEST_USER_EMAIL)
+    return on
 
 
-def test_the_notice_is_not_shown_when_translations_arrived(
+def test_the_popup_carries_the_notice_where_the_learner_is_looking(
+        user_client, saved, action_logs, silent_translators, oxford):
+    """**Inside the dialog**, which is the assertion that would have caught the
+    first version: a banner behind a fixed, opaque overlay is in the document
+    and invisible."""
+    body = _look_up(user_client)
+
+    assert "proposal-degraded" in _dialog(body),         "the notice has to be inside the popup, not behind it"
+    assert "No translation service is answering" in _dialog(body)
+    assert "Type them in yourself" in _dialog(body),         "and it should offer the choice, not only report the fault"
+
+
+def test_the_banner_covers_the_path_that_has_no_popup(
+        user_client, saved, action_logs, silent_translators, oxford,
+        automatically):
+    """With *Add cards automatically* on there is no dialog at all, so the
+    page-level banner is the only place left to say it."""
+    automatically()
+    body = _look_up(user_client)
+
+    assert "No translation service is answering" in _banners(body)
+
+
+def test_neither_is_shown_when_translations_arrived(
         user_client, saved, action_logs, oxford, monkeypatch):
-    """The other half, and the one that would rot silently: a notice shown on
-    every lookup is worse than none."""
+    """The half that rots quietly. A notice on every lookup is worse than
+    none, and only the tests above would never catch that."""
     monkeypatch.setattr(parsers, "_google_dictionary",
                         lambda word, code: {"noun": ["вчений"]})
+    body = _look_up(user_client)
 
-    body = user_client.post(
-        "/", data={"action": "parse_word", "word": "scholar",
-                   "topic": "Education"}, follow_redirects=True
-    ).get_data(as_text=True)
-
-    assert "No translation service is answering" not in " ".join(_banners(body))
+    assert "proposal-degraded" not in body
+    assert "No translation service is answering" not in _banners(body)
