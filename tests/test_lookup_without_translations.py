@@ -202,3 +202,54 @@ def test_a_filled_duplicate_is_still_not_a_save(
     log = (action_logs / "cards.log").read_text(encoding="utf-8")
     assert "FILL" in log and "fields=translation_ukr" in log
     assert "SKIP" not in log, "a duplicate that gained something is not a skip"
+
+
+# --- and what the learner is told ------------------------------------------
+
+def _banners(body):
+    import re
+    return [" ".join(b.split()) for b in re.findall(
+        r'<div class="banner confirmation">\s*(.*?)\s*(?:<a |</div>)', body, re.S)]
+
+
+@pytest.fixture()
+def degraded(monkeypatch, silent_translators, oxford):
+    """A lookup that can only reach the dictionary, as in #348."""
+
+
+@pytest.mark.parametrize("automatically", [False, True])
+def test_the_learner_is_told_no_translation_service_answered(
+        user_client, saved, action_logs, degraded, app_module, monkeypatch,
+        automatically):
+    """Said once, at lookup, because it is true of the review popup and the
+    automatic save alike — and a banner that quietly stops rendering is the
+    kind of thing only a test notices.
+    """
+    import settings_store
+    prefs = settings_store.load(7, "test.user@gmail.com")
+    prefs["cards_automatically"] = automatically
+    settings_store.save(7, "test.user@gmail.com", prefs)
+
+    body = user_client.post(
+        "/", data={"action": "parse_word", "word": "scholar",
+                   "topic": "Education"}, follow_redirects=True
+    ).get_data(as_text=True)
+
+    said = " ".join(_banners(body))
+    assert "No translation service is answering" in said
+    assert "will be filled in" in said, "and that it is worth trying again"
+
+
+def test_the_notice_is_not_shown_when_translations_arrived(
+        user_client, saved, action_logs, oxford, monkeypatch):
+    """The other half, and the one that would rot silently: a notice shown on
+    every lookup is worse than none."""
+    monkeypatch.setattr(parsers, "_google_dictionary",
+                        lambda word, code: {"noun": ["вчений"]})
+
+    body = user_client.post(
+        "/", data={"action": "parse_word", "word": "scholar",
+                   "topic": "Education"}, follow_redirects=True
+    ).get_data(as_text=True)
+
+    assert "No translation service is answering" not in " ".join(_banners(body))
