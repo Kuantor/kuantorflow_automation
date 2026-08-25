@@ -1827,6 +1827,34 @@ kuantorflow#349, over `parsers.lookup_word()` and `utils.fill_missing_fields()`.
 | `test_neither_is_shown_when_translations_arrived` | The half that rots quietly: a notice on every lookup is worse than none. |
 | `test_a_filled_duplicate_is_still_not_a_save` | `_save_and_log()` returns False and logs `FILL`, never `CREATE` — a fill reported as a save is kuantorflow#308 again. |
 
+## test_translators.py — licensed translation providers (19 tests, 20 cases)
+
+kuantorflow#353, over `parsers.TRANSLATORS` and the four fetchers. kuantorflow#348 ended with both scraped backends withdrawn on the same day and the conclusion that swapping a `client` parameter to route around Google's refusal was a worse posture than the one that broke; this covers what replaced them. No network — the HTTP providers are stubbed at `parsers.requests` and Claude's SDK is injected into `sys.modules`, since `anthropic` is deliberately not installed in this venv.
+
+Two properties are load-bearing and easy to lose: the registry resolves fetchers **by name** (storing the function object captures it at import and silently breaks every stub in the suite — which is what the first version did, and this suite caught within a minute), and availability is read **at call time**, so a key can be added without a code change.
+
+| Test | What it checks |
+| --- | --- |
+| `test_only_configured_providers_are_offered` | A provider without its key is not in the list; one with it is. |
+| `test_nothing_configured_is_a_real_state` | No key means no translator, which #349 answers with a dictionary-only card rather than an error. |
+| `test_a_choice_whose_key_has_gone_falls_through` | A deployment losing a key is not the learner's problem to solve from Settings. |
+| `test_the_registry_resolves_fetchers_by_name` | The late-binding property the dispatch has always promised. |
+| `test_the_retired_scrapers_are_kept_but_unreachable` | `_google_dictionary` and `_bing_dictionary` still exist and cannot be chosen — a later cleanup should not delete them without deciding to. |
+| `test_a_stored_retired_provider_is_coerced_to_the_default` | Nobody is stranded on a provider that cannot work (#352). |
+| `test_microsoft_groups_by_part_of_speech` | The dictionary endpoint's `posTag` mapping, unchanged from the Bing backend; only the credential moved. |
+| `test_microsoft_falls_back_to_a_plain_translation` | A dictionary miss lands under `other`, the shape the lookup has always handled. |
+| `test_deepl_returns_one_untagged_entry` | DeepL translates without classifying — one card per word, which is why it is not the default. |
+| `test_deepl_tries_the_paid_host_when_the_free_one_refuses` | A key works on one host only, and 403 is how the wrong one says so. |
+| `test_google_cloud_returns_one_untagged_entry` | Same shape as DeepL. |
+| `test_a_translation_identical_to_the_word_is_dropped` | A card claiming `house` means `house` is worse than one with no translation. |
+| `test_claude_groups_by_part_of_speech` | The grouping that lets one lookup make a noun card and a verb card. |
+| `test_claude_asks_for_structured_output` | The schema is the contract, so a malformed reply is not a failure mode — unlike its fence-stripping sibling in the same file. |
+| `test_claude_is_told_which_language_and_bounded` | The language name reaches the prompt, and the call is bounded like every other in this project. |
+| `test_claude_caps_the_terms_per_part_of_speech` | A model asked for three can return four; the card's width is the app's decision. |
+| `test_the_panel_offers_what_is_configured` | The Settings radios render from the declaration. |
+| `test_the_panel_explains_an_unconfigured_deployment` | It names the environment variables, because the person reading it is the one who can set them. |
+| `test_a_provider_that_cannot_group_says_so_in_the_panel` | A real difference between the options, stated where the choice is made. |
+
 ## Keeping this current (issue #14)
 
 This document goes stale silently — it claimed 94 tests while the suite had

@@ -245,7 +245,7 @@ def test_every_topic_is_placed_before_any_card_is_saved(spy):
     topic under 'Other' at position 0 — correct for a topic a learner invents,
     wrong for a curriculum — so the rows have to exist first."""
     seed_topics.run(seed_topics.chosen_topics(None), None, None,
-                    "google", "oxford", pause=0, out=io.StringIO())
+                    "claude", "oxford", pause=0, out=io.StringIO())
 
     kinds = [e[0] for e in spy]
     assert kinds.count("place") == 18
@@ -254,7 +254,7 @@ def test_every_topic_is_placed_before_any_card_is_saved(spy):
 
 def test_the_cards_carry_their_topic(spy):
     seed_topics.run(seed_topics.chosen_topics("Art and culture"), None, None,
-                    "google", "oxford", pause=0, out=io.StringIO())
+                    "claude", "oxford", pause=0, out=io.StringIO())
     saves = [e for e in spy if e[0] == "save"]
     assert len(saves) == 20
     assert {e[2] for e in saves} == {"Art and culture"}
@@ -358,7 +358,7 @@ def test_a_failed_lookup_skips_the_word_and_the_run_continues(monkeypatch):
     monkeypatch.setattr(seed_topics, "lookup_word", flaky)
 
     counts = seed_topics.run(seed_topics.chosen_topics(WORK),
-                             None, None, "google", "oxford", pause=0,
+                             None, None, "claude", "oxford", pause=0,
                              out=io.StringIO())
 
     assert len(saved) == 18, "the other eighteen were saved"
@@ -403,7 +403,7 @@ def test_a_failed_save_does_not_end_the_run_either(monkeypatch):
     monkeypatch.setattr(seed_topics, "save_flashcard", flaky_save)
 
     counts = seed_topics.run(seed_topics.chosen_topics(WORK),
-                             None, None, "google", "oxford", pause=0,
+                             None, None, "claude", "oxford", pause=0,
                              out=io.StringIO())
 
     assert counts.added == 19
@@ -425,7 +425,7 @@ def test_a_word_already_in_the_database_counts_as_present_not_added(monkeypatch)
     monkeypatch.setattr(seed_topics, "save_flashcard", lambda *a, **k: None)
 
     counts = seed_topics.run(seed_topics.chosen_topics("Work and careers"),
-                             None, None, "google", "oxford", pause=0,
+                             None, None, "claude", "oxford", pause=0,
                              out=io.StringIO())
 
     assert (counts.added, counts.present) == (0, 20)
@@ -447,7 +447,7 @@ def test_a_word_is_present_only_when_none_of_its_cards_were_written(monkeypatch)
                         None if entry["pos"] == "noun" else 1)
 
     counts = seed_topics.run(seed_topics.chosen_topics("Work and careers"),
-                             None, None, "google", "oxford", pause=0,
+                             None, None, "claude", "oxford", pause=0,
                              out=io.StringIO())
 
     assert (counts.added, counts.present) == (20, 0)
@@ -473,7 +473,7 @@ def test_every_card_is_logged_with_the_seed_source(monkeypatch, action_logs):
         1 if not seen and not seen.append(entry) else None)
 
     seed_topics.run(seed_topics.chosen_topics("Work and careers"), None,
-                    "seven@example.com", "google", "oxford", pause=0,
+                    "seven@example.com", "claude", "oxford", pause=0,
                     out=io.StringIO())
 
     lines = (action_logs / "cards.log").read_text(encoding="utf-8").splitlines()
@@ -494,7 +494,7 @@ def test_an_unowned_run_logs_the_user_as_anonymous(monkeypatch, action_logs):
     monkeypatch.setattr(seed_topics, "save_flashcard", lambda *a, **k: 1)
 
     seed_topics.run(seed_topics.chosen_topics("Work and careers"), None, None,
-                    "google", "oxford", pause=0, out=io.StringIO())
+                    "claude", "oxford", pause=0, out=io.StringIO())
 
     lines = (action_logs / "cards.log").read_text(encoding="utf-8")
     assert "user=anonymous" in lines
@@ -517,7 +517,7 @@ def test_the_output_is_ascii(monkeypatch):
     monkeypatch.setattr(seed_topics, "save_flashcard", lambda *a, **k: 1)
 
     out = io.StringIO()
-    seed_topics.run(seed_topics.chosen_topics(None), None, None, "google",
+    seed_topics.run(seed_topics.chosen_topics(None), None, None, "claude",
                     "oxford", pause=0, out=out)
 
     text = out.getvalue()

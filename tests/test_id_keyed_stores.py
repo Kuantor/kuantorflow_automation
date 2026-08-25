@@ -36,16 +36,16 @@ def test_anonymous_visitors_still_share_the_default(settings_dir):
 
 def test_colliding_email_prefixes_get_separate_files(settings_dir):
     """The bug the id fixes: both of these used to be `config-anton.json`."""
-    settings_store.save({"translator": "bing"}, 7, "anton@gmail.com")
+    settings_store.save({"translator": "microsoft"}, 7, "anton@gmail.com")
     settings_store.save({"translator": "google"}, 8, "anton@outlook.com")
-    assert settings_store.load(7, "anton@gmail.com")["translator"] == "bing"
-    assert settings_store.load(8, "anton@outlook.com")["translator"] == "google"
+    assert settings_store.load(7, "anton@gmail.com")["translator"] == "microsoft"
+    assert settings_store.load(8, "anton@outlook.com")["translator"] == "claude"
 
 
 def test_an_email_change_keeps_the_settings(settings_dir):
     """The other bug: the file used to be orphaned by a rename."""
-    settings_store.save({"translator": "bing"}, 7, "before@example.com")
-    assert settings_store.load(7, "after@example.com")["translator"] == "bing"
+    settings_store.save({"translator": "microsoft"}, 7, "before@example.com")
+    assert settings_store.load(7, "after@example.com")["translator"] == "microsoft"
 
 
 @pytest.mark.parametrize("bad", ["../../etc/passwd", "7; rm -rf /", "", None,
@@ -79,7 +79,7 @@ def test_the_email_is_not_a_setting(settings_dir):
 
 
 def test_the_settings_response_carries_no_email(user_client, settings_dir):
-    body = user_client.post("/settings", json={"translator": "bing"}).get_json()
+    body = user_client.post("/settings", json={"translator": "microsoft"}).get_json()
     assert "_email" not in body["settings"]
 
 
@@ -94,19 +94,19 @@ def _legacy(settings_dir, name, **values):
 
 
 def test_a_legacy_file_is_migrated_on_read(settings_dir):
-    legacy = _legacy(settings_dir, "anton", translator="bing")
-    assert settings_store.load(7, "anton@example.com")["translator"] == "bing"
+    legacy = _legacy(settings_dir, "anton", translator="microsoft")
+    assert settings_store.load(7, "anton@example.com")["translator"] == "microsoft"
     assert (settings_dir / "config-7.json").is_file()
     assert not legacy.exists(), "the old file is moved, not copied"
 
 
 def test_migration_happens_once(settings_dir):
-    _legacy(settings_dir, "anton", translator="bing")
+    _legacy(settings_dir, "anton", translator="microsoft")
     settings_store.load(7, "anton@example.com")
     settings_store.save({"translator": "google"}, 7, "anton@example.com")
     # a stale legacy file reappearing must not clobber the migrated settings
-    _legacy(settings_dir, "anton", translator="bing")
-    assert settings_store.load(7, "anton@example.com")["translator"] == "google"
+    _legacy(settings_dir, "anton", translator="microsoft")
+    assert settings_store.load(7, "anton@example.com")["translator"] == "claude"
 
 
 def test_a_user_with_no_legacy_file_just_gets_defaults(settings_dir):
@@ -117,8 +117,8 @@ def test_a_user_with_no_legacy_file_just_gets_defaults(settings_dir):
 def test_the_shared_default_is_never_migrated(settings_dir):
     """An address with no usable prefix was on config-default.json, which is
     everybody's — it must not be adopted as one user's settings."""
-    _legacy(settings_dir, "default", translator="bing")
-    assert settings_store.load(7, "@@@")["translator"] == "google"
+    _legacy(settings_dir, "default", translator="microsoft")
+    assert settings_store.load(7, "@@@")["translator"] == "claude"
     assert (settings_dir / ANON).is_file()
 
 
@@ -126,10 +126,10 @@ def test_a_numeric_prefix_does_not_hand_over_someone_elses_settings(settings_dir
     """The pathological collision: 7@example.com was already config-7.json,
     which is the name user id 7 now wants. The stranger's settings must not be
     inherited — the file has no _email, so it is recognised as pre-#174."""
-    _legacy(settings_dir, "7", translator="bing")          # belongs to 7@example.com
+    _legacy(settings_dir, "7", translator="microsoft")          # belongs to 7@example.com
     _legacy(settings_dir, "anton", translator="google")    # belongs to id 7
 
-    assert settings_store.load(7, "anton@example.com")["translator"] == "google"
+    assert settings_store.load(7, "anton@example.com")["translator"] == "claude"
     assert (settings_dir / "config-7.json.orphaned").is_file(), \
         "the stranger's file is set aside, not deleted"
 
@@ -138,8 +138,8 @@ def test_an_already_migrated_file_is_left_alone(settings_dir):
     """Once a file carries _email it is this user's own — a legacy leftover
     must not overwrite it."""
     settings_store.save({"translator": "google"}, 7, "anton@example.com")
-    _legacy(settings_dir, "anton", translator="bing")
-    assert settings_store.load(7, "anton@example.com")["translator"] == "google"
+    _legacy(settings_dir, "anton", translator="microsoft")
+    assert settings_store.load(7, "anton@example.com")["translator"] == "claude"
 
 
 # --- the chat log folder ------------------------------------------------------
@@ -203,8 +203,8 @@ def test_the_marker_is_never_read_as_a_conversation(app_module, chat_logs):
 def test_a_migrated_file_is_stamped_immediately(settings_dir):
     """Not on the user's next settings save — otherwise a just-migrated file
     is unreadable in a directory listing, which is most of the point."""
-    _legacy(settings_dir, "anton", translator="bing")
+    _legacy(settings_dir, "anton", translator="microsoft")
     settings_store.load(7, "anton@example.com")
     raw = json.loads((settings_dir / "config-7.json").read_text(encoding="utf-8"))
     assert raw["_email"] == "anton@example.com"
-    assert raw["translator"] == "bing", "the settings survive the stamping"
+    assert raw["translator"] == "microsoft", "the settings survive the stamping"

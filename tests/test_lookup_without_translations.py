@@ -32,9 +32,14 @@ EXAMPLES = {"noun": ["a classical scholar", "the most distinguished scholar"]}
 
 @pytest.fixture()
 def silent_translators(monkeypatch):
-    """Both translator backends refusing, as in #348."""
-    monkeypatch.setattr(parsers, "_google_dictionary", lambda word, code: {})
-    monkeypatch.setattr(parsers, "_bing_dictionary", lambda word, code: {})
+    """Every configured provider refusing, as in #348.
+
+    The scraped backends this used to stub were retired in kuantorflow#353;
+    what matters is unchanged — no translations reach `lookup_word()`, and the
+    dictionary has to carry the card on its own.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+    monkeypatch.setattr(parsers, "_claude_dictionary", lambda word, code: {})
 
 
 @pytest.fixture()
@@ -75,7 +80,8 @@ def test_the_translator_still_decides_the_cards_when_it_answers(
     the dictionary knows only `noun`, and the verb card must survive with its
     translation and no English text.
     """
-    monkeypatch.setattr(parsers, "_google_dictionary", lambda word, code: {
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+    monkeypatch.setattr(parsers, "_claude_dictionary", lambda word, code: {
         "noun": ["вчений"], "verb": ["вивчати"]})
 
     cards = {c["pos"]: c for c in parsers.lookup_word("scholar")}
@@ -289,7 +295,8 @@ def test_neither_is_shown_when_translations_arrived(
         user_client, saved, action_logs, oxford, monkeypatch):
     """The half that rots quietly. A notice on every lookup is worse than
     none, and only the tests above would never catch that."""
-    monkeypatch.setattr(parsers, "_google_dictionary",
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+    monkeypatch.setattr(parsers, "_claude_dictionary",
                         lambda word, code: {"noun": ["вчений"]})
     body = _look_up(user_client)
 
