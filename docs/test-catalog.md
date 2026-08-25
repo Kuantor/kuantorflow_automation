@@ -1827,7 +1827,7 @@ kuantorflow#349, over `parsers.lookup_word()` and `utils.fill_missing_fields()`.
 | `test_neither_is_shown_when_translations_arrived` | The half that rots quietly: a notice on every lookup is worse than none. |
 | `test_a_filled_duplicate_is_still_not_a_save` | `_save_and_log()` returns False and logs `FILL`, never `CREATE` — a fill reported as a save is kuantorflow#308 again. |
 
-## test_translators.py — licensed translation providers (19 tests, 20 cases)
+## test_translators.py — licensed translation providers (21 tests, 22 cases)
 
 kuantorflow#353, over `parsers.TRANSLATORS` and the four fetchers. kuantorflow#348 ended with both scraped backends withdrawn on the same day and the conclusion that swapping a `client` parameter to route around Google's refusal was a worse posture than the one that broke; this covers what replaced them. No network — the HTTP providers are stubbed at `parsers.requests` and Claude's SDK is injected into `sys.modules`, since `anthropic` is deliberately not installed in this venv.
 
@@ -1851,7 +1851,9 @@ Two properties are load-bearing and easy to lose: the registry resolves fetchers
 | `test_claude_asks_for_structured_output` | The schema is the contract, so a malformed reply is not a failure mode — unlike its fence-stripping sibling in the same file. |
 | `test_claude_is_told_which_language_and_bounded` | The language name reaches the prompt, and the call is bounded like every other in this project. |
 | `test_claude_caps_the_terms_per_part_of_speech` | A model asked for three can return four; the card's width is the app's decision. |
-| `test_the_panel_offers_what_is_configured` | The Settings radios render from the declaration. |
+| `test_every_provider_is_listed` | Including the ones this deployment cannot use — #261's call for an unfinished game tile: absent reads as *this app cannot do that*, greyed reads as *this copy is not set up for it*. |
+| `test_a_provider_without_its_key_is_disabled` | And the configured one is not. Signed in, because #102 disables everything for an anonymous visitor and the assertion would hold vacuously. |
+| `test_a_disabled_provider_names_the_key_it_needs` | The variable, not just "unavailable" — the person reading the panel is the one who can set it. |
 | `test_the_panel_explains_an_unconfigured_deployment` | It names the environment variables, because the person reading it is the one who can set them. |
 | `test_a_provider_that_cannot_group_says_so_in_the_panel` | A real difference between the options, stated where the choice is made. |
 
