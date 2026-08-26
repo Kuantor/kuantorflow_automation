@@ -125,11 +125,20 @@ def test_add_card_preserves_examples_json(user_client, saved):
     assert saved[0]["examples_ukr"] is None          # absent field stays NULL
 
 
-def test_add_card_ignores_malformed_examples(user_client, saved):
+def test_add_card_reads_plain_text_as_one_example_per_line(user_client, saved):
+    """Since kuantorflow#357 the popup's examples field is a textarea, so text
+    that is not JSON is a learner's own sentences rather than a broken payload.
+
+    This test used to assert the opposite — that anything unparseable became
+    NULL — which was right while the only writer was a hidden input the app
+    generated itself. Kept as the pin on the change, since dropping what
+    somebody typed would be silent."""
     r = user_client.post("/cards/add", data={
-        "word": "x", "pos": "noun", "examples_en": "not json"})
+        "word": "x", "pos": "noun",
+        "examples_en": """She is resilient.
+He is not."""})
     assert r.status_code == 200
-    assert saved[0]["examples_en"] is None           # bad JSON -> NULL, no crash
+    assert saved[0]["examples_en"] == ["She is resilient.", "He is not."]
 
 
 def test_add_card_requires_word(client, saved):
