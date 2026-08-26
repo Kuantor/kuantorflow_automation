@@ -13,8 +13,8 @@ import parsers
 
 # --- lookup_word dispatch (#20) -----------------------------------------------
 
-GOOGLE = {"noun": ["дім"]}
-BING = {"noun": ["будинок"]}
+CLAUDE = {"noun": ["дім"]}
+MICROSOFT = {"noun": ["будинок"]}
 
 
 @pytest.fixture()
@@ -43,10 +43,19 @@ def backends(monkeypatch):
             return result
         return fetch
 
-    def install(google=GOOGLE, bing=BING, oxford={}, mw={}, reverso={},
-                examples={}):
-        monkeypatch.setattr(parsers, "_google_dictionary", backend("google", google))
-        monkeypatch.setattr(parsers, "_bing_dictionary", backend("bing", bing))
+    def install(claude=CLAUDE, microsoft=MICROSOFT, oxford={}, mw={},
+                reverso={}, examples={}):
+        # The keys as well as the fetchers (kuantorflow#353): a provider is
+        # offered only where its key is configured, read at call time, so a
+        # stub with no key would never be reached.
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+        monkeypatch.setenv("MS_TRANSLATOR_KEY", "test-key-never-used")
+        monkeypatch.delenv("DEEPL_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_TRANSLATE_API_KEY", raising=False)
+        monkeypatch.setattr(parsers, "_claude_dictionary",
+                            backend("claude", claude))
+        monkeypatch.setattr(parsers, "_microsoft_dictionary",
+                            backend("microsoft", microsoft))
         monkeypatch.setattr(parsers, "_fetch_oxford_entry", backend(
             "oxford", oxford if isinstance(oxford, Exception) else (oxford, examples)))
         monkeypatch.setattr(parsers, "_merriam_webster_entry", backend(
@@ -57,29 +66,29 @@ def backends(monkeypatch):
     return install
 
 
-def test_default_lookup_uses_google(backends):
+def test_default_lookup_uses_claude(backends):
     calls = backends()
     cards = parsers.lookup_word("house")
     assert cards[0]["translation_ukr"] == "дім"
-    assert "google" in calls and "bing" not in calls
+    assert "claude" in calls and "microsoft" not in calls
 
 
-def test_bing_translator_is_used_when_selected(backends):
+def test_microsoft_translator_is_used_when_selected(backends):
     calls = backends()
-    cards = parsers.lookup_word("house", translator="bing")
+    cards = parsers.lookup_word("house", translator="microsoft")
     assert cards[0]["translation_ukr"] == "будинок"
-    assert "bing" in calls and "google" not in calls
+    assert "microsoft" in calls and "claude" not in calls
 
 
 def test_failing_bing_falls_back_to_google(backends):
-    backends(bing=requests.ConnectionError("blocked"))
-    cards = parsers.lookup_word("house", translator="bing")
+    backends(microsoft=requests.ConnectionError("blocked"))
+    cards = parsers.lookup_word("house", translator="microsoft")
     assert cards[0]["translation_ukr"] == "дім"
 
 
 def test_empty_bing_falls_back_to_google(backends):
-    backends(bing={})
-    cards = parsers.lookup_word("house", translator="bing")
+    backends(microsoft={})
+    cards = parsers.lookup_word("house", translator="microsoft")
     assert cards[0]["translation_ukr"] == "дім"
 
 
@@ -393,7 +402,7 @@ def test_the_pos_heading_is_split_on_commas(text, expected):
 def test_the_dictionarys_modal_verb_reaches_googles_auxiliary_verb(backends):
     """The #228 case, and the reason the ticket exists. Same sense, two names —
     so the definition was discarded *and* the card was left blank."""
-    backends(google={"auxiliary verb": ["мусити"], "noun": ["необхідність"]},
+    backends(claude={"auxiliary verb": ["мусити"], "noun": ["необхідність"]},
              oxford={"modal verb": ["used to say that something is necessary"],
                      "noun": ["something you must do"]},
              examples={"modal verb": ["You must be tired."]})
@@ -408,7 +417,7 @@ def test_the_dictionarys_modal_verb_reaches_googles_auxiliary_verb(backends):
 def test_the_card_keeps_the_label_its_translator_gave_it(backends):
     """Matching is canonical; the card is not. Renaming a learner's card to
     "modal verb" because the dictionary says so would change what they see."""
-    backends(google={"auxiliary verb": ["мусити"]},
+    backends(claude={"auxiliary verb": ["мусити"]},
              oxford={"modal verb": ["necessary"]})
 
     cards = parsers.lookup_word("must")
@@ -418,7 +427,7 @@ def test_the_card_keeps_the_label_its_translator_gave_it(backends):
 
 
 def test_googles_interjection_meets_oxfords_exclamation(backends):
-    backends(google={"interjection": ["привіт"]},
+    backends(claude={"interjection": ["привіт"]},
              oxford={"exclamation": ["used as a greeting"]})
 
     card = parsers.lookup_word("hello")[0]
@@ -428,7 +437,7 @@ def test_googles_interjection_meets_oxfords_exclamation(backends):
 def test_an_exact_match_is_never_displaced_by_a_synonym(backends):
     """When the translator reports both, each keeps its own text — the index is
     first-wins on the card's own label."""
-    backends(google={"verb": ["робити"], "auxiliary verb": ["мусити"]},
+    backends(claude={"verb": ["робити"], "auxiliary verb": ["мусити"]},
              oxford={"verb": ["ordinary verb sense"],
                      "modal verb": ["modal sense"]})
 
@@ -445,7 +454,7 @@ def test_an_other_card_adopts_the_only_entry_the_dictionary_had(backends):
     """`other` is what _google_dictionary() falls back to when Google has no
     dictionary entry, so it is not a part of speech and can never match. One
     unplaced entry is unambiguously its text — `overbook` is the real case."""
-    backends(google={"other": ["перебронювати"]},
+    backends(claude={"other": ["перебронювати"]},
              oxford={"verb": ["to sell more tickets than there are seats"]},
              examples={"verb": ["The flight was overbooked."]})
 
@@ -459,7 +468,7 @@ def test_an_other_card_adopts_the_only_entry_the_dictionary_had(backends):
 def test_an_other_card_takes_nothing_when_the_entry_is_ambiguous(backends):
     """Two unplaced entries and there is no way to tell which belongs to it, so
     it keeps its translations and no English text — a guess would be worse."""
-    backends(google={"other": ["щось"]},
+    backends(claude={"other": ["щось"]},
              oxford={"noun": ["a thing"], "verb": ["to do a thing"]})
 
     card = parsers.lookup_word("thing")[0]
@@ -473,7 +482,7 @@ def test_a_part_of_speech_the_dictionary_cannot_explain_keeps_its_card(backends)
     """The premise of #228 after it was corrected: a translation is enough to
     keep a card. Google over-reports parts of speech — `hedge` as an adjective —
     and those cards stay, with their translations and no English text."""
-    backends(google={"noun": ["живопліт"], "verb": ["ухилятися"],
+    backends(claude={"noun": ["живопліт"], "verb": ["ухилятися"],
                      "adjective": ["живоплітний"]},
              oxford={"noun": ["a row of bushes"], "verb": ["to avoid answering"]})
 
@@ -489,7 +498,7 @@ def test_an_unmatched_definition_is_discarded_rather_than_misplaced(backends):
     is dropped. Attaching it to a different sense would be a confidently wrong
     card, which is the #221 lesson, and creating one would mean a card with an
     explanation and no translation in a bilingual app."""
-    backends(google={"noun": ["криниця"]},
+    backends(claude={"noun": ["криниця"]},
              oxford={"noun": ["a hole for water"],
                      "determiner": ["nothing should receive this"]})
 
@@ -506,7 +515,7 @@ def test_a_lookup_puts_the_examples_on_the_matching_card(backends):
     """Grouped by part of speech, like the definition — so a card can have a
     translation and neither, which is what happens when the translator finds a
     part of speech the dictionary does not list."""
-    backends(google={"noun": ["дім"], "verb": ["розмістити"]},
+    backends(claude={"noun": ["дім"], "verb": ["розмістити"]},
              oxford={"noun": ["a building"]},
              examples={"noun": ["We live in a big house."]})
 

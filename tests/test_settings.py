@@ -36,14 +36,14 @@ def test_corrupt_config_falls_back_without_being_overwritten(settings_dir):
 def test_settings_endpoint_saves_and_validates(user_client, settings_dir):
     r = user_client.post("/settings", json={
         "cards_automatically": True,
-        "translator": "bing",
+        "translator": "microsoft",
         "explanatory_dictionary": "no-such-dictionary",   # invalid -> default
         "unknown_key": "dropped",
     })
     assert r.status_code == 200
     stored = r.get_json()["settings"]
     assert stored["cards_automatically"] is True
-    assert stored["translator"] == "bing"
+    assert stored["translator"] == "microsoft"
     assert stored["explanatory_dictionary"] == "oxford"
     assert "unknown_key" not in stored
 
@@ -65,12 +65,12 @@ def test_settings_endpoint_saves_and_validates(user_client, settings_dir):
 
 def test_a_settings_change_is_logged(user_client, settings_dir, action_logs):
     user_client.post("/settings", json={"individual_cards": True,
-                                        "translator": "bing"})
+                                        "translator": "microsoft"})
 
     line = [l for l in (action_logs / "cards.log").read_text(encoding="utf-8")
             .splitlines() if " SETTINGS " in l][0]
     assert "individual_cards=True" in line
-    assert "translator=bing" in line
+    assert "translator=microsoft" in line
     assert "user=test.user@gmail.com" in line
 
 
@@ -105,7 +105,7 @@ def test_a_refused_anonymous_save_logs_nothing(client, settings_dir,
                                                action_logs):
     """#102 refuses the write, so there is no change to record. A line here would
     say a setting changed when the response said it had not."""
-    assert client.post("/settings", json={"translator": "bing"}).status_code == 403
+    assert client.post("/settings", json={"translator": "microsoft"}).status_code == 403
 
     log = action_logs / "cards.log"
     assert not log.exists() or " SETTINGS " not in log.read_text(encoding="utf-8")
@@ -113,24 +113,24 @@ def test_a_refused_anonymous_save_logs_nothing(client, settings_dir,
 
 def test_settings_saved_per_identity(user_client, settings_dir):
     """A signed-in save lands in that user's own file only."""
-    user_client.post("/settings", json={"translator": "bing",
+    user_client.post("/settings", json={"translator": "microsoft",
                                         "cards_automatically": True})
     personal = json.loads(
         (settings_dir / "config-7.json").read_text(encoding="utf-8"))
-    assert personal["translator"] == "bing"
+    assert personal["translator"] == "microsoft"
     assert personal["cards_automatically"] is True
     # nothing leaked into the shared default config
     default_path = settings_dir / "config-default.json"
     if default_path.exists():
         default = json.loads(default_path.read_text(encoding="utf-8"))
-        assert default["translator"] == "google"
+        assert default["translator"] == "claude"
         assert default["cards_automatically"] is False
 
 
 # --- Anonymous settings are read-only (#102) ------------------------------------
 
 def test_anonymous_settings_post_is_rejected(client, settings_dir):
-    r = client.post("/settings", json={"translator": "bing"})
+    r = client.post("/settings", json={"translator": "microsoft"})
     assert r.status_code == 403
     data = r.get_json()
     assert data["ok"] is False and "Sign in" in data["error"]
@@ -148,23 +148,39 @@ def test_settings_popup_read_only_for_anonymous(client):
     assert "disabled" in save.group(0)
 
 
-def test_settings_popup_editable_for_signed_in(user_client):
+def test_settings_popup_editable_for_signed_in(user_client, monkeypatch):
+    """Signed in, every control this deployment can honour is editable.
+
+    "nothing is disabled" stopped being the right assertion with
+    kuantorflow#353: a translator whose key is not set is listed and greyed
+    (#261's rule for an unfinished game tile), so the popup legitimately
+    carries disabled inputs that have nothing to do with permissions. All four
+    keys are configured here, which restores the state this test means —
+    nothing greyed for lack of a key, so anything still disabled would be the
+    read-only bug it was written to catch.
+    """
+    for key in ("ANTHROPIC_API_KEY", "MS_TRANSLATOR_KEY", "DEEPL_API_KEY",
+                "GOOGLE_TRANSLATE_API_KEY"):
+        monkeypatch.setenv(key, "test-key-never-used")
+
     body = user_client.get("/").get_data(as_text=True)
     modal = body.split('id="settings-modal"')[1].split("</form>")[0]
     assert "read-only" not in modal
     assert "Saved for test.user@gmail.com" in modal
-    # signed in, both languages visible: nothing in the popup is disabled
     assert "disabled" not in modal
 
 
 # --- The Settings popup (#13, #20) --------------------------------------------
 
-def test_settings_popup_markup(client):
+def test_settings_popup_markup(client, monkeypatch):
+    # Two providers configured, because the panel lists only what a deployment
+    # has a key for (kuantorflow#353).
+    monkeypatch.setenv("MS_TRANSLATOR_KEY", "test-key-never-used")
     body = client.get("/").get_data(as_text=True)
     assert 'id="settings-link"' in body            # header menu item
     assert 'id="settings-modal"' in body
     assert 'name="cards_automatically"' in body    # #13 checkbox
-    for value in ("google", "bing", "oxford", "merriam-webster"):
+    for value in ("claude", "microsoft", "oxford", "merriam-webster"):
         assert f'value="{value}"' in body          # #20 radio families
 
 
@@ -186,14 +202,15 @@ def test_settings_popup_two_column_layout(client):
         or re.search(r'type="button"[^>]*id="reset-auth-btn"', modal)
 
 
-def test_settings_popup_prefilled_from_store(user_client):
-    user_client.post("/settings", json={"translator": "bing",
+def test_settings_popup_prefilled_from_store(user_client, monkeypatch):
+    monkeypatch.setenv("MS_TRANSLATOR_KEY", "test-key-never-used")
+    user_client.post("/settings", json={"translator": "microsoft",
                                    "cards_automatically": True})
     body = user_client.get("/").get_data(as_text=True)
-    assert re.search(r'value="bing"\s+checked', body)
+    assert re.search(r'value="microsoft"\s+checked', body)
     assert re.search(r'name="cards_automatically"\s+checked', body)
     # the lookup panel title follows the translator choice (#20)
-    assert "Look up a word (Bing Translator)" in body
+    assert "Look up a word (Microsoft Translator)" in body
 
 
 # --- Quiz language toggle (#113) ----------------------------------------------
@@ -261,8 +278,8 @@ def test_lookup_receives_the_stored_providers(user_client, app_module, monkeypat
         return [{"word": word, "pos": "noun", "topic": topic}]
 
     monkeypatch.setattr(app_module, "lookup_word", capture)
-    user_client.post("/settings", json={"translator": "bing",
+    user_client.post("/settings", json={"translator": "microsoft",
                                    "explanatory_dictionary": "merriam-webster"})
     user_client.post("/", data={"action": "parse_word", "word": "run"})
-    assert calls == [{"translator": "bing",
+    assert calls == [{"translator": "microsoft",
                       "explanatory_dictionary": "merriam-webster"}]

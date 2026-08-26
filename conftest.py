@@ -123,6 +123,19 @@ def stub_deck(app_module, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def translator_key(monkeypatch):
+    """A configured translation provider, as every real deployment has.
+
+    Since kuantorflow#353 the Settings panel lists only providers whose key is
+    present, and `lookup_word()` degrades to a dictionary-only card when none
+    is (#349). Both are correct and neither is the state most tests mean to
+    exercise, so the suite runs as a configured deployment; a test that wants
+    the unconfigured one clears this with `monkeypatch.delenv`.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+
+
+@pytest.fixture(autouse=True)
 def settings_dir(tmp_path, monkeypatch):
     """Redirect the settings store to a per-test temp directory.
 

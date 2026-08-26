@@ -156,7 +156,8 @@ def test_edit_helper_is_ready_for_an_edit_feature(action_logs):
 # --- dict.log ---------------------------------------------------------------
 
 def test_lookup_logs_every_site_it_used(action_logs, monkeypatch):
-    monkeypatch.setattr(parsers, "_google_dictionary",
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+    monkeypatch.setattr(parsers, "_claude_dictionary",
                         lambda word, code: {"noun": ["стійкість"]})
     # The *entry* function, which is what _dictionary_backend() returns since
     # #225 and therefore the only thing lookup_word() calls. Stubbing the
@@ -164,12 +165,12 @@ def test_lookup_logs_every_site_it_used(action_logs, monkeypatch):
     # and this "offline" test starts making live requests to Oxford.
     monkeypatch.setattr(parsers, "_fetch_oxford_entry",
                         lambda word: ({"noun": ["able to recover"]}, {}))
-    parsers.lookup_word("resilient", translator="google",
+    parsers.lookup_word("resilient", translator="claude",
                         explanatory_dictionary="oxford")
 
     translate = _find(action_logs, "dict", "TRANSLATE")
     assert len(translate) == 2                    # one per language
-    assert "provider=google" in translate[0] and "pos_count=1" in translate[0]
+    assert "provider=claude" in translate[0] and "pos_count=1" in translate[0]
     assert "ms=" in translate[0]
     define = _find(action_logs, "dict", "DEFINE")[0]
     assert "provider=oxford" in define and "pos_count=1" in define
@@ -177,19 +178,28 @@ def test_lookup_logs_every_site_it_used(action_logs, monkeypatch):
 
 
 def test_lookup_logs_the_fallback_provider(action_logs, monkeypatch):
-    """Bing is unreachable → Google answers instead; the log says so."""
-    monkeypatch.setattr(parsers, "_bing_dictionary",
+    """The chosen provider is unreachable → the next configured one answers
+    instead, and the log says so.
+
+    The pair moved with kuantorflow#353 — Microsoft failing over to Claude
+    rather than Bing to Google — but what is pinned is unchanged: a fallback
+    is recorded as the provider that *ran*, with `fallback_from` naming the one
+    that was asked for.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
+    monkeypatch.setenv("MS_TRANSLATOR_KEY", "test-key-never-used")
+    monkeypatch.setattr(parsers, "_microsoft_dictionary",
                         lambda word, code: (_ for _ in ()).throw(ValueError("401")))
-    monkeypatch.setattr(parsers, "_google_dictionary",
+    monkeypatch.setattr(parsers, "_claude_dictionary",
                         lambda word, code: {"noun": ["стійкість"]})
     monkeypatch.setattr(parsers, "_fetch_oxford_entry", lambda word: ({}, {}))
     monkeypatch.setattr(parsers, "_fetch_definitions", lambda word: {})
-    parsers.lookup_word("resilient", translator="bing",
+    parsers.lookup_word("resilient", translator="microsoft",
                         explanatory_dictionary="oxford")
 
     lines = _find(action_logs, "dict", "TRANSLATE")
-    assert "provider=bing" in lines[0] and "error=401" in lines[0]
-    assert "provider=google" in lines[1] and "fallback_from=bing" in lines[1]
+    assert "provider=microsoft" in lines[0] and "error=401" in lines[0]
+    assert "provider=claude" in lines[1] and "fallback_from=microsoft" in lines[1]
     # the dictionary fell back to Reverso as well
     assert "fallback_from=oxford" in _find(action_logs, "dict", "DEFINE")[1]
 
@@ -205,11 +215,11 @@ def test_failed_lookup_is_logged(action_logs, monkeypatch):
     the test states the condition rather than relying on a word nobody defines
     -- and stops making live calls while it is at it.
     """
-    monkeypatch.setattr(parsers, "_google_dictionary", lambda word, code: {})
+    monkeypatch.setattr(parsers, "_claude_dictionary", lambda word, code: {})
     monkeypatch.setattr(parsers, "_fetch_oxford_entry", lambda word: ({}, {}))
     monkeypatch.setattr(parsers, "_fetch_definitions", lambda word: {})
     with pytest.raises(ValueError):
-        parsers.lookup_word("zzzz", translator="google")
+        parsers.lookup_word("zzzz", translator="claude")
     assert ("error='no translations and no definitions'"
             in _find(action_logs, "dict", "FAILED")[0])
 
@@ -221,7 +231,7 @@ def test_lookup_route_logs_the_user_and_their_providers(client, saved, app_modul
                            "topic": "vocab"})
     line = _find(action_logs, "dict", "LOOKUP")[0]
     assert "word=resilient" in line
-    assert "translator=google" in line and "dictionary=oxford" in line
+    assert "translator=claude" in line and "dictionary=oxford" in line
     assert "user=anonymous" in line
 
 
