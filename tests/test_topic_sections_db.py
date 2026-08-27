@@ -379,3 +379,59 @@ def test_a_card_with_no_topic_creates_no_section_membership(sections_db):
     assert _query("SELECT topic_id FROM flashcards WHERE id = %s", (card,)) \
         == [(None,)]
     assert _query("SELECT COUNT(*) FROM topics") == [(0,)]
+
+
+# --- the ordering switch (kuantorflow#363) ------------------------------
+
+@requires_local_db
+def test_alphabetical_drops_position_and_keeps_everything_else(sections_db):
+    """Both orders, against the collation production actually uses.
+
+    The switch is one term removed from #215's sort key, and that is worth
+    proving here rather than in a fixture: `Other` must come out *identical*
+    either way — its topics all hold position 0, so the name tiebreak was
+    already deciding — while a section that numbers its topics reorders. If
+    the two states disagreed about `Other`, the page would be sorting one
+    section by MySQL's rules and another by somebody's idea of them.
+    """
+    import utils
+
+    # A numbered section, deliberately not in alphabetical order, plus two
+    # topics in 'Other' whose case differs so the collation is exercised.
+    for position, name in enumerate(["Work and careers", "Art and culture",
+                                     "Money and the economy"], start=1):
+        utils.place_topic(name, "B2–C1 Conversational Topics", position)
+        utils.save_flashcard({"word": f"w{position}", "topic": name},
+                             added_by_user_id=7)
+    for name in ("zebra", "Apples"):
+        utils.save_flashcard({"word": f"x{name}", "topic": name},
+                             added_by_user_id=7)
+
+    stored = dict(utils.get_topics_by_section())
+    alphabetical = dict(utils.get_topics_by_section(alphabetical=True))
+
+    assert [t for t, _ in stored["B2–C1 Conversational Topics"]] == [
+        "Work and careers", "Art and culture", "Money and the economy"]
+    assert [t for t, _ in alphabetical["B2–C1 Conversational Topics"]] == [
+        "Art and culture", "Money and the economy", "Work and careers"]
+
+    assert [t for t, _ in stored["Other"]] == ["Apples", "zebra"], \
+        "case-insensitive already, by the tiebreak"
+    assert stored["Other"] == alphabetical["Other"], \
+        "a section of position-0 topics cannot be reordered by this switch"
+
+
+@requires_local_db
+def test_the_sections_themselves_keep_their_order(sections_db):
+    """The switch orders topics *within* a section. A section's own place is
+    #215's `topic_sections.position`, and nothing here touches it."""
+    import utils
+
+    utils.save_flashcard({"word": "w", "topic": "anything"}, added_by_user_id=7)
+    utils.place_topic("Work and careers", "B2–C1 Conversational Topics", 1)
+    utils.save_flashcard({"word": "v", "topic": "Work and careers"},
+                         added_by_user_id=7)
+
+    for flag in (False, True):
+        assert [s for s, _ in utils.get_topics_by_section(alphabetical=flag)] \
+            == [s for s, _ in utils.get_topics_by_section()]

@@ -13,7 +13,7 @@ def _meta(body, prop, attr="property"):
 def test_topic_tiles(client, app_module, monkeypatch):
     """Each topic is a tile linking to it, with its card count (#184)."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: in_other(
+                        lambda owner_id=None, alphabetical=False: in_other(
                             [("basics", 12), ("it-vocab", 5)]))
     body = client.get("/").get_data(as_text=True)
     assert "/flashcards/basics" in body and "12 cards" in body

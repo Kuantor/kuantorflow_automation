@@ -41,7 +41,7 @@ def sections(app_module, monkeypatch):
     grouped = [(CURRICULUM_SECTION, [("environment", 4)]),
                ("Other", list(TOPICS))]
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: grouped)
+                        lambda owner_id=None, alphabetical=False: grouped)
     return grouped
 
 
@@ -103,7 +103,7 @@ def test_an_empty_section_gets_a_plain_heading_and_no_fold(client, app_module,
     """#218 keeps the heading for a section with no topics — it says what the
     deck is going to be. A disclosure there would offer to reveal nothing."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: in_other(TOPICS))
+                        lambda owner_id=None, alphabetical=False: in_other(TOPICS))
     panel = _browse(client.get("/").get_data(as_text=True))
 
     assert [name for name, _ in FOLD.findall(panel)] == ["Other"]
@@ -119,7 +119,7 @@ def test_the_section_name_is_what_identifies_a_fold(client, app_module,
     the name as it is — including a quote, which would otherwise break out of
     the attribute and take the rest of the panel with it."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: [('Ann\'s "shelf"', [("a", 1)])])
+                        lambda owner_id=None, alphabetical=False: [('Ann\'s "shelf"', [("a", 1)])])
     panel = _browse(client.get("/").get_data(as_text=True))
     assert 'data-section="Ann&#39;s &#34;shelf&#34;"' in panel
     assert panel.count("<details") == 1
@@ -128,7 +128,7 @@ def test_the_section_name_is_what_identifies_a_fold(client, app_module,
 def test_an_empty_deck_still_says_so(client, app_module, monkeypatch):
     """No headings, no folds, one sentence — #218's rule, unchanged."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: in_other([]))
+                        lambda owner_id=None, alphabetical=False: in_other([]))
     panel = _browse(client.get("/").get_data(as_text=True))
     assert "topic-fold" not in panel
     assert "No topics yet" in panel

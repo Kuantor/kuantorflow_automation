@@ -25,7 +25,7 @@ TOPICS = [("basics", 12), ("it-vocab", 5), ("solo", 1)]
 def topics(app_module, monkeypatch):
     # Grouped since #218; `in_other` files them the way a real database does.
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: in_other(TOPICS))
+                        lambda owner_id=None, alphabetical=False: in_other(TOPICS))
     return TOPICS
 
 
@@ -136,7 +136,7 @@ def test_the_empty_states_are_unchanged(client, app_module, monkeypatch):
     # a deck with no cards, which #218 must still answer with the hint rather
     # than with two bare headings.
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: in_other([]))
+                        lambda owner_id=None, alphabetical=False: in_other([]))
     body = client.get("/").get_data(as_text=True)
     assert "No topics yet" in body
     # Scoped to the browse section (kuantorflow#253): the games panel reuses
