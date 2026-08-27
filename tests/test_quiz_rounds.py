@@ -148,7 +148,7 @@ def test_a_multi_topic_quiz_names_the_topics_under_its_title(client, deck):
 def test_three_topics_are_all_named_without_an_ellipsis(client, app_module,
                                                         monkeypatch, deck):
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: [("Sec", [("Work", 2), ("Travel", 1),
+                        lambda owner_id=None, alphabetical=False: [("Sec", [("Work", 2), ("Travel", 1),
                                                         ("animals", 4)])])
     body = client.get("/quiz?topic=Work&topic=Travel&topic=animals").get_data(as_text=True)
     assert '<p class="quiz-topics">Work, Travel, animals</p>' in body
@@ -159,7 +159,7 @@ def test_more_than_three_topics_are_truncated_with_an_ellipsis(
         client, app_module, monkeypatch, deck):
     monkeypatch.setattr(
         app_module, "get_topics_by_section",
-        lambda owner_id=None: [("Sec", [("Work", 2), ("Travel", 1),
+        lambda owner_id=None, alphabetical=False: [("Sec", [("Work", 2), ("Travel", 1),
                                         ("animals", 4), ("IT", 3)])])
     body = client.get(
         "/quiz?topic=Work&topic=Travel&topic=animals&topic=IT").get_data(as_text=True)

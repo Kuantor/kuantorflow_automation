@@ -52,7 +52,7 @@ def _capture_owner(app_module, monkeypatch, cards=None):
         seen.append(owner_id)
         return [("character", 1)]
 
-    def fake_sections(owner_id=None):
+    def fake_sections(owner_id=None, alphabetical=False):
         seen.append(owner_id)
         return in_other([("character", 1)])
 
@@ -257,7 +257,7 @@ def test_an_empty_topic_list_says_why(user_client, app_module, monkeypatch,
     topic holding a card of yours, so the explanation wins over two headings
     above nothing (#218)."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None: in_other([]))
+                        lambda owner_id=None, alphabetical=False: in_other([]))
     body = user_client.get("/").get_data(as_text=True)
     assert "No topics of your own" in body
 

@@ -110,7 +110,7 @@ def stub_deck(app_module, monkeypatch):
         # change what the next read returns.
         monkeypatch.setattr(
             app_module, "get_topics_by_section",
-            lambda owner_id=None: [(name, list(pairs)) for name, pairs in sections])
+            lambda owner_id=None, alphabetical=False: [(name, list(pairs)) for name, pairs in sections])
         monkeypatch.setattr(
             app_module, "get_flashcards_by_topics",
             lambda topics_, owner_id=None: [dict(c) for c in cards])
@@ -196,7 +196,7 @@ def app_module(monkeypatch):
     # reads both. Stubbed alongside get_topics so no test reaches a real
     # database by accident, which is the whole point of this fixture.
     monkeypatch.setattr(app_mod, "get_topics_by_section",
-                        lambda owner_id=None: [], raising=False)
+                        lambda owner_id=None, alphabetical=False: [], raising=False)
     # Any anonymous chat message counts itself against the daily ceiling
     # (kuantorflow#164) — a real database write. Stub it here so the whole
     # suite stays offline; the tests that care patch it themselves.
