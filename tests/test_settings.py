@@ -152,7 +152,8 @@ def test_settings_popup_editable_for_signed_in(user_client, monkeypatch):
     """Signed in, every control this deployment can honour is editable.
 
     "nothing is disabled" stopped being the right assertion with
-    kuantorflow#353: a translator whose key is not set is listed and greyed
+    kuantorflow#353, and kuantorflow#365 for the dictionary beneath it: an
+    option whose key is not set is listed and greyed
     (#261's rule for an unfinished game tile), so the popup legitimately
     carries disabled inputs that have nothing to do with permissions. All four
     keys are configured here, which restores the state this test means —
@@ -160,7 +161,7 @@ def test_settings_popup_editable_for_signed_in(user_client, monkeypatch):
     read-only bug it was written to catch.
     """
     for key in ("ANTHROPIC_API_KEY", "MS_TRANSLATOR_KEY", "DEEPL_API_KEY",
-                "GOOGLE_TRANSLATE_API_KEY"):
+                "GOOGLE_TRANSLATE_API_KEY", "MERRIAM_WEBSTER_API_KEY"):
         monkeypatch.setenv(key, "test-key-never-used")
 
     body = user_client.get("/").get_data(as_text=True)

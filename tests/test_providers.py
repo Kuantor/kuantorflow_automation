@@ -50,6 +50,11 @@ def backends(monkeypatch):
         # stub with no key would never be reached.
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
         monkeypatch.setenv("MS_TRANSLATOR_KEY", "test-key-never-used")
+        # And the dictionary half of the same rule (kuantorflow#365):
+        # Merriam-Webster is offered only where its key is set, so a `mw=`
+        # stub would otherwise never be reached -- `_dictionary_backend()`
+        # would fall back to Oxford and the stub would sit there unused.
+        monkeypatch.setenv("MERRIAM_WEBSTER_API_KEY", "test-key-never-used")
         monkeypatch.delenv("DEEPL_API_KEY", raising=False)
         monkeypatch.delenv("GOOGLE_TRANSLATE_API_KEY", raising=False)
         monkeypatch.setattr(parsers, "_claude_dictionary",
