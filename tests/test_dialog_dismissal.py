@@ -46,13 +46,19 @@ def _escape_handler(body):
 
 # --- the four that hold something ------------------------------------------
 
+@pytest.fixture()
+def lookup_script(client):
+    """kuantorflow#372 moved the two lookup popups' behaviour into a shared
+    file, so the assertions about them follow it there rather than staying in
+    the page and passing on its absence."""
+    return client.get("/static/js/lookup_update.js").get_data(as_text=True)
+
+
 @pytest.mark.parametrize("overlay,what", [
     ("editOverlay", "everything typed into the card, including a field the "
                     "#191 lookup has just filled"),
     ("settingsOverlay", "every switch and slider changed since it opened — and "
                         "this one is in base.html, so on every page"),
-    ("posOverlay", "a lookup that has been paid for and not yet applied"),
-    ("rewriteOverlay", "the same lookup, and the answer to the question asked"),
 ])
 def test_a_dialog_holding_work_ignores_a_click_outside_it(cards_page, overlay,
                                                           what):
@@ -96,7 +102,22 @@ def test_escape_still_closes_the_edit_dialog(cards_page):
     assert "closeEdit()" in _escape_handler(cards_page)
 
 
-def test_escape_answers_the_popups_rather_than_hiding_them(cards_page):
+@pytest.mark.parametrize("overlay", ["posOverlay", "rewriteOverlay"])
+def test_the_lookup_popups_ignore_a_click_outside_them(lookup_script, overlay):
+    """Both hold a lookup that has been paid for and not yet applied.
+
+    Their markup is in base.html now and their behaviour in
+    `lookup_update.js`, so this reads the script: an overlay that is only ever
+    opened and closed by name there cannot be dismissed by a click it never
+    listens for.
+    """
+    assert overlay not in lookup_script, "no variable of that name survives"
+    assert "e.target ===" not in lookup_script, (
+        "the file registers no backdrop dismissal at all, for either popup")
+
+
+def test_escape_answers_the_popups_rather_than_hiding_them(cards_page,
+                                                           lookup_script):
     """The bug the browser found while #369 was being checked.
 
     Both #191 popups hold a promise the lookup is waiting on. Escape used to
@@ -111,6 +132,12 @@ def test_escape_answers_the_popups_rather_than_hiding_them(cards_page):
     """
     handler = _escape_handler(cards_page)
 
-    assert "dismissPos()" in handler and "dismissRewrite()" in handler
-    assert "posOverlay.hidden = true" not in handler, "hiding is not answering"
-    assert "rewriteOverlay.hidden = true" not in handler
+    # The page asks the module rather than reaching into the popups itself.
+    assert "kfLookupEscape()" in handler
+    assert "hidden = true" not in handler.split("kfLookupEscape()")[1][:120], (
+        "the page must not hide a popup behind the module's back")
+
+    # And the module's own answer goes through each popup's dismissal, which
+    # is the call that resolves the promise the lookup is waiting on.
+    assert "dismissPos(); return true" in lookup_script
+    assert "dismissRewrite(); return true" in lookup_script

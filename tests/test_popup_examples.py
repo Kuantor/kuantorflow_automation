@@ -248,7 +248,12 @@ def test_rows_are_measured_from_the_number_of_examples(
     body = _lookup(client, app_module, monkeypatch,
                    examples_en=["An example sentence." for _ in range(count)])
 
-    assert 'name="examples_en" rows="%d"' % rows in body
+    # Read off the tag rather than matched as one string: kuantorflow#372 put
+    # an `id` between the two attributes so the popup's labels could be
+    # associated with their fields, and the guarantee here is the row count,
+    # not which attribute sits next to which.
+    tag = re.search(r'<textarea[^>]*name="examples_en"[^>]*>', body).group(0)
+    assert 'rows="%d"' % rows in tag
 
 
 def test_the_popup_fits_its_boxes_to_their_content(client, app_module,

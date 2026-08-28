@@ -239,14 +239,15 @@ def test_the_button_posts_to_the_endpoint(user_client, app_module, monkeypatch):
 
 
 def test_an_answer_with_no_entries_is_still_applied_when_it_has_a_match(
-        user_client, app_module, monkeypatch):
+        user_client):
     """The one bug the browser pass found, pinned as a string.
 
     The guard read `data.entries.length` before it looked at `data.match`, so
     an answer carrying a perfectly usable match was refused for the shape of
-    the field beside it. Only the source can be asserted here; the behaviour
-    itself was re-measured in the browser after the fix.
+    the field beside it. Asserted in `lookup_update.js` since kuantorflow#372
+    moved it there — the same guard, now serving both callers.
     """
-    body = _edit_dialog(user_client, app_module, monkeypatch)
+    script = user_client.get(
+        "/static/js/lookup_update.js").get_data(as_text=True)
 
-    assert "if (!data.match && !data.entries.length)" in body
+    assert "if (!data.match && !data.entries.length)" in script
