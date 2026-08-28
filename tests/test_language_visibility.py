@@ -82,7 +82,11 @@ def test_review_popup_carries_hidden_language_as_hidden_input(user_client, app_m
         .get_data(as_text=True)
     # the Settings popup on every page says "Show Russian translation", so
     # target the review card's exact label markup
-    assert "<label>Ukrainian translation</label>" in body   # editable stays
+    # The label is matched by its text rather than as a whole tag:
+    # kuantorflow#372 gave it a `for` so the rewrite popup could name the
+    # field it is about, and what this test means is that the field is still
+    # offered for editing.
+    assert re.search(r"<label[^>]*>Ukrainian translation</label>", body)
     assert "<label>Russian translation</label>" not in body  # no editable field
     # the value still travels, so the saved card stays complete
     assert re.search(

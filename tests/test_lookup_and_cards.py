@@ -1,6 +1,7 @@
 """Word lookup (review popup), card adding, MHT upload, card deletion."""
 
 import io
+import re
 
 
 def _stub_lookup(app_module, monkeypatch):
@@ -74,7 +75,11 @@ def test_lookup_shows_review_popup_without_saving(client, app_module, monkeypatc
     assert "Do you want to add the card(s) to the database?" in body
     assert saved == [], "lookup must not save anything before review"
     assert body.count('class="proposal-card"') == 2
-    assert 'name="translation_ukr" value="стійкий"' in body
+    # The value, read off the tag: kuantorflow#372 put an `id` between the
+    # two attributes so the popup's labels could be associated with their
+    # fields, and what this test means is that the translation is carried.
+    tag = re.search(r'<input[^>]*name="translation_ukr"[^>]*>', body).group(0)
+    assert 'value="стійкий"' in tag
     assert "able to recover quickly" in body
     assert 'name="topic" value="character"' in body
     assert ">Add</button>" in body and "proposal-remove" in body
