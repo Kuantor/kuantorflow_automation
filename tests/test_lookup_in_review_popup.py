@@ -216,3 +216,37 @@ def test_they_stay_below_mykolas_widget(client):
 
     for popup in ("#field-rewrite-confirm-popup", "#lookup-pos-modal"):
         assert _z_index(css, popup) < widget
+
+# --- the picker's own spacing and wording ----------------------------------
+
+def test_the_chip_row_carries_its_own_spacing(client):
+    """Both gaps were wrong and in opposite directions (#372).
+
+    Above: the question's 17.6px bottom margin was joined by the 14.4px every
+    `button` inherits, giving 32px. Below: `.modal-actions button` sets
+    `margin-top: 0`, so *nothing* separated a chip from the button underneath
+    and they touched — which is what a learner reported as an overlap.
+
+    Measured after: 18px above and 19px below, at 1280x900 and 375x812, with
+    one chip and with four.
+    """
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    import re
+    stripped = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+    row = re.search(r"\.pos-options\s*\{([^}]*)\}", stripped).group(1)
+    chip = re.search(r"\.pos-option\s*\{([^}]*)\}", stripped).group(1)
+
+    assert "margin-bottom" in row, "the row separates itself from the actions"
+    assert "margin-top: 0" in chip, (
+        "and does not inherit a second gap from `button`")
+
+
+def test_one_entry_is_not_none_of_them(client):
+    """The sentence said "found 1 entry, none of them matching": the plural
+    was pluralised and the rest of it was not. Broken English on a page built
+    for English teachers."""
+    script = client.get("/static/js/lookup_update.js").get_data(as_text=True)
+
+    assert "and it does not match this" in script, "the singular sentence"
+    assert "entries, none of " in script, "and the plural one, unchanged"
