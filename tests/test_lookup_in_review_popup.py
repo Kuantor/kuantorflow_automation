@@ -164,3 +164,55 @@ def test_the_labels_are_associated_with_their_fields(file_review):
     assert 'for="proposal-1-explanation_en"' in file_review
     assert 'id="proposal-1-explanation_en"' in file_review
     assert 'for="proposal-2-explanation_en"' in file_review
+
+# --- and where they are painted --------------------------------------------
+
+def _z_index(css, selector):
+    import re
+    stripped = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    for match in re.finditer(r"([^{}@]+?)\{([^{}]*?)\}", stripped, re.S):
+        if selector in [n.strip() for n in match.group(1).split(",")]:
+            found = re.search(r"z-index:\s*(\d+)", match.group(2))
+            if found:
+                return int(found.group(1))
+    return None
+
+
+def test_the_popups_are_painted_above_the_dialog_they_open_over(client):
+    """The bug this file's browser pass missed, and the user found.
+
+    Both popups open **on top of another dialog** — the edit dialog, or the
+    review popup — and every dialog is a `.modal-overlay` at `z-index: 100`.
+    Sharing that layer leaves the stack to document order, and kuantorflow#372
+    put these two in base.html *before* the content block: so the dialog they
+    are supposed to sit above painted over them instead. The question was
+    asked where nobody could see it, nothing could be clicked to answer it,
+    and the button that opened it stayed on "Looking up…" for good.
+
+    Measured with `elementFromPoint` on both callers after the fix: the
+    topmost element at the popup's centre is inside the popup, and its Apply
+    button is genuinely clickable. Forced back to 100 in the same page it is
+    the overlay beneath — the hang, on demand.
+
+    Asserted as arithmetic against `.modal-overlay` rather than as the number
+    150, because what matters is the relationship: any dialog these open over
+    must be below them.
+    """
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+
+    dialogs = _z_index(css, ".modal-overlay")
+    for popup in ("#field-rewrite-confirm-popup", "#lookup-pos-modal"):
+        layer = _z_index(css, popup)
+        assert layer, "%s sets no layer of its own" % popup
+        assert layer > dialogs, (
+            "%s at %s is not above a dialog at %s" % (popup, layer, dialogs))
+
+
+def test_they_stay_below_mykolas_widget(client):
+    """kuantorflow#296 keeps the chat reachable while a dialog is open, and
+    that arrangement should survive a popup opening on top of one."""
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    widget = _z_index(css, "#mykola-panel") or 200
+
+    for popup in ("#field-rewrite-confirm-popup", "#lookup-pos-modal"):
+        assert _z_index(css, popup) < widget
