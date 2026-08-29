@@ -332,3 +332,29 @@ def test_the_buttons_are_not_glued_to_the_text_box(client):
     assert float(gap.group(1)) >= float(rhythm.group(1)), (
         "%srem above the buttons is tighter than the %srem this dialog uses "
         "between everything else" % (gap.group(1), rhythm.group(1)))
+
+def test_enter_saves_the_word(review):
+    """The other half of the Escape that already cancels, and what a one-field
+    dialog is for.
+
+    What matters is that the key runs **the same** `commit()` the button runs:
+    a second copy of the save would be a second place for the empty-word
+    refusal to be forgotten, which is the one rule this dialog has.
+
+    Measured on the real page by dispatching a keydown at the focused box,
+    because this browser's `key` action does not reach the page at all --
+    neither Enter nor an ordinary letter produced a keydown, while `type` did.
+    With a changed word: the popup closed and all five copies followed. With
+    an empty box: the popup stayed open, "A card needs a word.", and the
+    card's word untouched. No card was added either way.
+    """
+    page = review("resilient")
+    editor = page[page.index("function editWord("):
+                  page.index("overlay.querySelectorAll(\".word-edit\")")]
+
+    assert "save.onclick = commit" in editor, "the button runs commit()"
+    assert 'if (e.key !== "Enter") return' in editor, "and so does Enter"
+    assert "e.preventDefault()" in editor
+    assert editor.count("commit()") >= 1, "the key calls it rather than its own copy"
+    assert editor.count("A card needs a word") == 1, (
+        "one refusal, in the path both of them take")
