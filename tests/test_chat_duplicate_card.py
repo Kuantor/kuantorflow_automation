@@ -25,7 +25,7 @@ ENTRY = {"word": "aspiration", "pos": "noun", "topic": "emotions"}
 def skipped(app_module, monkeypatch):
     """save_flashcard() reporting a duplicate — the None that started it all."""
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     monkeypatch.setattr(app_module, "duplicate_topic",
                         lambda word, pos: "psychology")
     # Visible to this learner: their own card, so #186 stays quiet.

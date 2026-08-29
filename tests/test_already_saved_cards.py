@@ -102,8 +102,7 @@ def test_a_saved_word_and_part_of_speech_is_marked(review, deck):
 
     assert 'data-already="card"' in card
     assert "Already in DB" in card
-    assert "will not create a second card" in card, (
-        "and says what Add will really do")
+    assert "as a second card" in card, "and says what Add will really do"
 
 
 def test_a_word_saved_under_another_part_of_speech_is_marked_differently(
@@ -464,7 +463,7 @@ def test_no_words_is_no_query_at_all(stored):
 def duplicate(app_module, monkeypatch):
     """A save that #101 refuses, with control over what it then fills."""
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
 
     def fills(*fields):
         monkeypatch.setattr(app_module, "fill_missing_fields",
@@ -527,35 +526,30 @@ def test_every_fillable_column_has_a_name_a_learner_would_recognise(app_module):
     assert not missing, "no learner-facing name for %s" % missing
 
 
-def test_the_button_says_the_word_is_in_the_deck(review, deck):
-    """One caption for every press that succeeded, which is what Anton asked
-    for twice.
+def test_the_caption_depends_on_whether_the_press_was_confirmed(review, deck):
+    """Three answers, three captions, and the difference is what the press
+    actually did (#379).
 
-    He pressed Add on a card already in the deck, confirmed it, and the button
-    read "Already in DB" -- a refusal of the thing he had just confirmed. The
-    word *is* in his deck, and that is the question the button answers.
+    A confirmed press really writes a card now, so it comes back
+    `saved: true` and the button says "Added" truthfully. The duplicate
+    branch is what remains for a press nobody could warn about -- no chip,
+    because the database was unreachable when the popup was built, or somebody
+    added the word in between -- and there "Added" would be the lie #308 is
+    about.
 
-    What did not happen is the tooltip's job. Nothing that reports on the
-    database was softened to get here: the response still says
-    `saved: false`, `cards.log` still records FILL or SKIP rather than CREATE,
-    and Mykola still refuses by raising (#308) -- he talks about cards nobody
-    can see, where the button is read by somebody looking at their own deck.
-
-    Measured on the real page with the three real responses: all three read
-    "Added" on the same green, and the tooltips are "No second card was made
-    -- you already had this one, with nothing missing.", "...English
-    explanation, Ukrainian translation filled in on the card you already
-    had.", and none at all for a card that really was written.
+    Measured on the real page: a confirmed press on a marked card posts
+    `confirmed_duplicate=1` and reads "Added"; an unconfirmed press posts
+    nothing extra, opens no dialog, and reads "Already in DB".
     """
     page = review("castigate")
     handler = page[page.index("function addCard("):page.index("// #357.")]
 
     captions = re.findall(r'btn\.textContent = "([^"]+)"', handler)
 
-    assert "Already in DB" not in captions, (
-        "the caption that read as a refusal")
-    assert [c for c in captions if c.startswith("Added")], "it says Added"
-    assert set(captions) <= {"Adding…", "Add", "Added ✓"}, captions
+    assert "Added ✓" in captions, "a real save"
+    assert "Filled in ✓" in captions, "#349 filled the card instead"
+    assert "Already in DB" in captions, (
+        "and an unconfirmed press that wrote nothing still says so")
 
 
 def test_the_tooltip_still_says_no_second_card_was_made(review, deck):
@@ -584,3 +578,138 @@ def test_the_answer_itself_still_says_no_card_was_saved(user_client,
 
     assert body["saved"] is False
     assert body["duplicate"] is True
+
+# --- and when the answer is yes, a card is really written (#379) -----------
+
+def _cards_log(directory):
+    """The lines cards.log holds, in the temp directory `action_logs` made."""
+    path = directory / "cards.log"
+    return [line for line in path.read_text(encoding="utf-8").splitlines()
+            if line] if path.exists() else []
+
+
+def test_a_confirmed_save_writes_past_the_duplicate_rule(monkeypatch):
+    """#101 refuses a second card for one word and part of speech. That is
+    still the default; this is the one press allowed past it.
+
+    Answering yes used to do nothing at all: no row, because of #101, and no
+    improvement to the card already saved either, because #349's fill only
+    touches columns that are **empty**. A card whose translations were already
+    there simply absorbed the press.
+    """
+    import utils
+    from conftest import fake_card_db, inserted_card
+
+    cursor, _conn = fake_card_db(monkeypatch, duplicate=(1,),
+                                 topic=(3, "vocab"))
+    row_id = utils.save_flashcard(
+        {"word": "castigate", "pos": "verb", "topic": "vocab"},
+        allow_duplicate=True)
+
+    assert row_id == cursor.card_id, "a row was written"
+    assert inserted_card(cursor), "and it was an INSERT INTO flashcards"
+
+
+def test_without_the_flag_the_rule_still_refuses(monkeypatch):
+    """The half that must not move. Everything that does not carry a
+    learner's answer -- every other save path, and this one by default --
+    behaves exactly as it did."""
+    import utils
+    from conftest import fake_card_db
+
+    cursor, _conn = fake_card_db(monkeypatch, duplicate=(1,),
+                                 topic=(3, "vocab"))
+
+    assert utils.save_flashcard(
+        {"word": "castigate", "pos": "verb", "topic": "vocab"}) is None
+    assert not [q for q, _ in cursor.queries
+                if q.startswith("INSERT INTO flashcards")]
+
+
+def test_the_route_forwards_only_what_the_form_confirmed(user_client, saved):
+    """The flag is the learner's answer, carried on the request that answers
+    it. A press with no confirmation behind it cannot set it by accident."""
+    user_client.post("/cards/add", data={"word": "castigate", "pos": "verb"})
+    user_client.post("/cards/add", data={"word": "castigate", "pos": "verb",
+                                         "confirmed_duplicate": "1"})
+
+    assert saved.allowed_duplicates == [False, True]
+
+
+@pytest.mark.parametrize("value,confirmed", [
+    ("1", True), ("true", True), ("yes", True),
+    ("0", False), ("", False), ("maybe", False),
+])
+def test_what_counts_as_a_confirmation(user_client, saved, value, confirmed):
+    user_client.post("/cards/add", data={"word": "castigate", "pos": "verb",
+                                         "confirmed_duplicate": value})
+
+    assert saved.allowed_duplicates == [confirmed]
+
+
+def test_the_automatic_add_never_forces(user_client, app_module, monkeypatch,
+                                        saved):
+    """Nobody was asked, so nobody answered. #200's auto-add saves without
+    opening the popup at all, which is exactly the pile-up #101 is for."""
+    monkeypatch.setattr(app_module, "lookup_word",
+                        lambda word, topic=None, **kw: [
+                            {"word": word, "pos": "verb", "topic": topic}])
+    user_client.post("/settings", json={"cards_automatically": True})
+    user_client.post("/", data={"action": "parse_word", "word": "castigate",
+                                "topic": "vocab"})
+
+    assert saved.allowed_duplicates == [False]
+
+
+def test_the_log_says_which_card_it_was_added_beside(user_client, app_module,
+                                                     monkeypatch, saved,
+                                                     action_logs):
+    """A second row for one word and part of speech is otherwise
+    indistinguishable, later, from the accident #101 exists to prevent."""
+    monkeypatch.setattr(app_module, "find_duplicate",
+                        lambda word, pos, exclude_id=None: (671, 7))
+
+    user_client.post("/cards/add", data={"word": "castigate", "pos": "verb",
+                                         "confirmed_duplicate": "1"})
+
+    line = _cards_log(action_logs)[-1]
+
+    assert " CREATE " in line
+    assert "alongside=671" in line
+
+
+def test_an_ordinary_create_says_nothing_about_alongside(user_client, saved,
+                                                         action_logs):
+    """`_write` drops a None field, so the line a normal save writes is the
+    line it always wrote."""
+    user_client.post("/cards/add", data={"word": "brandnew", "pos": "verb"})
+
+    assert "alongside" not in _cards_log(action_logs)[-1]
+
+
+def test_the_confirmation_promises_a_second_card(review, deck):
+    """The sentence has to match what the answer now does. It used to promise
+    the opposite -- "will not create a second card" -- which was true when the
+    answer did nothing."""
+    deck.exact("castigate")
+    card = card_for(review("castigate"), "castigate")
+
+    assert "as a second card" in card
+    assert "will not create a second card" not in card
+
+
+def test_the_popup_sends_the_answer_it_was_given(review, deck):
+    """Wiring here; measured in the browser. A confirmed press on a marked
+    card posts `confirmed_duplicate=1`, an unconfirmed press posts nothing
+    extra and opens no dialog, and Add All's "add them anyway" sends it for
+    the marked cards while "add only the new ones" sends it for none.
+    """
+    page = review("castigate")
+    handler = page[page.index("function addCard("):page.index("// #357.")]
+
+    assert 'body.append("confirmed_duplicate", "1")' in handler
+    assert "if (anyway)" in handler
+    assert "addCard(form, !!form.dataset.already)" in page, (
+        "one card: confirmed, and only for a card the popup marked")
+    assert "anyway && !!form.dataset.already" in page, (
+        "the batch: only the ones the question was about")

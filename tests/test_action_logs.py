@@ -60,7 +60,7 @@ def test_signed_in_user_is_named(user_client, saved, action_logs):
 def test_duplicate_card_is_logged_as_skipped(user_client, app_module,
                                              monkeypatch, action_logs):
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     resp = user_client.post("/cards/add", data=_card_form())
     assert resp.get_json()["duplicate"] is True
     line = _find(action_logs, "cards", "SKIP")[0]

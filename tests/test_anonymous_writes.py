@@ -74,7 +74,7 @@ def test_the_refusal_comes_before_the_duplicate_check(client, app_module,
     """A refused save must not be reported as 'already in the database' —
     the visitor would go looking for a card that was never written."""
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     body = client.post("/cards/add", data=dict(CARD_FORM)).get_json()
     assert body.get("duplicate") is not True
     assert body["sign_in_required"] is True

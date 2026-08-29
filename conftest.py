@@ -343,12 +343,15 @@ class SavedCards(list):
     """Cards captured from save_flashcard(), and who each was attributed to.
 
     Still a plain list of entries, so `saved[0]["word"]` keeps working; the
-    owner ids (kuantorflow#89) ride alongside in `owner_ids`, index for index.
+    owner ids (kuantorflow#89) ride alongside in `owner_ids`, index for index,
+    and since kuantorflow#379 so does `allowed_duplicates` -- whether that
+    call was told it may write past #101.
     """
 
     def __init__(self):
         super().__init__()
         self.owner_ids = []
+        self.allowed_duplicates = []
 
 
 @pytest.fixture()
@@ -356,9 +359,10 @@ def saved(app_module, monkeypatch):
     """Capture save_flashcard() calls instead of writing to MySQL."""
     captured = SavedCards()
 
-    def fake_save(entry, added_by_user_id=None):
+    def fake_save(entry, added_by_user_id=None, allow_duplicate=False):
         captured.append(entry)
         captured.owner_ids.append(added_by_user_id)
+        captured.allowed_duplicates.append(allow_duplicate)
         return 1
 
     monkeypatch.setattr(app_module, "save_flashcard", fake_save)

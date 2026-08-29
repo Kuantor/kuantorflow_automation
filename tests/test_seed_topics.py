@@ -230,7 +230,7 @@ def spy(monkeypatch):
         events.append(("place", name, position))
         return "created", position
 
-    def fake_save(entry, added_by_user_id=None):
+    def fake_save(entry, added_by_user_id=None, **kw):
         events.append(("save", entry["word"], entry["topic"]))
         return 1
 
@@ -347,7 +347,7 @@ def test_a_failed_lookup_skips_the_word_and_the_run_continues(monkeypatch):
     saved = []
     monkeypatch.setattr(seed_topics, "place_topic", lambda *a, **k: ("created", 1))
     monkeypatch.setattr(seed_topics, "save_flashcard",
-                        lambda entry, added_by_user_id=None:
+                        lambda entry, added_by_user_id=None, **kw:
                         (saved.append(entry["word"]), 1)[1])
 
     def flaky(word, topic=None, translator=None, explanatory_dictionary=None):
@@ -395,7 +395,7 @@ def test_a_failed_save_does_not_end_the_run_either(monkeypatch):
         lambda word, topic=None, **k: [{"word": word, "pos": "noun",
                                         "topic": topic}])
 
-    def flaky_save(entry, added_by_user_id=None):
+    def flaky_save(entry, added_by_user_id=None, **kw):
         if entry["word"] == FIRST:
             raise RuntimeError("column too short")
         return 1
@@ -443,7 +443,7 @@ def test_a_word_is_present_only_when_none_of_its_cards_were_written(monkeypatch)
     # The noun is a duplicate, the verb is new: one card written, so the word
     # is not "already present".
     monkeypatch.setattr(seed_topics, "save_flashcard",
-                        lambda entry, added_by_user_id=None:
+                        lambda entry, added_by_user_id=None, **kw:
                         None if entry["pos"] == "noun" else 1)
 
     counts = seed_topics.run(seed_topics.chosen_topics("Work and careers"),
@@ -469,7 +469,7 @@ def test_every_card_is_logged_with_the_seed_source(monkeypatch, action_logs):
     seen = []
     monkeypatch.setattr(
         seed_topics, "save_flashcard",
-        lambda entry, added_by_user_id=None:
+        lambda entry, added_by_user_id=None, **kw:
         1 if not seen and not seen.append(entry) else None)
 
     seed_topics.run(seed_topics.chosen_topics("Work and careers"), None,

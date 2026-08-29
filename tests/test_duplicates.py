@@ -124,7 +124,7 @@ def test_flashcard_word_exists_false(monkeypatch):
 
 def test_add_card_reports_duplicate(user_client, app_module, monkeypatch):
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     r = user_client.post("/cards/add", data={"word": "resilient", "pos": "adjective"})
     assert r.status_code == 200
     assert r.get_json() == {"ok": True, "saved": False, "duplicate": True}
@@ -171,7 +171,7 @@ def test_auto_add_banner_counts_skipped_duplicates(user_client, app_module, monk
     # the noun card is already in the DB, the adjective card is new
     monkeypatch.setattr(
         app_module, "save_flashcard",
-        lambda entry, added_by_user_id=None: None if entry["pos"] == "noun" else 1,
+        lambda entry, added_by_user_id=None, **kw: None if entry["pos"] == "noun" else 1,
     )
     user_client.post("/settings", json={"cards_automatically": True})
     body = user_client.post("/", data={"action": "parse_word", "word": "resilient"},
@@ -183,7 +183,7 @@ def test_auto_add_banner_counts_skipped_duplicates(user_client, app_module, monk
 def test_auto_add_banner_when_everything_is_a_duplicate(user_client, app_module, monkeypatch):
     _stub_lookup_two_cards(app_module, monkeypatch)
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     user_client.post("/settings", json={"cards_automatically": True})
     body = user_client.post("/", data={"action": "parse_word", "word": "resilient"},
                        follow_redirects=True).get_data(as_text=True)

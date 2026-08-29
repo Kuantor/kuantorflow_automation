@@ -94,7 +94,10 @@ def test_the_per_card_controls_are_untouched(popup):
     script = _script_for(popup, "proposal-modal")
     assert ".proposal-remove" in script
     assert "form.remove()" in script
-    assert "addCard(form)" in script
+    # `addCard(form, anyway)` since kuantorflow#379 -- the second argument is
+    # whether the learner confirmed a duplicate, and this test is about the
+    # per-card add existing at all.
+    assert "addCard(form" in script
     assert popup.count("card-delete proposal-remove") == 1
 
 
