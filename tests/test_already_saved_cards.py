@@ -457,3 +457,112 @@ def test_no_words_is_no_query_at_all(stored):
 
     assert utils.find_saved_words([]) == []
     assert log == []
+
+# --- and what the press turns out to have done -----------------------------
+
+@pytest.fixture()
+def duplicate(app_module, monkeypatch):
+    """A save that #101 refuses, with control over what it then fills."""
+    monkeypatch.setattr(app_module, "save_flashcard",
+                        lambda entry, added_by_user_id=None: None)
+
+    def fills(*fields):
+        monkeypatch.setattr(app_module, "fill_missing_fields",
+                            lambda entry: list(fields), raising=False)
+
+    return fills
+
+
+def test_a_duplicate_that_filled_something_says_which_fields(user_client,
+                                                             duplicate):
+    """The report Anton hit: he pressed Add on a card already in the deck,
+    said yes to the confirmation, the stored card gained an explanation and a
+    Ukrainian translation -- and the button said "Already in DB", which reads
+    as nothing having happened.
+
+    Three FILL lines in cards.log that week were exactly this, and the
+    automatic-add path has reported it since #349 ("Completed N of them with
+    this lookup"). The review popup was the surface that never did.
+    """
+    duplicate("explanation_en", "translation_ukr")
+
+    body = user_client.post("/cards/add",
+                            data={"word": "castigate"}).get_json()
+
+    assert body["saved"] is False, "still not a save"
+    assert body["duplicate"] is True
+    assert body["filled"] == ["English explanation", "Ukrainian translation"]
+
+
+def test_a_duplicate_that_filled_nothing_keeps_the_old_answer(user_client,
+                                                              duplicate):
+    """The ordinary duplicate answer keeps its existing shape, so the key is
+    present only when there is something extra to say -- the rule #186's
+    `note` already follows."""
+    duplicate()
+
+    body = user_client.post("/cards/add",
+                            data={"word": "castigate"}).get_json()
+
+    assert body == {"ok": True, "saved": False, "duplicate": True}
+
+
+def test_a_real_save_says_nothing_about_filling(user_client, saved):
+    """A written card is a written card. `filled` is the answer to a question
+    that only arises when #101 refused."""
+    body = user_client.post("/cards/add", data={"word": "brandnew"}).get_json()
+
+    assert body == {"ok": True, "saved": True}
+
+
+def test_every_fillable_column_has_a_name_a_learner_would_recognise(app_module):
+    """The map is what stops the tooltip reading `translation_rus`, and a new
+    fillable column is exactly when that would happen -- silently, in a
+    sentence shown to somebody who just pressed a button."""
+    import utils
+
+    missing = [field for field in utils.FILLABLE_FIELDS
+               if field not in app_module.FILLED_FIELD_LABELS]
+
+    assert not missing, "no learner-facing name for %s" % missing
+
+
+def test_the_button_tells_the_three_outcomes_apart(review, deck):
+    """Browser behaviour, pinned as wiring here and measured on the real page.
+
+    Measured with the three real responses in front of the actual popup:
+    `{saved: true}` gives "Added ✓"; `{duplicate: true, filled: [...]}` gives
+    "Filled in ✓", green, with the fields in the tooltip; `{duplicate: true}`
+    alone still gives "Already in DB" with no tooltip.
+
+    The order of the branches is the part worth pinning: `filled` has to be
+    read *before* the plain duplicate case, or the new answer never shows.
+    """
+    # From an actual upload: the popup's script is inside the popup, and a
+    # bare `GET /` has neither.
+    page = review("castigate")
+
+    filled = page.index("data.duplicate && data.filled")
+    plain = page.index("Already in DB")
+    assert filled < plain, "the fill branch has to come first"
+    assert "Filled in" in page
+    assert "Added ✓" in page
+
+
+def test_it_does_not_claim_a_card_was_added(review, deck):
+    """#308, which is why this says "Filled in" rather than Anton's suggested
+    "Added": no row was written, and an app confirming a save that never
+    happened is the bug that had Mykola announcing cards into topics they were
+    not in.
+    """
+    page = review("castigate")
+    branch = page[page.index("data.duplicate && data.filled"):
+                  page.index("Already in DB")]
+
+    # The caption itself, not the prose around it: the comment in this branch
+    # says the word "Added" precisely to explain why the caption does not.
+    caption = re.search(r'btn\.textContent = "([^"]+)"', branch)
+
+    assert caption, "the branch sets no caption at all"
+    assert "Added" not in caption.group(1)
+    assert caption.group(1).startswith("Filled in")

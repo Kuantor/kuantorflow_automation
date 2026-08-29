@@ -215,6 +215,13 @@ def app_module(monkeypatch):
                         lambda pairs: [{"exact": None, "others": []}
                                        for _ in pairs],
                         raising=False)
+    # A skipped duplicate asks the database whether the stored card has gaps
+    # this entry could fill (kuantorflow#349), so every duplicate answer runs
+    # a query too - and since kuantorflow#377 reports what it filled, what a
+    # developer happens to have in their local MySQL could decide an assertion
+    # about the response. Nothing to fill by default; tests opt in.
+    monkeypatch.setattr(app_mod, "fill_missing_fields", lambda entry: [],
+                        raising=False)
     return app_mod
 
 
