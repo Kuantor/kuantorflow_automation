@@ -30,7 +30,8 @@ inside):
 | 740px | -24px | -24px |
 | 620px | -4.9px | -24px |
 | 600px | **+10.8px** | -24px |
-| 500px | (worse) | -24px |
+
+and at 500px, after the fix, -24px again.
 
 `document.elementFromPoint` three pixels below the dialog's bottom edge at 600px
 returned `rewrite-apply` before and the overlay after: the button really was
