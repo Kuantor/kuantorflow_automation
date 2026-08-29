@@ -173,8 +173,13 @@ def test_a_dead_database_costs_the_chips_and_nothing_else(review, deck,
     html = review("resilient", "wind")
 
     assert html.count('class="proposal-card"') == 2, "the popup still opens"
-    assert "data-already" not in html
-    assert "proposal-saved" not in html
+    # Scoped to the cards. Since kuantorflow#380 the *script* names the chip's
+    # class too, to draw one after a rename -- so "the page does not say
+    # proposal-saved anywhere" stopped being a question about the cards.
+    for word in ("resilient", "wind"):
+        card = card_for(html, word)
+        assert "data-already" not in card
+        assert "proposal-saved" not in card
 
 
 # --- #186: the duplicate you cannot see ------------------------------------
