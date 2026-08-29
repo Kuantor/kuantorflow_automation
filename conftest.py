@@ -206,6 +206,15 @@ def app_module(monkeypatch):
     # without touching a real DB (#145). Tests opt in by re-patching this.
     monkeypatch.setattr(app_mod, "flashcard_word_exists", lambda word: False,
                         raising=False)
+    # And the same for kuantorflow#377's chips, for the same reason: the
+    # review popup asks the database what it already holds for every card it
+    # is about to show, so *any* test that opens that popup would otherwise
+    # open a connection to whatever DB_* points at. Nothing is saved by
+    # default, so the popup renders unmarked; tests opt in by re-patching.
+    monkeypatch.setattr(app_mod, "find_saved_words",
+                        lambda pairs: [{"exact": None, "others": []}
+                                       for _ in pairs],
+                        raising=False)
     return app_mod
 
 
