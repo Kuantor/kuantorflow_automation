@@ -295,3 +295,40 @@ def test_it_writes_nothing(user_client, deck, saved):
     user_client.post("/saved.json", json={"word": "distinct"})
 
     assert saved == []
+
+def test_the_buttons_are_not_glued_to_the_text_box(client):
+    """Reported after the first pass: the action row sat flat against the
+    input.
+
+    `.modal-actions` carries no spacing of its own -- it is normally preceded
+    by a paragraph or a list with a bottom margin of its own, which is why
+    #372 had to give the part-of-speech chips theirs -- and a bare `<input>`
+    carries none either, so the two met at 0px.
+
+    Both numbers are read from the stylesheet rather than one of them written
+    here: what matters is that the gap is the rhythm this dialog already uses,
+    so growing `.modal-dialog p`'s margin without growing this one is caught.
+    Measured after: 17px above the buttons, and 6px / 18px around the error
+    line when it shows.
+    """
+    import re
+
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    stripped = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+    def rule(selector):
+        for match in re.finditer(r"([^{}@]+?)\{([^{}]*?)\}", stripped, re.S):
+            if selector in [n.strip() for n in match.group(1).split(",")]:
+                return " ".join(match.group(2).split())
+        return ""
+
+    gap = re.search(r"margin-top: ([\d.]+)rem",
+                    rule("#word-edit-popup .modal-actions"))
+    rhythm = re.search(r"margin: 0 0 ([\d.]+)rem",
+                       rule(".modal-dialog p"))
+
+    assert gap, "the action row still has no room above it"
+    assert rhythm, "the dialog's own paragraph rhythm is not declared"
+    assert float(gap.group(1)) >= float(rhythm.group(1)), (
+        "%srem above the buttons is tighter than the %srem this dialog uses "
+        "between everything else" % (gap.group(1), rhythm.group(1)))
