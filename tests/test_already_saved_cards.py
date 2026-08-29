@@ -527,42 +527,60 @@ def test_every_fillable_column_has_a_name_a_learner_would_recognise(app_module):
     assert not missing, "no learner-facing name for %s" % missing
 
 
-def test_the_button_tells_the_three_outcomes_apart(review, deck):
-    """Browser behaviour, pinned as wiring here and measured on the real page.
+def test_the_button_says_the_word_is_in_the_deck(review, deck):
+    """One caption for every press that succeeded, which is what Anton asked
+    for twice.
 
-    Measured with the three real responses in front of the actual popup:
-    `{saved: true}` gives "Added ✓"; `{duplicate: true, filled: [...]}` gives
-    "Filled in ✓", green, with the fields in the tooltip; `{duplicate: true}`
-    alone still gives "Already in DB" with no tooltip.
+    He pressed Add on a card already in the deck, confirmed it, and the button
+    read "Already in DB" -- a refusal of the thing he had just confirmed. The
+    word *is* in his deck, and that is the question the button answers.
 
-    The order of the branches is the part worth pinning: `filled` has to be
-    read *before* the plain duplicate case, or the new answer never shows.
-    """
-    # From an actual upload: the popup's script is inside the popup, and a
-    # bare `GET /` has neither.
-    page = review("castigate")
+    What did not happen is the tooltip's job. Nothing that reports on the
+    database was softened to get here: the response still says
+    `saved: false`, `cards.log` still records FILL or SKIP rather than CREATE,
+    and Mykola still refuses by raising (#308) -- he talks about cards nobody
+    can see, where the button is read by somebody looking at their own deck.
 
-    filled = page.index("data.duplicate && data.filled")
-    plain = page.index("Already in DB")
-    assert filled < plain, "the fill branch has to come first"
-    assert "Filled in" in page
-    assert "Added ✓" in page
-
-
-def test_it_does_not_claim_a_card_was_added(review, deck):
-    """#308, which is why this says "Filled in" rather than Anton's suggested
-    "Added": no row was written, and an app confirming a save that never
-    happened is the bug that had Mykola announcing cards into topics they were
-    not in.
+    Measured on the real page with the three real responses: all three read
+    "Added" on the same green, and the tooltips are "No second card was made
+    -- you already had this one, with nothing missing.", "...English
+    explanation, Ukrainian translation filled in on the card you already
+    had.", and none at all for a card that really was written.
     """
     page = review("castigate")
-    branch = page[page.index("data.duplicate && data.filled"):
-                  page.index("Already in DB")]
+    handler = page[page.index("function addCard("):page.index("// #357.")]
 
-    # The caption itself, not the prose around it: the comment in this branch
-    # says the word "Added" precisely to explain why the caption does not.
-    caption = re.search(r'btn\.textContent = "([^"]+)"', branch)
+    captions = re.findall(r'btn\.textContent = "([^"]+)"', handler)
 
-    assert caption, "the branch sets no caption at all"
-    assert "Added" not in caption.group(1)
-    assert caption.group(1).startswith("Filled in")
+    assert "Already in DB" not in captions, (
+        "the caption that read as a refusal")
+    assert [c for c in captions if c.startswith("Added")], "it says Added"
+    assert set(captions) <= {"Adding…", "Add", "Added ✓"}, captions
+
+
+def test_the_tooltip_still_says_no_second_card_was_made(review, deck):
+    """The caption is the outcome; the tooltip is the mechanism. Dropping it
+    would leave the popup claiming a duplicate row that does not exist, which
+    is the objection that made this worth thinking about at all."""
+    page = review("castigate")
+    handler = page[page.index("function addCard("):page.index("// #357.")]
+
+    assert "No second card was made" in handler
+    assert "filled in on the card you already had" in handler
+
+
+def test_the_answer_itself_still_says_no_card_was_saved(user_client,
+                                                        duplicate):
+    """The button's word changed; the report did not.
+
+    Anything that reads this route -- a test, a log line, another client --
+    still learns that #101 refused, which is what keeps the caption a matter
+    of wording rather than a lie the whole app now tells.
+    """
+    duplicate("translation_ukr")
+
+    body = user_client.post("/cards/add",
+                            data={"word": "castigate"}).get_json()
+
+    assert body["saved"] is False
+    assert body["duplicate"] is True
