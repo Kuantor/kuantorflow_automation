@@ -206,6 +206,22 @@ def app_module(monkeypatch):
     # without touching a real DB (#145). Tests opt in by re-patching this.
     monkeypatch.setattr(app_mod, "flashcard_word_exists", lambda word: False,
                         raising=False)
+    # And the same for kuantorflow#377's chips, for the same reason: the
+    # review popup asks the database what it already holds for every card it
+    # is about to show, so *any* test that opens that popup would otherwise
+    # open a connection to whatever DB_* points at. Nothing is saved by
+    # default, so the popup renders unmarked; tests opt in by re-patching.
+    monkeypatch.setattr(app_mod, "find_saved_words",
+                        lambda pairs: [{"exact": None, "others": []}
+                                       for _ in pairs],
+                        raising=False)
+    # A skipped duplicate asks the database whether the stored card has gaps
+    # this entry could fill (kuantorflow#349), so every duplicate answer runs
+    # a query too - and since kuantorflow#377 reports what it filled, what a
+    # developer happens to have in their local MySQL could decide an assertion
+    # about the response. Nothing to fill by default; tests opt in.
+    monkeypatch.setattr(app_mod, "fill_missing_fields", lambda entry: [],
+                        raising=False)
     return app_mod
 
 
@@ -327,12 +343,15 @@ class SavedCards(list):
     """Cards captured from save_flashcard(), and who each was attributed to.
 
     Still a plain list of entries, so `saved[0]["word"]` keeps working; the
-    owner ids (kuantorflow#89) ride alongside in `owner_ids`, index for index.
+    owner ids (kuantorflow#89) ride alongside in `owner_ids`, index for index,
+    and since kuantorflow#379 so does `allowed_duplicates` -- whether that
+    call was told it may write past #101.
     """
 
     def __init__(self):
         super().__init__()
         self.owner_ids = []
+        self.allowed_duplicates = []
 
 
 @pytest.fixture()
@@ -340,9 +359,10 @@ def saved(app_module, monkeypatch):
     """Capture save_flashcard() calls instead of writing to MySQL."""
     captured = SavedCards()
 
-    def fake_save(entry, added_by_user_id=None):
+    def fake_save(entry, added_by_user_id=None, allow_duplicate=False):
         captured.append(entry)
         captured.owner_ids.append(added_by_user_id)
+        captured.allowed_duplicates.append(allow_duplicate)
         return 1
 
     monkeypatch.setattr(app_module, "save_flashcard", fake_save)

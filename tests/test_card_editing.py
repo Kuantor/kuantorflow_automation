@@ -395,7 +395,7 @@ def test_a_hidden_language_never_reaches_the_edit_markup(user_client,
 def test_no_extra_note_when_the_filter_is_off(user_client, app_module,
                                               monkeypatch, saved):
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     body = user_client.post("/cards/add",
                             data={"word": "resilient"}).get_json()
     assert body["duplicate"] is True
@@ -407,7 +407,7 @@ def test_a_hidden_duplicate_is_explained(user_client, app_module, monkeypatch,
     """#186: 'already in the database' about a card the filter hides reads as
     the app contradicting itself."""
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     monkeypatch.setattr(app_module, "find_duplicate",
                         lambda word, pos, exclude_id=None: (9, 99))
     user_client.post("/settings", json={"individual_cards": True})
@@ -421,7 +421,7 @@ def test_your_own_hidden_duplicate_needs_no_explanation(user_client,
                                                         monkeypatch, saved):
     """It is your card and the filter shows it — the plain message is true."""
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     monkeypatch.setattr(app_module, "find_duplicate",
                         lambda word, pos, exclude_id=None: (9, TEST_USER_ID))
     user_client.post("/settings", json={"individual_cards": True})
@@ -435,7 +435,7 @@ def test_a_dead_database_costs_the_note_not_the_answer(user_client, app_module,
     def boom(word, pos, exclude_id=None):
         raise RuntimeError("database is down")
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     monkeypatch.setattr(app_module, "find_duplicate", boom)
     user_client.post("/settings", json={"individual_cards": True})
     body = user_client.post("/cards/add",

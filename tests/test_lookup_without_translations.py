@@ -192,7 +192,7 @@ def test_a_filled_duplicate_is_still_not_a_save(
     where #308 was, with Mykola confirming a card that was never written.
     """
     monkeypatch.setattr(app_module, "save_flashcard",
-                        lambda entry, added_by_user_id=None: None)
+                        lambda entry, added_by_user_id=None, **kw: None)
     monkeypatch.setattr(app_module, "fill_missing_fields",
                         lambda entry: ["translation_ukr"])
 
