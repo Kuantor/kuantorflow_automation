@@ -110,7 +110,7 @@ def test_a_section_with_no_topics_is_left_out(client, app_module, monkeypatch):
     there it promises what the deck will become. In a form it is a heading over
     nothing with a Select-section box that selects nothing."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other([("animals", 4)]))
+                        lambda owner_id=None, alphabetical=False, **kw: in_other([("animals", 4)]))
     body = client.get("/quiz").get_data(as_text=True)
     assert "animals" in body
     assert "B2–C1 Conversational Topics" not in body
@@ -127,7 +127,7 @@ def test_an_empty_deck_is_explained_in_the_picker(client, app_module, monkeypatc
     """#233: the tile that sent the learner here has no selection to reason
     about, so this is the only place that can say it."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: [])
+                        lambda owner_id=None, alphabetical=False, **kw: [])
     body = client.get("/quiz").get_data(as_text=True)
     assert "nothing to play on yet" in body
     assert 'id="topic-picker"' not in body
@@ -153,7 +153,7 @@ def test_the_picker_lists_only_what_this_visitor_may_see(
     topic the site is hiding."""
     seen = []
 
-    def fake_sections(owner_id=None, alphabetical=False):
+    def fake_sections(owner_id=None, alphabetical=False, **kw):
         seen.append(owner_id)
         return in_other([("mine", 1)])
 
@@ -192,7 +192,7 @@ def test_a_remembered_topic_that_has_gone_is_dropped_and_the_rest_survive(
         client, deck, app_module, monkeypatch):
     client.get("/quiz?topic=Work&topic=animals")
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other([("animals", 4)]))
+                        lambda owner_id=None, alphabetical=False, **kw: in_other([("animals", 4)]))
     response = client.get("/quiz")
     body = response.get_data(as_text=True)
     assert response.status_code == 200, "a stale name is not an error"

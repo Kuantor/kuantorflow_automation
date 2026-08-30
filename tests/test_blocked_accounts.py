@@ -117,7 +117,7 @@ def test_the_delete_cross_is_greyed_with_the_reason(blocked_client, app_module,
     carries the Settings notice, so `"blocked" in body` would prove nothing."""
     monkeypatch.setattr(app_module, "ADMIN_EMAILS", {"admin@example.com"})
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [dict(STORED_CARD)])
+                        lambda topic, owner_id=None, **kw: [dict(STORED_CARD)])
     body = blocked_client.get("/flashcards/character").get_data(as_text=True)
     cross = body[body.index('class="card-delete"'):]
     cross = cross[:cross.index(">")]
@@ -134,7 +134,7 @@ def test_a_blocked_admin_cannot_delete_either(blocked_client, app_module,
     with blocked_client.session_transaction() as sess:
         sess["user"]["email_verified"] = True
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [dict(STORED_CARD, added_by_user_id=99)])
+                        lambda topic, owner_id=None, **kw: [dict(STORED_CARD, added_by_user_id=99)])
     with app_module.app.test_request_context("/"):
         session["user"] = {"id": TEST_USER_ID, "email": TEST_USER_EMAIL,
                            "email_verified": True}
@@ -200,7 +200,7 @@ def test_mykola_cannot_save_a_card_for_them(app_module, saved, block_state):
                                   "/deck/character", "/quiz/character"])
 def test_reading_pages_stay_open(blocked_client, app_module, monkeypatch, path):
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [dict(STORED_CARD)])
+                        lambda topic, owner_id=None, **kw: [dict(STORED_CARD)])
     assert blocked_client.get(path).status_code == 200
 
 

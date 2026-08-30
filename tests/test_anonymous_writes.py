@@ -165,7 +165,7 @@ def test_the_refusal_is_logged(client, saved, action_logs):
 @pytest.mark.parametrize("path", ["/", "/flashcards/character", "/deck/character",
                                   "/quiz/character"])
 def test_reading_pages_stay_open(client, app_module, monkeypatch, path):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic, owner_id=None: [{
+    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic, owner_id=None, **kw: [{
         "id": 1, "word": "resilient", "pos": "adjective",
         "explanation_en": "able to recover quickly", "examples_en": [],
         "translation_ukr": "стійкий", "examples_ukr": [],

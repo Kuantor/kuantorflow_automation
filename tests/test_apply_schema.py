@@ -24,8 +24,12 @@ CREATE_TABLE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)", re
 # columns and so does `topics.section_id` (kuantorflow#215). Matching only the
 # first left the fake believing a two-column ALTER added one column.
 ALTER_TABLE = re.compile(r"ALTER\s+TABLE\s+(\w+)\s", re.I)
-ADD_CLAUSE = re.compile(r"ADD\s+(COLUMN|INDEX|CONSTRAINT)\s+(\w+)", re.I)
-ADDS = {"COLUMN": Column, "INDEX": Index, "CONSTRAINT": Constraint}
+# `UNIQUE KEY` is how a unique index is added to an existing table, and it
+# leaves behind exactly what `ADD INDEX` does (kuantorflow#382).
+ADD_CLAUSE = re.compile(
+    r"ADD\s+(COLUMN|INDEX|CONSTRAINT|UNIQUE\s+KEY)\s+(\w+)", re.I)
+ADDS = {"COLUMN": Column, "INDEX": Index, "CONSTRAINT": Constraint,
+        "UNIQUE KEY": Index}
 
 # Statements that move data rather than creating anything (kuantorflow#207's
 # backfill). Recognised explicitly, so an unknown statement is still a loud
@@ -35,6 +39,15 @@ MOVES_DATA = re.compile(r"(INSERT|UPDATE)\s+", re.I)
 # Lines inside a CREATE TABLE body that continue the previous definition
 # rather than starting a column of their own.
 NOT_A_COLUMN = {"PRIMARY", "UNIQUE", "KEY", "FOREIGN", "REFERENCES", "ON", "CHECK"}
+
+# A named unique key declared inside a CREATE TABLE body. It is an object a
+# migration can target -- kuantorflow#382 swaps one for another — and the fake
+# was skipping the line as "not a column" without recording the index, so a
+# fresh database looked as though it lacked a key schema.sql had just made.
+UNIQUE_KEY = re.compile(r"UNIQUE\s+KEY\s+(\w+)\s*\(", re.I)
+
+# Dropping an index: creates nothing, and takes one away.
+DROP_INDEX = re.compile(r"ALTER\s+TABLE\s+(\w+)\s+DROP\s+INDEX\s+(\w+)", re.I)
 
 # Which table a probe reads, and the columns it names. Enough to tell a probe
 # that cannot run yet from one that simply finds nothing left to do.
@@ -60,7 +73,12 @@ def objects_created_by(sql):
         body = sql[sql.index("(") + 1:sql.rindex(")")]
         for line in body.splitlines():
             parts = line.strip().rstrip(",").split()
-            if not parts or parts[0].upper() in NOT_A_COLUMN:
+            if not parts:
+                continue
+            if parts[0].upper() in NOT_A_COLUMN:
+                key = UNIQUE_KEY.match(line.strip())
+                if key:
+                    created.add(Index(table, key.group(1)))
                 continue
             if parts[0].upper() == "INDEX":
                 created.add(Index(table, parts[1]))
@@ -72,13 +90,27 @@ def objects_created_by(sql):
     match = ALTER_TABLE.match(sql)
     if match:
         table = match.group(1)
-        added = {ADDS[kind.upper()](table, name)
+        added = {ADDS[" ".join(kind.upper().split())](table, name)
                  for kind, name in ADD_CLAUSE.findall(sql)}
         if added:
             return added
     if MOVES_DATA.match(sql):
         return set()
+    if DROP_INDEX.match(sql):
+        return set()
     raise AssertionError(f"the fake database does not understand: {sql}")
+
+
+def objects_removed_by(sql):
+    """What a statement takes away. Only DROP INDEX so far (kuantorflow#382).
+
+    Kept beside `objects_created_by()` rather than folded into it: a step is
+    reported and skipped by what it *leaves behind*, so a statement that
+    removes something has to be a separate question or the fake would report
+    the drop as a creation.
+    """
+    match = DROP_INDEX.match(sql)
+    return {Index(match.group(1), match.group(2))} if match else set()
 
 
 class FakeDatabase:
@@ -126,6 +158,7 @@ class FakeDatabase:
             raise RuntimeError("mysql said no")
         self.executed.append(sql)
         self.objects.update(objects_created_by(sql))
+        self.objects -= objects_removed_by(sql)
         if MOVES_DATA.match(sql):
             self._settled.add(self._data_key(sql))
 
@@ -690,13 +723,20 @@ def _pre_215_objects():
 
 
 def _migrated_objects():
-    """Everything #207 and #215 create, so only the *data* can be outstanding."""
+    """Everything #207, #215 and #382 create, so only the *data* can be
+    outstanding."""
     return _pre_215_objects() | {
         Table("topic_sections"),
         Column("topics", "section_id"),
         Column("topics", "position"),
         Index("topics", "idx_topics_section"),
         Constraint("topics", "fk_topics_section"),
+        # kuantorflow#382. The key is the *new* one: a database that has been
+        # through this migration no longer holds uq_topics_name, and saying so
+        # is what keeps "only the data can be outstanding" true.
+        Column("topics", "is_public"),
+        Column("topics", "namespace"),
+        Index("topics", "uq_topics_namespace"),
     }
 
 

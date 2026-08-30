@@ -198,7 +198,7 @@ CARD = {"id": 7, "word": "resilient", "pos": "adjective", "topic": "vocab",
 
 def test_flashcards_page_has_delete_cross_and_modal(client, app_module, monkeypatch):
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [dict(CARD)])
+                        lambda topic, owner_id=None, **kw: [dict(CARD)])
     body = client.get("/flashcards/vocab").get_data(as_text=True)
     assert 'class="card-delete"' in body
     assert 'data-word="resilient (adjective)"' in body

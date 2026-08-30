@@ -24,12 +24,29 @@ DELETED_USER = 7
 # --- resolving the cards ------------------------------------------------------
 
 class FakeCursor:
-    def __init__(self, rowcount=3):
+    def __init__(self, rowcount=3, private_topics=()):
         self.rowcount = rowcount
         self.queries = []
+        # The departing account's private topics (kuantorflow#382), as
+        # `(id, name)`. `resolve_user_cards()` reads them so it can make them
+        # public *before* the foreign key nulls their creator -- a private
+        # topic with nobody to own it is one nobody can see and nobody can
+        # un-hide.
+        self.private_topics = list(private_topics)
+        self._rows = []
 
     def execute(self, query, params=None):
-        self.queries.append((" ".join(query.split()), params))
+        collapsed = " ".join(query.split())
+        self.queries.append((collapsed, params))
+        self._rows = (list(self.private_topics)
+                      if "FROM topics" in collapsed and "is_public = 0" in collapsed
+                      else [])
+
+    def fetchall(self):
+        return self._rows
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
 
     def close(self):
         pass
@@ -75,11 +92,22 @@ def test_deleting_cards_removes_them(cursor):
 
 
 def test_only_that_users_cards_are_touched(cursor):
-    """Both branches are scoped by owner — never a bare UPDATE/DELETE."""
+    """Every statement is scoped to the departing account — never a bare
+    UPDATE or DELETE.
+
+    Two columns say "theirs" since kuantorflow#382: `added_by_user_id` on the
+    cards, and `created_by_user_id` on the private topics being made public
+    before the foreign key takes their creator away. The invariant is the same
+    one, and it is the whole point of this test: nothing here may touch a row
+    belonging to anybody else.
+    """
     utils.resolve_user_cards(DELETED_USER, keep_cards=True)
     utils.resolve_user_cards(DELETED_USER, keep_cards=False)
+    assert cursor.queries, "it ran nothing at all"
     for query, params in cursor.queries:
-        assert "WHERE added_by_user_id = %s" in query
+        assert "WHERE" in query, query
+        assert ("added_by_user_id = %s" in query
+                or "created_by_user_id = %s" in query), query
         assert params == (DELETED_USER,)
 
 

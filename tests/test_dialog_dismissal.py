@@ -33,7 +33,7 @@ CARD = {"id": 7, "word": "resilient", "pos": "adjective", "topic": "character",
 @pytest.fixture()
 def cards_page(user_client, app_module, monkeypatch):
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [dict(CARD)])
+                        lambda topic, owner_id=None, **kw: [dict(CARD)])
     return user_client.get("/flashcards/character").get_data(as_text=True)
 
 
