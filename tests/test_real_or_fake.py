@@ -280,7 +280,7 @@ def test_the_results_admit_the_game_can_be_wrong(client, deck):
                        ).get_data(as_text=True)
     flat = " ".join(body.split())
     assert "sometimes invents a real one by accident" in flat
-    assert "Is this really a word?" in flat
+    assert "Check in a dictionary" in flat
 
 
 def test_playing_again_keeps_the_round_the_same_length(client, deck):
