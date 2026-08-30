@@ -271,7 +271,8 @@ def test_the_answers_travel_with_the_question(client, deck):
 def test_the_results_admit_the_game_can_be_wrong(client, deck):
     """The model is trained on English so it produces English by accident
     (kuantorflow#258). Telling a learner a real word was invented teaches
-    something false, and until that is closed properly the page says so."""
+    something false, so the page says so -- and since #258 closed, it offers to
+    settle it rather than only apologising."""
     items = _items(client.get("/games/real_or_fake/play?topic=Crime&words=6")
                    .get_data(as_text=True))
     body = client.post("/games/real_or_fake/play?topic=Crime",
@@ -279,7 +280,7 @@ def test_the_results_admit_the_game_can_be_wrong(client, deck):
                        ).get_data(as_text=True)
     flat = " ".join(body.split())
     assert "sometimes invents a real one by accident" in flat
-    assert "look it up in a dictionary" in flat
+    assert "Is this really a word?" in flat
 
 
 def test_playing_again_keeps_the_round_the_same_length(client, deck):
