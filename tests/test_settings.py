@@ -210,8 +210,10 @@ def test_settings_popup_prefilled_from_store(user_client, monkeypatch):
     body = user_client.get("/").get_data(as_text=True)
     assert re.search(r'value="microsoft"\s+checked', body)
     assert re.search(r'name="cards_automatically"\s+checked', body)
-    # the lookup panel title follows the translator choice (#20)
-    assert "Look up a word (Microsoft Translator)" in body
+    # The lookup panel title follows the translator choice (#20) -- and names
+    # the dictionary beside it since kuantorflow#384, by the short name rather
+    # than the Settings label, because a heading is a title and not a sentence.
+    assert "Look up a word (Microsoft + Oxford)" in body
 
 
 # --- Quiz language toggle (#113) ----------------------------------------------
