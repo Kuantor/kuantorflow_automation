@@ -356,7 +356,7 @@ def test_an_edit_that_changed_nothing_writes_no_log_line(user_client,
 def test_the_pencil_is_rendered_for_your_own_card(user_client, app_module,
                                                   monkeypatch):
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [dict(CARD_FOR_PAGE)])
+                        lambda topic, owner_id=None, **kw: [dict(CARD_FOR_PAGE)])
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
     assert "card-edit" in body
     marker = body[body.index('class="card-edit"'):]
@@ -366,7 +366,7 @@ def test_the_pencil_is_rendered_for_your_own_card(user_client, app_module,
 def test_the_pencil_is_greyed_for_someone_elses_card(user_client, app_module,
                                                      monkeypatch):
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [
+                        lambda topic, owner_id=None, **kw: [
                             dict(CARD_FOR_PAGE, added_by_user_id=99)])
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
     marker = body[body.index('class="card-edit"'):]
@@ -381,7 +381,7 @@ def test_a_hidden_language_never_reaches_the_edit_markup(user_client,
     """The whole reason the route reads only submitted fields: a hidden
     language must not appear in the page, so its field is not rendered."""
     monkeypatch.setattr(app_module, "get_flashcards_by_topic",
-                        lambda topic, owner_id=None: [dict(CARD_FOR_PAGE)])
+                        lambda topic, owner_id=None, **kw: [dict(CARD_FOR_PAGE)])
     user_client.post("/settings", json={"show_russian": False})
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
     assert "упругий" not in body

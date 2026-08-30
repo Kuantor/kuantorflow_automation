@@ -110,13 +110,13 @@ def stub_deck(app_module, monkeypatch):
         # change what the next read returns.
         monkeypatch.setattr(
             app_module, "get_topics_by_section",
-            lambda owner_id=None, alphabetical=False: [(name, list(pairs)) for name, pairs in sections])
+            lambda owner_id=None, alphabetical=False, **kw: [(name, list(pairs)) for name, pairs in sections])
         monkeypatch.setattr(
             app_module, "get_flashcards_by_topics",
-            lambda topics_, owner_id=None: [dict(c) for c in cards])
+            lambda topics_, owner_id=None, **kw: [dict(c) for c in cards])
         monkeypatch.setattr(
             app_module, "get_flashcards_by_topic",
-            lambda topic, owner_id=None: [dict(c) for c in cards])
+            lambda topic, owner_id=None, **kw: [dict(c) for c in cards])
         return cards
 
     return install
@@ -191,12 +191,12 @@ def app_module(monkeypatch):
     import app as app_mod
 
     monkeypatch.setattr(app_mod, "ACCESS_KEYWORD", TEST_KEYWORD)
-    monkeypatch.setattr(app_mod, "get_topics", lambda owner_id=None: [])
+    monkeypatch.setattr(app_mod, "get_topics", lambda owner_id=None, **kw: [])
     # The index page reads the grouped shape now (kuantorflow#218); /topics.json
     # reads both. Stubbed alongside get_topics so no test reaches a real
     # database by accident, which is the whole point of this fixture.
     monkeypatch.setattr(app_mod, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: [], raising=False)
+                        lambda owner_id=None, alphabetical=False, **kw: [], raising=False)
     # Any anonymous chat message counts itself against the daily ceiling
     # (kuantorflow#164) — a real database write. Stub it here so the whole
     # suite stays offline; the tests that care patch it themselves.
@@ -222,6 +222,20 @@ def app_module(monkeypatch):
     # about the response. Nothing to fill by default; tests opt in.
     monkeypatch.setattr(app_mod, "fill_missing_fields", lambda entry: [],
                         raising=False)
+    # kuantorflow#382: the topic page resolves its name against the database
+    # before it reads a card, so *every* test that opens one would otherwise
+    # connect to whatever DB_* points at -- and get a 404, since the local deck
+    # has none of the fixtures' topics. The default answer is the one the site
+    # had before private topics existed: the topic is there, it is public, and
+    # nobody in particular created it. Tests about visibility re-patch this.
+    monkeypatch.setattr(
+        app_mod, "resolve_topic",
+        lambda name=None, viewer_id=None, admin=False, topic_id=None: (
+            {"id": 1, "name": name, "is_public": True,
+             "created_by_user_id": None, "creator": None} if name else None),
+        raising=False)
+    monkeypatch.setattr(app_mod, "private_topics",
+                        lambda viewer_id=None, admin=False: {}, raising=False)
     return app_mod
 
 

@@ -31,12 +31,12 @@ def asked(app_module, monkeypatch):
     """Record how each read path asked for its topics."""
     calls = []
 
-    def fake_sections(owner_id=None, alphabetical=False):
+    def fake_sections(owner_id=None, alphabetical=False, **kw):
         calls.append(alphabetical)
         return in_other([("basics", 3), ("apples", 1)])
 
     monkeypatch.setattr(app_module, "get_topics_by_section", fake_sections)
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None: ["apples"])
+    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None, **kw: ["apples"])
     return calls
 
 
@@ -93,11 +93,11 @@ def test_a_dead_database_still_renders_the_page(user_client, app_module,
                                                 monkeypatch):
     """The switch must not turn a database error into a 500 — the index and
     the picker both swallow one deliberately."""
-    def boom(owner_id=None, alphabetical=False):
+    def boom(owner_id=None, alphabetical=False, **kw):
         raise RuntimeError("no database")
 
     monkeypatch.setattr(app_module, "get_topics_by_section", boom)
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None: [])
+    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None, **kw: [])
 
     assert user_client.get("/").status_code == 200
     assert user_client.get("/quiz").status_code == 200

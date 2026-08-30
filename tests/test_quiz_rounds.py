@@ -148,7 +148,7 @@ def test_a_multi_topic_quiz_names_the_topics_under_its_title(client, deck):
 def test_three_topics_are_all_named_without_an_ellipsis(client, app_module,
                                                         monkeypatch, deck):
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: [("Sec", [("Work", 2), ("Travel", 1),
+                        lambda owner_id=None, alphabetical=False, **kw: [("Sec", [("Work", 2), ("Travel", 1),
                                                         ("animals", 4)])])
     body = client.get("/quiz?topic=Work&topic=Travel&topic=animals").get_data(as_text=True)
     assert '<p class="quiz-topics">Work, Travel, animals</p>' in body
@@ -159,7 +159,7 @@ def test_more_than_three_topics_are_truncated_with_an_ellipsis(
         client, app_module, monkeypatch, deck):
     monkeypatch.setattr(
         app_module, "get_topics_by_section",
-        lambda owner_id=None, alphabetical=False: [("Sec", [("Work", 2), ("Travel", 1),
+        lambda owner_id=None, alphabetical=False, **kw: [("Sec", [("Work", 2), ("Travel", 1),
                                         ("animals", 4), ("IT", 3)])])
     body = client.get(
         "/quiz?topic=Work&topic=Travel&topic=animals&topic=IT").get_data(as_text=True)
@@ -228,7 +228,7 @@ def test_one_missing_card_is_described_in_the_singular(client, app_module,
                                                        monkeypatch, mixed_deck):
     monkeypatch.setattr(
         app_module, "get_flashcards_by_topics",
-        lambda topics, owner_id=None: [dict(c) for c in MIXED[:5]]
+        lambda topics, owner_id=None, **kw: [dict(c) for c in MIXED[:5]]
         + [{"id": 99, "word": "lonely", "topic": "Work",
             "translation_ukr": None, "translation_rus": "рус"}])
     body = client.get("/quiz?topic=Work&words=20&lang=ukr").get_data(as_text=True)
@@ -239,7 +239,7 @@ def test_one_missing_card_is_described_in_the_singular(client, app_module,
 def test_a_single_question_is_not_called_questions(client, app_module,
                                                    monkeypatch, mixed_deck):
     monkeypatch.setattr(app_module, "get_flashcards_by_topics",
-                        lambda topics, owner_id=None: [dict(MIXED[0])])
+                        lambda topics, owner_id=None, **kw: [dict(MIXED[0])])
     body = client.get("/quiz?topic=Work&lang=ukr").get_data(as_text=True)
     assert "(1 question)" in body
 
@@ -250,7 +250,7 @@ def test_a_selection_with_nothing_in_this_language_says_so(client, app_module,
     cards all lack this language — production has one. The round explains it
     rather than rendering empty."""
     monkeypatch.setattr(app_module, "get_flashcards_by_topics",
-                        lambda topics, owner_id=None: [dict(c) for c in MIXED[5:]])
+                        lambda topics, owner_id=None, **kw: [dict(c) for c in MIXED[5:]])
     body = client.get("/quiz?topic=Work&lang=ukr").get_data(as_text=True)
     assert "nothing to quiz on" in body
 

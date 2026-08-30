@@ -57,7 +57,7 @@ def sections(app_module, monkeypatch):
     grouped = [(CURRICULUM_SECTION, [("environment", 4)]),
                ("Other", list(TOPICS))]
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: grouped)
+                        lambda owner_id=None, alphabetical=False, **kw: grouped)
     return grouped
 
 
@@ -76,7 +76,7 @@ def test_sections_render_in_the_order_they_are_given(client, app_module,
     """The order is the query's — `(section.position, …)` from #215 — and the
     template must not re-sort it into something alphabetical."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: [("Zebra", [("a", 1)]),
+                        lambda owner_id=None, alphabetical=False, **kw: [("Zebra", [("a", 1)]),
                                                ("Apple", [("b", 1)])])
     body = client.get("/").get_data(as_text=True)
     assert HEADING.findall(_browse(body)) == ["Zebra", "Apple"]
@@ -88,7 +88,7 @@ def test_an_empty_section_keeps_its_heading_and_gets_no_grid(client, app_module,
     until #203 fills it. A heading that showed up only once it had content
     could not do the one job it has."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other(TOPICS))
+                        lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
     assert _layout(client.get("/").get_data(as_text=True)) == [
         ("section", CURRICULUM_SECTION),
         ("section", "Other"), ("grid", 2),
@@ -102,7 +102,7 @@ def test_topics_keep_their_order_within_a_section(client, app_module,
     rule the page applies."""
     ordered = [("second", 1), ("first", 1), ("third", 1)]
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: [("Curriculum", ordered)])
+                        lambda owner_id=None, alphabetical=False, **kw: [("Curriculum", ordered)])
     body = _browse(client.get("/").get_data(as_text=True))
     assert re.findall(r'topic-tile-name">([^<]+)<', body) == \
         ["second", "first", "third"]
@@ -121,7 +121,7 @@ def test_a_tile_still_links_to_its_topic_with_a_count(client, sections):
 def test_an_empty_deck_shows_the_hint_not_bare_headings(client, app_module,
                                                         monkeypatch):
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other([]))
+                        lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     body = client.get("/").get_data(as_text=True)
     assert HEADING.findall(_browse(body)) == []
     assert "No topics yet" in _browse(body)
@@ -138,7 +138,7 @@ def test_the_individual_cards_explanation_still_wins(user_client, app_module,
                         lambda: dict(settings_store.DEFAULTS,
                                      individual_cards=True))
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other([]))
+                        lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     body = _browse(user_client.get("/").get_data(as_text=True))
     assert "No topics of your own" in body
     assert HEADING.findall(body) == []
@@ -162,8 +162,8 @@ def test_topics_json_carries_both_shapes(client, app_module, monkeypatch):
     suggestions (#177). Dropping the flat list while adding the grouped one
     would have emptied that datalist and nothing else would have noticed."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other(TOPICS))
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None: TOPICS)
+                        lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
+    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None, **kw: TOPICS)
 
     data = client.get("/topics.json").get_json()
 
@@ -179,9 +179,11 @@ def test_topics_json_survives_a_dead_database(client, app_module, monkeypatch):
     monkeypatch.setattr(app_module, "get_topics_by_section", boom)
     data = client.get("/topics.json").get_json()
     # Compared exactly, on purpose: the point is that nothing leaks through a
-    # failed read. `icons` joined the payload in #223 and is empty for the same
+    # failed read, and that a new key added to this payload has to be thought
+    # about here -- `private` (kuantorflow#382) is empty for the same reason
+    # the others are, and is read by the same renderer. `icons` joined the payload in #223 and is empty for the same
     # reason the other two are — there are no topics to have icons for.
-    assert data == {"topics": [], "sections": [], "icons": {}}
+    assert data == {"topics": [], "sections": [], "icons": {}, "private": {}}
 
 
 # --- the widget's copy of the markup ------------------------------------

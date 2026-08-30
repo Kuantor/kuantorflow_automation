@@ -57,7 +57,7 @@ def topics(app_module, monkeypatch):
     grouped = [(CURRICULUM_SECTION, [("Work and careers", 20)]),
                ("Other", [("basics", 12), ("solo", 1)])]
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: grouped)
+                        lambda owner_id=None, alphabetical=False, **kw: grouped)
     return grouped
 
 
@@ -151,7 +151,7 @@ def test_a_hidden_topic_is_not_suggested(client, app_module, monkeypatch):
                         lambda: dict(settings_store.DEFAULTS,
                                      individual_cards=True))
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other([("mine", 2)]))
+                        lambda owner_id=None, alphabetical=False, **kw: in_other([("mine", 2)]))
 
     assert _options(client.get("/").get_data(as_text=True)) == ["mine"]
 
@@ -161,7 +161,7 @@ def test_an_empty_deck_leaves_an_empty_list_not_a_missing_one(client, app_module
     """The field still has to work, and a datalist with no options is a plain
     text box — which is exactly right when there is nothing to suggest."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: in_other([]))
+                        lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     body = client.get("/").get_data(as_text=True)
     assert _options(body) == []
     assert 'list="topic-options"' in _field(body, "word-topic")
@@ -187,7 +187,7 @@ def test_a_topic_name_with_quotes_survives_the_option(client, app_module,
     """The value is a topic name somebody typed, so it can hold anything an
     attribute cannot."""
     monkeypatch.setattr(app_module, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False: [('Ann\'s "shelf"', [])] +
+                        lambda owner_id=None, alphabetical=False, **kw: [('Ann\'s "shelf"', [])] +
                                               in_other([('Ann\'s "shelf"', 1)]))
     body = client.get("/").get_data(as_text=True)
     assert _options(body) == ["Ann&#39;s &#34;shelf&#34;"]
