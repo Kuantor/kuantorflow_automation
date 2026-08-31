@@ -236,6 +236,14 @@ def app_module(monkeypatch):
         raising=False)
     monkeypatch.setattr(app_mod, "private_topics",
                         lambda viewer_id=None, admin=False: {}, raising=False)
+    # kuantorflow#388: every word lookup now claims a slot against a daily
+    # counter *before* the providers run, so any test that posts `parse_word`
+    # or calls /lookup.json would otherwise write to whatever DB_* points at.
+    # The default is "allowed, nothing counted"; the tests about the cap patch
+    # this themselves. The session nudge needs no stub -- it is a cookie.
+    monkeypatch.setattr(app_mod, "claim_word_lookup",
+                        lambda user_id, user_limit, anon_limit: (True, None, 0),
+                        raising=False)
     return app_mod
 
 

@@ -80,8 +80,18 @@ def test_with_no_admin_configured_the_message_still_makes_sense(
 
 def test_the_automatic_add_path_is_refused(blocked_client, app_module,
                                            monkeypatch, saved):
-    monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
-        {"word": "resilient", "pos": "adjective", "topic": "vocab"}])
+    """Nothing is saved, and since kuantorflow#388 nothing is spent either.
+
+    The refusal used to come from #125's write guard, after the lookup, and
+    reached the page as the sign-in dialog carrying the block wording. It now
+    comes one step earlier -- a blocked account may not spend a lookup at all
+    -- so it arrives as the page's own message. What the test is about is
+    unchanged: they are told about the block, and not asked to sign in to
+    something they are already signed in to.
+    """
+    called = []
+    monkeypatch.setattr(app_module, "lookup_word",
+                        lambda *a, **k: called.append(1) or [])
     monkeypatch.setattr(app_module, "current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
         cards_automatically=True, show_ukrainian=True, show_russian=True,
@@ -89,14 +99,10 @@ def test_the_automatic_add_path_is_refused(blocked_client, app_module,
     body = blocked_client.post("/", data={"action": "parse_word",
                                           "word": "resilient",
                                           "topic": "vocab"}).get_data(as_text=True)
-    assert saved == []
-    # The dialog is raised with the block wording, not #125's sign-in prompt.
-    # Matched on the literal-argument call: the popup's own handler passes a
-    # variable (kfSignInRequired(err.message)) and would match too.
-    raised = body[body.index('kfSignInRequired("'):]
-    raised = raised[:raised.index(");")]
-    assert "blocked" in raised.lower()
-    assert "sign in" not in raised.lower()
+    assert (saved, called) == ([], [])
+    assert 'kfSignInRequired("' not in body, (
+        "they are signed in; the block is not something signing in fixes")
+    assert "blocked" in body.lower()
 
 
 def test_deleting_a_card_is_refused(blocked_client, app_module, monkeypatch):
@@ -204,16 +210,32 @@ def test_reading_pages_stay_open(blocked_client, app_module, monkeypatch, path):
     assert blocked_client.get(path).status_code == 200
 
 
-def test_looking_a_word_up_still_works(blocked_client, app_module, monkeypatch,
-                                       saved):
-    monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
-        {"word": "resilient", "pos": "adjective", "topic": "vocab",
-         "explanation_en": "able to recover quickly"}])
+def test_looking_a_word_up_is_no_longer_free_for_them(blocked_client,
+                                                      app_module, monkeypatch,
+                                                      saved):
+    """**This reverses what this file used to assert**, and the reason is that
+    the act changed rather than the rule.
+
+    A lookup was free scraping when #126 drew the line at writing, so letting a
+    blocked account read cost nothing. #353 replaced the scraped translators
+    with licensed ones, and on this deployment that means an Anthropic call on
+    our own key per press -- so a lookup is a *spend*, and kuantorflow#388's
+    whole point is that nobody spends without a ceiling. #237 already refuses a
+    blocked account the one other paid activity, and two answers to the same
+    question would be the odd thing here.
+
+    Reading stays open, which is the part of #126 that has not moved: the
+    pages above this still render for them.
+    """
+    called = []
+    monkeypatch.setattr(app_module, "lookup_word",
+                        lambda *a, **k: called.append(1) or [])
     body = blocked_client.post("/", data={"action": "parse_word",
                                           "word": "resilient",
                                           "topic": "vocab"}).get_data(as_text=True)
-    assert "able to recover quickly" in body
-    assert saved == [], "offered for review, but not saved"
+    assert called == [], "a blocked account must not reach the providers"
+    assert saved == []
+    assert "blocked" in body.lower()
 
 
 def test_their_own_settings_still_save(blocked_client):
