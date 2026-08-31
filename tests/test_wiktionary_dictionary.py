@@ -111,24 +111,104 @@ def test_the_markup_is_stripped_and_the_words_are_not(wiktionary):
     assert "handing over of control" in definitions["noun"][0]
 
 
-def test_the_examples_are_left_where_they_are(wiktionary):
-    """Deliberate, and the reason is the licence rather than the effort. The
-    definitions are the community's own writing under CC BY-SA; the examples
-    are frequently quotations from published books carrying whatever licence
-    those carry."""
+def test_the_usage_examples_come_with_the_definitions(wiktionary):
+    """They are the editors' own sentences, under the same CC BY-SA as the
+    definitions, so the credit already on the card covers them and there is
+    nothing further to check per example."""
+    wiktionary({"thrive": {"en": [{
+        "partOfSpeech": "Verb",
+        "definitions": [{
+            "definition": "To grow or increase stature.",
+            "examples": ["Not all animals thrive well in captivity."],
+        }],
+    }]}})
+
+    definitions, examples = parsers._wiktionary_entry("thrive")
+
+    assert definitions["verb"]
+    assert examples["verb"] == ["Not all animals thrive well in captivity."]
+
+
+def test_anything_that_looks_quoted_is_dropped(wiktionary):
+    """The belt to the endpoint's braces. Wiktionary keeps usage examples and
+    quotations apart in its own markup -- `#:` against `#*` with a `quote-book`
+    template -- and this endpoint was measured returning only the first kind:
+    `thrive` has 3 and 9 and answered with 3, `reluctant` 2 and 7 and answered
+    with 2, and 91 examples over 30 seeded words held nothing quotation-shaped.
+
+    That is observed rather than promised, and a quotation is somebody's book
+    rather than the community's writing. So a year at the front -- how every
+    citation opens -- means the example is not taken, and a change at their end
+    costs examples instead of a licensing problem."""
     wiktionary({"resilient": {"en": [{
         "partOfSpeech": "Adjective",
         "definitions": [{
             "definition": "Returning quickly to its original shape.",
-            "examples": ["The tent poles are resilient.",
-                         "1997, A Book Somebody Wrote, page 12"],
+            "examples": ["1997, A Book Somebody Wrote, page 12: the resilient "
+                         "tent poles sprang back into shape",
+                         "The tent poles are resilient enough to bend."],
         }],
     }]}})
 
-    definitions, examples = parsers._wiktionary_entry("resilient")
+    _, examples = parsers._wiktionary_entry("resilient")
 
-    assert definitions["adjective"]
-    assert examples == {}, "a quotation is not ours to store"
+    assert examples["adjective"] == [
+        "The tent poles are resilient enough to bend."]
+
+
+def test_a_phrase_is_not_a_sentence(wiktionary):
+    """`spotless shirt` and `sustainable economy` are true and useless: nothing
+    to read, and #235 cannot gap a sentence that is not one. Measured over 91
+    examples on 30 seeded words -- 70 are sentences and the 21 that are not are
+    all fragments of this shape."""
+    wiktionary({"spotless": {"en": [{
+        "partOfSpeech": "Adjective",
+        "definitions": [{
+            "definition": "Having no spots.",
+            "examples": ["spotless shirt", "to thrive upon hard work",
+                         "He kept the kitchen spotless all week."],
+        }],
+    }]}})
+
+    _, examples = parsers._wiktionary_entry("spotless")
+
+    assert examples["adjective"] == [
+        "He kept the kitchen spotless all week."]
+
+
+def test_examples_are_capped_like_every_other_backend(wiktionary):
+    wiktionary({"negotiate": {"en": [{
+        "partOfSpeech": "Verb",
+        "definitions": [{
+            "definition": "To confer with others in order to reach a deal.",
+            "examples": ["We negotiated the contract number %d today." % n
+                         for n in range(10)],
+        }],
+    }]}})
+
+    _, examples = parsers._wiktionary_entry("negotiate")
+
+    assert len(examples["verb"]) == parsers.MAX_EXAMPLES
+
+
+def test_examples_never_outlive_the_definition_they_came_with(wiktionary):
+    """`lookup_word()` falls back to Reverso for **definitions alone**, so a
+    card can carry Reverso's explanation -- and the credit that names Reverso.
+    Wiktionary sentences surviving that swap would be its text on a card
+    crediting somebody else, so a part of speech that produced no definition
+    contributes no examples either."""
+    wiktionary({"ghost": {"en": [{
+        "partOfSpeech": "Verb",
+        "definitions": [{
+            "definition": "",
+            "examples": ["He ghosted her after three dates entirely."],
+        }],
+    }]}})
+
+    definitions, examples = parsers._wiktionary_entry("ghost")
+
+    assert definitions == {}
+    assert examples == {}
 
 
 def test_a_word_nobody_has_is_not_a_failure(wiktionary):
