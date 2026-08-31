@@ -539,6 +539,56 @@ def test_a_link_on_a_card_face_is_a_control(app_module):
     assert 'closest("input, label, button, a")' in source
 
 
+SENTENCED = dict(CREDITED, id=4, word="thrive",
+                 explanation_en="To grow vigorously.",
+                 examples_en=["Not all animals thrive well in captivity.",
+                              "Since expanding, the business has thrived."])
+
+
+def test_the_sentence_game_credits_the_sentence_it_shuffled(user_client,
+                                                            stub_deck):
+    """*Rebuild the sentence* is the case that makes the credit a fact about
+    the **text** rather than about the explanation it arrived beside: the whole
+    question is a card's example, and the page shows no definition at all. A
+    credit rendered only next to explanations would leave this page showing
+    somebody's sentence with nothing saying whose."""
+    stub_deck(cards=[SENTENCED], topics=[("Law", 1)])
+
+    body = user_client.get(
+        "/games/rebuild_the_sentence/play?topic=Law").get_data(as_text=True)
+
+    assert "source-credit" in body
+
+
+def test_the_gap_game_credits_it_even_with_no_definition_on_the_back(
+        user_client, stub_deck):
+    """#235 cuts a word out of one of the card's own examples, so the text
+    needing the credit is on the front. The back carries a translation instead
+    when the card has no explanation, and the credit must not go with it."""
+    stub_deck(cards=[dict(SENTENCED, explanation_en=None,
+                          translation_ukr="procvitaty")], topics=[("Law", 1)])
+
+    body = user_client.get(
+        "/games/fill_the_gap/play?topic=Law").get_data(as_text=True)
+
+    assert "source-credit" in body
+
+
+def test_the_review_popup_credits_below_both_boxes(user_client, monkeypatch,
+                                                   app_module):
+    """Between the two, it reads as covering the definition alone -- and where
+    Wiktionary answered it wrote the sentences underneath as well."""
+    monkeypatch.setattr(app_module, "lookup_word", lambda word, topic=None, **kw: [
+        dict(SENTENCED, topic=topic)])
+
+    body = user_client.post("/", data={"action": "parse_word", "word": "thrive",
+                                       "topic": "Law", "force_lookup": "1"}
+                            ).get_data(as_text=True)
+
+    assert body.index('name="examples_en"') < body.index("source-credit"), (
+        "the credit is above the examples it also covers")
+
+
 def test_a_definition_from_elsewhere_is_credited_to_nobody(user_client,
                                                            stub_deck):
     """Oxford asks for nothing, and a card written before the column existed
