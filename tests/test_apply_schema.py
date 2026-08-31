@@ -741,10 +741,11 @@ def _migrated_objects():
         Column("topics", "is_public"),
         Column("topics", "namespace"),
         Index("topics", "uq_topics_namespace"),
-        # kuantorflow#390. A column and nothing else: the credit a card carries
-        # for its explanation has no data step, because NULL is the right
-        # answer for every row that predates it.
+        # kuantorflow#390. Two columns and nothing else: the credits a card
+        # carries for its explanation and for its examples need no data step,
+        # because NULL is the right answer for every row that predates them.
         Column("flashcards", "explanation_source"),
+        Column("flashcards", "examples_source"),
     }
 
 

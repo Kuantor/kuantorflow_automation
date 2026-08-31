@@ -405,6 +405,37 @@ def test_a_rewritten_explanation_loses_its_credit(monkeypatch):
         "the log records what somebody edited, and nobody edited this")
 
 
+def test_rewriting_the_examples_drops_only_their_credit(monkeypatch):
+    """The mirror rule, and the reason there are two columns. A learner who
+    adds a sentence of their own to the dictionary's examples has not touched
+    the definition, so its credit stands and theirs goes."""
+    cursor, _ = fake_card_db(monkeypatch, card=dict(
+        STORED, examples_en='["Some software runs on one platform only."]'))
+
+    utils.update_flashcard(
+        5, {"examples_en": ["Some software runs on one platform only. test2"]},
+        owner_id=TEST_USER_ID)
+
+    query, _ = _update(cursor)
+    assert "examples_source = %s" in query
+    assert "explanation_source" not in query
+
+
+def test_rewriting_the_explanation_drops_only_its_credit(monkeypatch):
+    """And the other way about: the dictionary's sentences are still the
+    dictionary's when somebody rewrites the definition above them. One column
+    could only ever have been right about one of these two tests."""
+    cursor, _ = fake_card_db(monkeypatch, card=dict(
+        STORED, examples_en='["Some software runs on one platform only."]'))
+
+    utils.update_flashcard(5, {"explanation_en": "programs, basically"},
+                           owner_id=TEST_USER_ID)
+
+    query, _ = _update(cursor)
+    assert "explanation_source = %s" in query
+    assert "examples_source" not in query
+
+
 def test_editing_something_else_leaves_the_credit_alone(monkeypatch):
     """An explanation that did not change is still the dictionary's sentence,
     so a learner fixing a translation must not silently strip its credit."""
@@ -415,6 +446,7 @@ def test_editing_something_else_leaves_the_credit_alone(monkeypatch):
 
     query, _ = _update(cursor)
     assert "explanation_source" not in query
+    assert "examples_source" not in query
 
 
 def test_a_new_explanation_may_bring_its_own_credit(monkeypatch):
@@ -512,6 +544,35 @@ def test_the_card_page_credits_the_definition(user_client, stub_deck):
     assert "CC BY-SA 4.0" in body
 
 
+def test_the_card_page_credits_each_half_where_it_belongs(user_client,
+                                                          stub_deck):
+    """The case that prompted the second column, seen from the page. A learner
+    who added a sentence of their own to the dictionary's examples keeps the
+    definition's credit and loses theirs -- and a single line under the whole
+    English block would then be claiming their words too. So the surviving
+    credit sits against the half it actually covers."""
+    stub_deck(cards=[dict(SENTENCED, examples_source=None)])
+
+    body = " ".join(user_client.get("/flashcards/Law")
+                    .get_data(as_text=True).split())
+
+    assert body.count("source-credit") == 1
+    assert body.index("source-credit") < body.index("English examples"), (
+        "the credit belongs above the examples it no longer covers")
+
+
+def test_a_fully_credited_card_says_so_once(user_client, stub_deck):
+    """Both halves the dictionary's is the ordinary case, and it reads as one
+    footnote to the English block rather than as the same line twice."""
+    stub_deck(cards=[SENTENCED])
+
+    body = " ".join(user_client.get("/flashcards/Law")
+                    .get_data(as_text=True).split())
+
+    assert body.count("source-credit") == 1
+    assert body.index("English examples") < body.index("source-credit")
+
+
 def test_the_deck_credits_it_too(user_client, stub_deck):
     """The credit travels with the text, to every surface that shows one. A
     page rendering the definition without it is the licence not being met,
@@ -541,6 +602,7 @@ def test_a_link_on_a_card_face_is_a_control(app_module):
 
 SENTENCED = dict(CREDITED, id=4, word="thrive",
                  explanation_en="To grow vigorously.",
+                 examples_source="wiktionary",
                  examples_en=["Not all animals thrive well in captivity.",
                               "Since expanding, the business has thrived."])
 
@@ -587,6 +649,20 @@ def test_the_review_popup_credits_below_both_boxes(user_client, monkeypatch,
 
     assert body.index('name="examples_en"') < body.index("source-credit"), (
         "the credit is above the examples it also covers")
+
+
+def test_the_sentence_game_ignores_the_other_credit(user_client, stub_deck):
+    """The scoping rule, and the reason `fields` exists. A learner who rewrote
+    these sentences kept the dictionary's definition, so the card still carries
+    an explanation credit -- and this page, which shows no definition, must not
+    render it over words the learner wrote."""
+    stub_deck(cards=[dict(SENTENCED, examples_source=None)],
+              topics=[("Law", 1)])
+
+    body = user_client.get(
+        "/games/rebuild_the_sentence/play?topic=Law").get_data(as_text=True)
+
+    assert "source-credit" not in body
 
 
 def test_a_definition_from_elsewhere_is_credited_to_nobody(user_client,
