@@ -98,14 +98,24 @@ def test_a_changed_field_is_written_and_named(monkeypatch):
 
 
 def test_only_the_changed_fields_are_written(monkeypatch):
-    """The log's `changed` list has to be accurate, so the UPDATE is too."""
+    """The log's `changed` list has to be accurate, so the UPDATE is too.
+
+    One exception, and it is not a field anybody submitted: an explanation that
+    changed takes `explanation_source` with it (kuantorflow#390), because the
+    credit belongs to the sentence rather than to the card. It is written and
+    deliberately not *named* -- the log records what somebody edited, and
+    nobody edited this. `test_wiktionary_dictionary.py` is where that rule is
+    actually tested.
+    """
     cursor = _db(monkeypatch)
     outcome, changed = utils.update_flashcard(
         5, dict(STORED, explanation_en="bounces back"), owner_id=TEST_USER_ID)
     assert changed == ["explanation_en"]
     query, _ = _update(cursor)
     assignments = query.split("WHERE")[0]
-    assert assignments.count("= %s") == 1, "only the field that differs"
+    assert assignments.count("= %s") == 2, "the field that differs, and its credit"
+    assert "explanation_en = %s" in assignments
+    assert "explanation_source = %s" in assignments
 
 
 def test_submitting_nothing_new_is_not_an_edit(monkeypatch):

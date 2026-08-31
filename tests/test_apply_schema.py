@@ -727,7 +727,7 @@ def _pre_215_objects():
 
 
 def _migrated_objects():
-    """Everything #207, #215 and #382 create, so only the *data* can be
+    """Everything #207, #215, #382 and #390 create, so only the *data* can be
     outstanding."""
     return _pre_215_objects() | {
         Table("topic_sections"),
@@ -741,6 +741,10 @@ def _migrated_objects():
         Column("topics", "is_public"),
         Column("topics", "namespace"),
         Index("topics", "uq_topics_namespace"),
+        # kuantorflow#390. A column and nothing else: the credit a card carries
+        # for its explanation has no data step, because NULL is the right
+        # answer for every row that predates it.
+        Column("flashcards", "explanation_source"),
     }
 
 

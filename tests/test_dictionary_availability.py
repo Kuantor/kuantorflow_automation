@@ -45,21 +45,23 @@ def test_oxford_needs_no_key_and_is_always_available(no_key):
 
 
 def test_merriam_webster_is_absent_until_its_key_is_set(no_key):
+    """The keyless two are always there; only Merriam-Webster is gated."""
     available = parsers.available_dictionaries()
 
-    assert [d.slug for d in available] == ["oxford"]
+    assert [d.slug for d in available] == ["oxford", "wiktionary"]
     assert parsers._dictionary_by_slug("merriam-webster") not in available
 
 
 def test_the_key_is_read_at_call_time(no_key, monkeypatch):
     """Never captured at import — the rule `available_translators()` follows,
     and what lets a key be added to a deployment without a code change."""
-    assert len(parsers.available_dictionaries()) == 1
+    assert [d.slug for d in parsers.available_dictionaries()] == [
+        "oxford", "wiktionary"]
 
     monkeypatch.setenv("MERRIAM_WEBSTER_API_KEY", "test-key-never-used")
 
     assert [d.slug for d in parsers.available_dictionaries()] == [
-        "oxford", "merriam-webster"]
+        "oxford", "merriam-webster", "wiktionary"]
 
 
 def test_the_fetcher_is_held_by_name(with_key):
