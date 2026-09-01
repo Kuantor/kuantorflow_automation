@@ -324,7 +324,10 @@ def test_and_so_does_a_text_with_no_title(client, deck, claude, monkeypatch):
 
     body = _write(client).get_data(as_text=True)
 
-    assert "reader-title" not in body, "this text has no title to strip"
+    # The element, not the class name: kuantorflow#403 put a `.reader-title`
+    # rule in the page's own stylesheet, so the bare string is on every page
+    # whether or not a title was rendered.
+    assert '<h2 class="reader-title"' not in body, "this text has no title"
     assert _panel(body)[:1].strip()
 
 
