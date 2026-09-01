@@ -14,6 +14,7 @@ stays in the path, because those are what is being tested.
 import re
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -89,6 +90,19 @@ def _passage(body):
     """
     found = re.search(r'<div class="panel reader-text">(.*?)</div>', body, re.S)
     return re.sub(r"<[^>]+>", "", found.group(1)).strip() if found else ""
+
+
+def _panel(body):
+    """The panel's contents **unstripped**.
+
+    `_passage()` above strips, which is fine for what it asks and is also why
+    kuantorflow#399 survived every test in this file: the panel is `pre-wrap`,
+    so whitespace the template leaves inside it is not incidental -- it is
+    rendered, and it was rendering a blank line and a line of spaces above
+    every text this feature wrote.
+    """
+    found = re.search(r'<div class="panel reader-text">(.*?)</div>', body, re.S)
+    return found.group(1) if found else ""
 
 
 def _bold(body):
@@ -286,6 +300,59 @@ def test_a_different_length_offers_a_fresh_text(client, deck, claude):
     _write(client, f"{PLAY}?topic=Work&words=150")
     body = client.get(f"{PLAY}?topic=Work&words=300").get_data(as_text=True)
     assert "she had resigned" not in _passage(body)
+
+
+def test_the_text_starts_at_the_top_of_its_panel(client, deck, claude):
+    """kuantorflow#399. Measured in the browser before the fix: the panel's
+    first child was a text node holding a newline and twelve spaces, and the
+    title sat 57px below the panel's padding -- a blank line, then a line of
+    spaces, on every text.
+
+    The assertion is on the raw panel rather than through `_passage()`, which
+    strips."""
+    body = _write(client).get_data(as_text=True)
+
+    assert _panel(body)[:1].strip(), "the panel opens with whitespace"
+
+
+def test_and_so_does_a_text_with_no_title(client, deck, claude, monkeypatch):
+    """The same whitespace sat above the first word when the model gave no
+    title, so the untitled shape needs its own test rather than an argument
+    that it must be fine."""
+    monkeypatch.setattr(textgen, "_ask_claude",
+                        lambda prompt, length: "She resigned in June.")
+
+    body = _write(client).get_data(as_text=True)
+
+    assert "reader-title" not in body, "this text has no title to strip"
+    assert _panel(body)[:1].strip()
+
+
+def test_the_models_own_paragraphs_still_survive(client, deck, monkeypatch,
+                                                app_module):
+    """Two halves of one promise, because #399's obvious wrong fixes break one
+    each: stripping the whitespace out of the *text* would take the newlines
+    out of the markup, and collapsing it in the *stylesheet* would leave them
+    there rendering as single spaces.
+
+    The second half is a coupling assertion on the CSS rather than on a page,
+    which is unusual here and deliberate: pytest cannot see rendering, and the
+    failure -- a text arriving as one unbroken blob -- is invisible to every
+    other test in this file."""
+    monkeypatch.setattr(
+        textgen, "_ask_claude",
+        lambda prompt, length: "A Short Title\n\nFirst paragraph.\n\n"
+                               "Second paragraph, after a real break.")
+
+    panel = _panel(_write(client).get_data(as_text=True))
+
+    assert "First paragraph.\n\nSecond paragraph" in panel
+
+    stylesheet = (Path(app_module.__file__).parent
+                  / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    rule = stylesheet.split(".reader-text {", 1)[1].split("}", 1)[0]
+    assert "white-space: pre-wrap" in rule, (
+        "the newlines are in the markup, and this is what shows them")
 
 
 # --- the ceilings, all checked before the call ------------------------------
