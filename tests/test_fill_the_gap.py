@@ -218,6 +218,37 @@ def test_the_activity_is_no_longer_a_stub():
     assert games.ACTIVITIES["fill_the_gap"].ticket == ""
 
 
+def test_a_card_can_grow_to_the_text_on_it(client, stub_deck):
+    """kuantorflow#401, and a coupling assertion because pytest cannot see a
+    rendered card.
+
+    A long explanation used to be drawn *outside* the card -- half above its
+    top edge and half below, since the face centres its content. `min-height`
+    would have let the card grow; what stopped it was `position: absolute` on
+    the faces, which takes them out of flow so their content cannot size
+    anything. The absolute positioning was there to stack the two faces for
+    the flip, and a grid cell stacks them just as well while letting the
+    taller one set the height.
+
+    Measured on the real deck at 375px before the fix: eight of Sport and
+    competition's twenty cards overflowed, `handicap` by 125px. After it,
+    none of thirty did, front and back matched on every card, and every card
+    at 1280px was 240px exactly as before.
+
+    Both pages share this stylesheet, so both are asserted here -- the game's
+    card carries more on its back than the deck's does, which is what made it
+    the likelier of the two to overflow.
+    """
+    stub_deck(cards=PLAYABLE)
+    game = client.get(PLAY).get_data(as_text=True)
+    deck = client.get("/deck/Work").get_data(as_text=True)
+
+    for page in (game, deck):
+        assert "grid-area: 1 / 1" in page, "the faces are no longer stacked"
+        assert "position: absolute; inset: 0" not in page, (
+            "an absolute face cannot make the card taller, which is the bug")
+
+
 def test_the_flip_is_the_card_decks_own(client, stub_deck):
     """Shared, not copied (#78/#235): both pages extend deck.html, so the
     animation exists once. Two implementations would diverge the first time
