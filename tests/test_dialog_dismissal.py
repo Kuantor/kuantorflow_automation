@@ -19,6 +19,13 @@ both borrowed from #296's own tests:
 
 Escape is untouched and stays: #296 drew the line at a *slip*, and a keypress
 is a deliberate act. But it had to learn something here — see the last test.
+
+The move dialog (#177) is the fifth, and it arrived a ticket later. #369 named
+it and left it undecided on purpose — one typed topic name is less than the
+edit dialog's worth of work and more than the nothing a notice holds — so it
+sat in the list below that *keeps* the dismissal until the decision was made.
+It came out on the side of the rule: the field is free text, so what a stray
+click discards may be a topic that does not exist yet.
 """
 
 import pytest
@@ -44,7 +51,7 @@ def _escape_handler(body):
     return body[at:at + 500]
 
 
-# --- the four that hold something ------------------------------------------
+# --- the ones that hold something ------------------------------------------
 
 @pytest.fixture()
 def lookup_script(client):
@@ -59,6 +66,8 @@ def lookup_script(client):
                     "#191 lookup has just filled"),
     ("settingsOverlay", "every switch and slider changed since it opened — and "
                         "this one is in base.html, so on every page"),
+    ("moveOverlay", "the topic typed into a free-text field, which may be a "
+                    "topic that does not exist yet"),
 ])
 def test_a_dialog_holding_work_ignores_a_click_outside_it(cards_page, overlay,
                                                           what):
@@ -66,7 +75,7 @@ def test_a_dialog_holding_work_ignores_a_click_outside_it(cards_page, overlay,
 
     #296's warning was that a *generic* pattern — `e.target === overlay` — is
     satisfied by any dialog on the page, so a page-wide search proves nothing.
-    These four names each belong to exactly one dialog, which makes the whole
+    Each of these names belongs to exactly one dialog, which makes the whole
     page the right place to look and removes the boundary that made the first
     version of this test pass against a restored handler.
     """
@@ -77,7 +86,6 @@ def test_a_dialog_holding_work_ignores_a_click_outside_it(cards_page, overlay,
 # --- the ones that keep it, and must ---------------------------------------
 
 @pytest.mark.parametrize("overlay", [
-    "moveOverlay",        # #177 — one typed topic name, deliberately left alone
     "refusedOverlay",     # a notice; holds nothing
     "signInOverlay",      # a prompt; holds nothing
 ])
