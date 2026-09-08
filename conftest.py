@@ -244,6 +244,25 @@ def app_module(monkeypatch):
     monkeypatch.setattr(app_mod, "claim_word_lookup",
                         lambda user_id, user_limit, anon_limit: (True, None, 0),
                         raising=False)
+    # kuantorflow#237's counter needs the same treatment, and #406 is what
+    # found that it never got it: `_generation_refusal()` claims a slot in
+    # `text_generation_usage` before the model call, so every test that posts a
+    # generated text or a topic idea was writing to whatever DB_* points at --
+    # and once the real row reached GENERATION_USER_DAILY those tests started
+    # failing for a reason that had nothing to do with them. A suite that
+    # passes ten times a day and then stops is worse than one that never
+    # passed.
+    monkeypatch.setattr(app_mod, "claim_text_generation",
+                        lambda user_id, user_limit, daily_limit: (True, None, 0),
+                        raising=False)
+    # #406's batch claim, for the same reason and with the same default.
+    monkeypatch.setattr(app_mod, "claim_word_lookups",
+                        lambda user_id, count, user_limit, anon_limit:
+                        (True, None, 0), raising=False)
+    monkeypatch.setattr(app_mod, "lookups_used_today",
+                        lambda user_id: 0, raising=False)
+    monkeypatch.setattr(app_mod, "existing_words",
+                        lambda owner_id=None: set(), raising=False)
     return app_mod
 
 
