@@ -147,6 +147,44 @@ def test_without_a_key_the_page_does_not_exist(user_client, proposes,
     assert user_client.get("/topics/generate").status_code == 404
 
 
+# --- the way in -------------------------------------------------------------
+#
+# The tests below are the ones that were missing when this shipped. Every
+# assertion in this file was about the page, and none about whether a learner
+# could *reach* it -- so the routes and templates went out with nothing linking
+# to them, and the feature was usable only by typing the URL. A page nobody can
+# find is not a feature, and that is as much a regression as a broken one.
+
+def test_the_front_page_offers_it(user_client, proposes):
+    body = user_client.get("/").get_data(as_text=True)
+
+    assert "/topics/generate" in body
+    assert "Build a topic" in body
+
+
+def test_the_offer_disappears_without_a_key(user_client, proposes, monkeypatch):
+    """#237's shape: hidden rather than offered and broken, the same way
+    `MYKOLA_AVAILABLE=False` removes the chat widget. The route already 404s --
+    this is the half that keeps a learner from meeting the 404."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    body = user_client.get("/").get_data(as_text=True)
+
+    assert "/topics/generate" not in body
+
+
+def test_the_link_is_styled_as_a_button_this_stylesheet_has(user_client,
+                                                            proposes):
+    """`button-link`, not `button` (#340). The first version used a class the
+    stylesheet does not define, so it rendered as bare text -- invisible to
+    pytest, and the reason a browser pass found it instead."""
+    body = user_client.get("/").get_data(as_text=True)
+    at = body.index("/topics/generate")
+    tag = body[max(0, at - 120):at]
+
+    assert "button-link" in tag
+
+
 # --- approving --------------------------------------------------------------
 
 def test_only_the_ticked_words_are_paid_for(user_client, proposes, app_module,

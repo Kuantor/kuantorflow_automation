@@ -39,11 +39,14 @@ def _panels(body):
 
 def test_browsing_comes_before_looking_up(client, topics):
     body = client.get("/").get_data(as_text=True)
-    # The reader panel is deliberately left out of this list: it renders only
-    # with an ANTHROPIC_API_KEY (kuantorflow#253), so whether it appears is a
-    # property of the environment the suite runs in, not of the page's order.
-    # Its own test controls the key explicitly.
-    assert [p for p in _panels(body) if "Read a text" not in p] == [
+    # Two panels are deliberately left out of this list: the reader
+    # (kuantorflow#253) and the topic builder (#406). Both render only with an
+    # ANTHROPIC_API_KEY, so whether they appear is a property of the environment
+    # the suite runs in, not of the page's order. Each has its own test, which
+    # controls the key explicitly.
+    keyed = ("Read a text", "Build a topic")
+    assert [p for p in _panels(body)
+            if not any(k in p for k in keyed)] == [
         "Browse flashcards", "Practise your words",
         "Look up a word", "Upload notes"]
 
