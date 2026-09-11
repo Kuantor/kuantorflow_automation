@@ -17,6 +17,7 @@ rights and the offline suite must stay write-free. Run with:
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -183,13 +184,30 @@ def _steps_in(stdout):
     return names
 
 
+def _tables_schema_sql_declares():
+    """The tables `schema.sql` creates, read from the file itself.
+
+    **Derived rather than listed**, and that is the whole point of this helper.
+    The literal list this replaced went stale twice without anybody noticing:
+    `confirmed_words` (kuantorflow#258) and `word_lookup_usage` (kuantorflow#388)
+    were both added to the schema and neither reached the assertion, because the
+    db tier is opt-in and a default `pytest` run never executes it. A test that
+    must be hand-edited every time the thing it watches changes will be wrong for
+    as long as nobody runs it.
+    """
+    sql = (KUANTORFLOW_PATH / "schema.sql").read_text(encoding="utf-8")
+    return sorted(re.findall(r"CREATE TABLE IF NOT EXISTS\s+(\w+)", sql))
+
+
 @requires_local_db
 def test_an_empty_database_gets_the_whole_schema(scratch_db):
     result = _apply()
     assert result.returncode == 0, result.stderr
     tables = sorted(r[0] for r in _query("SHOW TABLES"))
-    assert tables == ["anonymous_usage", "flashcards", "text_generation_usage",
-                      "topic_sections", "topics", "users"]
+    assert tables == _tables_schema_sql_declares()
+    # A guard on the derivation itself: a regex that stopped matching would
+    # otherwise make this assertion pass by comparing two empty lists.
+    assert len(tables) >= 6, "schema.sql parsed to nothing"
     # The tables schema.sql creates need no migrations on top of them.
     columns = _columns()
     assert "added_by_user_id" in columns
