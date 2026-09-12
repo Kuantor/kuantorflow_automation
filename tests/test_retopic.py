@@ -47,6 +47,29 @@ def _walk(plan):
     for step in plan:
         source = getattr(step, "old", None) or getattr(step, "source", None)
         known.setdefault(source.casefold(), source)
+    # And the topics an *earlier* plan created. `regeneral` (#414) merges into
+    # `General knowledge`, which is neither seeded nor a stray: it exists
+    # because the `local` and `pa` plans renamed `general` into it. The plans
+    # are a history of the deck read together, so a later one may build on what
+    # an earlier one made -- and a typo is still caught, because a misspelled
+    # destination appears in no plan at all.
+    # A **second** set, for the destination check only. `regeneral` (#414)
+    # merges into `General knowledge`, which is neither seeded nor a stray: it
+    # exists because an earlier run of another plan renamed `general` into it.
+    # The plans are a history of the deck read together, so a later one may
+    # build on what an earlier one made.
+    #
+    # Kept apart from `known` on purpose. `known` answers "would this rename
+    # collide with a topic that is already there?", and `local` and `pa` both
+    # rename `general` into `General knowledge` -- so folding the two sets
+    # together has each plan accusing the other's output of being its own
+    # collision. A typo is still caught either way: a misspelled destination
+    # appears in no plan at all.
+    reachable = dict(known)
+    for other in retopic.PLANS.values():
+        for step in other:
+            if isinstance(step, retopic.Rename):
+                reachable.setdefault(step.new.casefold(), step.new)
     removed = set()
     problems = []
 
@@ -64,13 +87,14 @@ def _walk(plan):
                     "merge, not a rename" % (step.old, clash))
             known.pop(step.old.casefold(), None)
             known[step.new.casefold()] = step.new
+            reachable[step.new.casefold()] = step.new
         else:
             if step.source.casefold() in removed:
                 problems.append(
                     "merges %r twice" % step.source)
             if step.source.casefold() == step.dest.casefold():
                 problems.append("merges %r into itself" % step.source)
-            if step.dest.casefold() not in known:
+            if step.dest.casefold() not in reachable:
                 problems.append(
                     "merges %r into %r, which does not exist yet -- no step "
                     "before it creates that topic, and the script never "

@@ -79,11 +79,35 @@ def test_the_file_review_names_it_too(user_client, saved):
 
 def test_an_empty_topic_field_shows_where_the_cards_really_go(
         client, app_module, monkeypatch, saved):
-    """`general` is a real destination, not a placeholder: `app.py` resolves an
-    empty box to it twice over. Since #292 gave the chooser the move dialog's
-    wording, this line is the only place that default is now visible."""
+    """The default is a real destination, not a placeholder: `app.py` resolves
+    an empty box to it twice over. Since #292 gave the chooser the move
+    dialog's wording, this line is the only place that default is now visible.
+
+    **Asserted against the constant, not against its value** (#414). This test
+    used to read `== ["general"]`, and that literal is why it kept the code
+    wrong instead of catching it: #407 renamed that topic in both databases,
+    the code went on writing the old name, and this assertion agreed with the
+    code rather than with the deck. Every lookup with the box left empty then
+    recreated the topic #407 had just removed. Reading the constant means a
+    rename has one place to reach, and this test follows it.
+    """
     _stub_lookup(app_module, monkeypatch)
-    assert TOPIC_LINE.findall(_lookup(client, "")) == ["general"]
+
+    assert TOPIC_LINE.findall(_lookup(client, "")) == [app_module.DEFAULT_TOPIC]
+
+
+def test_the_default_is_not_a_topic_the_deck_has_renamed_away(app_module):
+    """A guard on the value itself, which no amount of indirection gives you.
+
+    `DEFAULT_TOPIC` being read from one place stops the *code* disagreeing with
+    itself; it cannot stop the constant naming a topic that no longer exists.
+    `general` is the one name known to have been renamed away (#407), so it is
+    the one worth refusing outright -- a regression here would be somebody
+    restoring the old literal in the constant and everything else staying
+    green.
+    """
+    assert app_module.DEFAULT_TOPIC.strip()
+    assert app_module.DEFAULT_TOPIC.lower() != "general"
 
 
 def test_the_line_agrees_with_what_the_cards_will_write(client, app_module,
