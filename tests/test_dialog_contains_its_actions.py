@@ -147,10 +147,15 @@ def test_the_caps_stay_caps(css):
 
     assert "max-height" not in shrink, "the fix must not touch the cap"
     assert "max-height: 65vh" in pane, "the shared cap"
-    assert "max-height: 58vh" in edit, (
-        "and the edit dialog's own, which is why its threshold is a ~366px "
-        "viewport and it was never reachable in practice (#227 owns its "
-        "sizing)")
+    # `.edit-fields` used to set `max-height: 58vh` here, and this asserted it
+    # -- with a message already admitting it "was never reachable in practice".
+    # #227 found out why: it tied with `.modal-scroll`'s 65vh and lost on file
+    # order, so the box has always rendered at 65. It was removed rather than
+    # made to win, because 58 is *shorter*, and the dialog's complaint was that
+    # it is cramped.
+    assert "max-height" not in edit, (
+        "the edit dialog takes the shared cap; its own could never win and was "
+        "smaller than what renders (#227)")
 
 
 def test_the_review_popup_keeps_its_own_arrangement(css):
