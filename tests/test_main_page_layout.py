@@ -51,11 +51,21 @@ def test_browsing_comes_before_looking_up(client, topics):
         "Look up a word", "Upload notes"]
 
 
-def test_browsing_comes_straight_after_the_welcome_caption(client, topics):
-    """Nothing is inserted between the title and the deck."""
+def test_browsing_is_the_first_thing_in_the_page(client, topics):
+    """Nothing is inserted above the deck (#184).
+
+    Anchored on the content region rather than on a caption: #208 moved the
+    greeting into the header and left the front page without one, and the old
+    split landed on the welcome popup's alt text instead -- which put two of
+    that popup's own headings inside the span being checked.
+    """
     body = client.get("/").get_data(as_text=True)
-    between = body.split("Welcome to KuantorFlow")[1].split("Browse flashcards")[0]
-    assert "<h2>" not in between, between[:400]
+    main = body.split("<main")[1].split("</main>")[0]
+    # The page's first **panel**, which is what #184 is about. Not simply the
+    # first heading in `main`: #372 renders two hidden dialogs above the
+    # content block, and their titles are headings too.
+    first_panel = main.split('class="panel"')[1]
+    assert "Browse flashcards" in first_panel[:200], first_panel[:400]
 
 
 def test_the_database_section_is_gone(client, topics):
