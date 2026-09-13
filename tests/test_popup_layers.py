@@ -133,3 +133,58 @@ def test_dialogs_shift_at_the_same_width_the_page_does(css_text):
     page = _media_min_width(css_text, "body.mykola-open .page")
     dialog = _media_min_width(css_text, "body.mykola-open .modal-overlay")
     assert page is not None and dialog == page
+
+
+# --- and out of the way entirely on a phone (kuantorflow#425) --------------
+
+
+def _media_max_width(css, needle):
+    """The `max-width` of the media query whose body contains `needle`."""
+    import re
+    for m in re.finditer(r"@media\s*\(max-width:\s*([\d.]+)px\)\s*\{", css):
+        depth, i = 1, m.end()
+        while depth and i < len(css):
+            depth += (css[i] == "{") - (css[i] == "}")
+            i += 1
+        if needle in css[m.end():i]:
+            return float(m.group(1))
+    return None
+
+
+def test_a_dialog_hides_the_widget_where_it_cannot_move_aside(css_text):
+    """#425: on a 375px screen the minimized chat bar sat across the review
+    popup's Add button and the edit popup's whole button row. Sideways is not
+    available there -- the panel is `min(340px, 100vw - 2rem)` wide."""
+    assert "body:has(.modal-overlay:not([hidden]))" in css_text
+
+
+def test_both_halves_of_the_widget_go(css_text):
+    """The launcher floats over the same corner as the panel, so hiding one
+    leaves the other on top of the buttons."""
+    import re
+    rule = re.search(
+        r"(body:has\(\.modal-overlay:not\(\[hidden\]\)\)[^{]*)\{([^}]*)\}",
+        css_text)
+    assert rule, "no hide rule"
+    assert "#mykola-panel" in rule.group(1)
+    assert "#mykola-launcher" in rule.group(1)
+    assert "display: none" in rule.group(2)
+
+
+def test_it_reads_the_dialogs_that_carry_no_hidden_attribute(css_text):
+    """`#dup-warning-modal` and `#proposal-modal` are rendered by Jinja only
+    when they are meant to be seen, so their presence *is* the open state. A
+    rule keyed on a class the scripts toggle would miss both."""
+    assert ":not([hidden])" in css_text
+    assert ".modal-overlay.is-open" not in css_text
+
+
+def test_hiding_starts_exactly_where_shifting_stops(css_text):
+    """The two rules are one policy: move the dialog aside where both fit, take
+    the widget away where they cannot. A gap between the breakpoints would be a
+    band of widths where neither happens -- which is the bug #425 reports."""
+    shift = _media_min_width(css_text, "body.mykola-open .modal-overlay")
+    hide = _media_max_width(css_text, "body:has(.modal-overlay")
+    assert shift is not None and hide is not None
+    assert hide < shift
+    assert shift - hide <= 1, "a width where the dialog neither moves nor clears"
