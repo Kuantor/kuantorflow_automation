@@ -20,6 +20,8 @@ Cyrillic fold is a fact about a stored translation and is tested where that
 belongs, in `test_quiz.py`.
 """
 
+import re
+
 import pytest
 from werkzeug.datastructures import MultiDict
 
@@ -203,4 +205,6 @@ def test_multiple_choice_does_not_forgive_a_hyphen(client, stub_deck):
     stub_deck(cards=[dict(CARDS[0], word="well-being")])
     body = client.post("/games/multiple_choice/play?topic=Work",
                        data={"answer_1": "well being"}).get_data(as_text=True)
-    assert "Score: 0 / 1" in body
+    # The score is read out rather than searched for, so a round that scored
+    # it 1 / 1 says so in the failure instead of reporting an absent string.
+    assert re.findall(r"Score: \d+ / \d+", body) == ["Score: 0 / 1"]
