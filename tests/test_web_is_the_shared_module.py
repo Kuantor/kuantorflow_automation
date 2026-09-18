@@ -38,6 +38,16 @@ MOVED = {
     "edit_refusal", "delete_refusal", "is_admin", "_current_user_id",
     "_identity_token", "cards_owner_filter", "viewer", "current_settings",
     "_sections_for_visitor", "_private_marks",
+    # The spending guards, which followed them (#418): the same question in the
+    # same shape -- may this visitor do this, and if not, what are they told --
+    # for the two actions that cost money.
+    "_lookup_refusal", "LOOKUP_ANON_LIMIT", "LOOKUP_USER_DAILY",
+    "LOOKUP_ANON_DAILY", "LOOKED_UP_COUNT_KEY", "LOOKUP_SIGN_IN_PROMPT",
+    "LOOKUP_USER_LIMIT_PROMPT", "LOOKUP_BUSY_PROMPT",
+    "_generation_refusal", "_generation_available", "GENERATION_ANON_LIMIT",
+    "GENERATION_USER_DAILY", "GENERATION_DAILY_LIMIT", "GENERATED_COUNT_KEY",
+    "GENERATION_SIGN_IN_PROMPT", "GENERATION_USER_LIMIT_PROMPT",
+    "GENERATION_BUSY_PROMPT",
 }
 
 

@@ -61,7 +61,7 @@ def test_an_anonymous_visitor_gets_their_free_words(client, providers,
     uploads). The lookup panel is the shop window: an empty one converts
     nobody, and somebody who has looked up three words and wants a fourth is
     exactly the person worth asking for an account."""
-    monkeypatch.setattr(app_module, "LOOKUP_ANON_LIMIT", 3)
+    monkeypatch.setattr("web.LOOKUP_ANON_LIMIT", 3)
 
     for word in ("one", "two", "three"):
         _look_up(client, word)
@@ -71,7 +71,7 @@ def test_an_anonymous_visitor_gets_their_free_words(client, providers,
 
 def test_and_then_the_sign_in_prompt(client, providers, app_module,
                                      monkeypatch):
-    monkeypatch.setattr(app_module, "LOOKUP_ANON_LIMIT", 1)
+    monkeypatch.setattr("web.LOOKUP_ANON_LIMIT", 1)
     _look_up(client, "one")
 
     body = _look_up(client, "two")
@@ -87,7 +87,7 @@ def test_the_nudge_is_a_cookie_and_the_ceiling_is_not(client, providers,
     here: clearing cookies resets the nudge. That is fine, and saying so is
     what stops somebody mistaking it for a spend cap -- the daily row below is
     the thing that bounds the bill."""
-    monkeypatch.setattr(app_module, "LOOKUP_ANON_LIMIT", 1)
+    monkeypatch.setattr("web.LOOKUP_ANON_LIMIT", 1)
     _look_up(client, "one")
     _look_up(client, "two")
     assert providers == ["one"]

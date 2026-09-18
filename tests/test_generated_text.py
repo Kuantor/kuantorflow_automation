@@ -59,7 +59,7 @@ def no_ceilings(app_module, monkeypatch):
     this themselves; every other test would otherwise write to a real one."""
     monkeypatch.setattr("utils.claim_text_generation",
                         lambda user_id, user_limit, daily: (True, None, 1))
-    monkeypatch.setattr(app_module, "GENERATION_ANON_LIMIT", 0)
+    monkeypatch.setattr("web.GENERATION_ANON_LIMIT", 0)
 
 
 @pytest.fixture()
@@ -362,7 +362,7 @@ def test_the_models_own_paragraphs_still_survive(client, deck, monkeypatch,
 
 def test_an_anonymous_visitor_gets_one_text_then_the_sign_in_prompt(
         client, deck, claude, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "GENERATION_ANON_LIMIT", 1)
+    monkeypatch.setattr("web.GENERATION_ANON_LIMIT", 1)
     _write(client)
     body = _write(client, about="something else").get_data(as_text=True)
     assert len(claude) == 1, "the refused text must not reach the model"
@@ -376,7 +376,7 @@ def test_a_refusal_keeps_the_text_the_learner_already_has(
         client, deck, claude, app_module, monkeypatch):
     """Being told you cannot have a second text is no reason to lose the
     first."""
-    monkeypatch.setattr(app_module, "GENERATION_ANON_LIMIT", 1)
+    monkeypatch.setattr("web.GENERATION_ANON_LIMIT", 1)
     _write(client)
     body = _write(client, about="something else").get_data(as_text=True)
     assert "she had resigned" in _passage(body)
