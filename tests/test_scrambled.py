@@ -132,7 +132,7 @@ def test_the_round_length_follows_the_word_count(client, deck):
 
 def test_a_selection_with_nothing_scrambleable_says_so(client, app_module,
                                                        monkeypatch, deck):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topics",
+    monkeypatch.setattr("utils.get_flashcards_by_topics",
                         lambda topics, owner_id=None, **kw: [dict(CARDS[3]),
                                                        dict(CARDS[4])])
     body = client.get("/games/scrambled/play?topic=Work").get_data(as_text=True)

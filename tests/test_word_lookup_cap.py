@@ -105,7 +105,7 @@ def test_the_nudge_is_a_cookie_and_the_ceiling_is_not(client, providers,
 
 def test_an_account_past_its_day_is_told_signing_in_will_not_help(
         user_client, providers, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "claim_word_lookup",
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda *a: (False, "user", 50))
 
     body = _look_up(user_client)
@@ -121,7 +121,7 @@ def test_the_anonymous_ceiling_offers_a_way_past_it(client, providers,
                                                     app_module, monkeypatch):
     """Unlike the account ceiling, this one *is* answered by signing in --
     an account has a ceiling of its own."""
-    monkeypatch.setattr(app_module, "claim_word_lookup",
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda *a: (False, "anonymous", 300))
 
     body = _look_up(client)
@@ -136,7 +136,7 @@ def test_a_signed_in_learner_is_claimed_against_their_own_row(
     learner on their own, so a day of anonymous abuse leaves the people who
     signed up with everything they had."""
     claimed = []
-    monkeypatch.setattr(app_module, "claim_word_lookup",
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda user_id, user_limit, anon_limit:
                         claimed.append((user_id, user_limit, anon_limit))
                         or (True, None, 1))
@@ -171,7 +171,7 @@ def test_a_dead_counter_does_not_take_the_lookup_down(client, providers,
     def boom(*a):
         raise RuntimeError("database is away")
 
-    monkeypatch.setattr(app_module, "claim_word_lookup", boom)
+    monkeypatch.setattr("utils.claim_word_lookup", boom)
 
     _look_up(client)
 
@@ -185,8 +185,8 @@ def test_the_duplicate_warning_costs_nothing(client, providers, app_module,
     """#145 asks before the lookup, so a word the learner has not decided about
     yet must not take one of their three -- they have not looked anything up."""
     claimed = []
-    monkeypatch.setattr(app_module, "flashcard_word_exists", lambda word: True)
-    monkeypatch.setattr(app_module, "claim_word_lookup",
+    monkeypatch.setattr("utils.flashcard_word_exists", lambda word: True)
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda *a: claimed.append(a) or (True, None, 1))
 
     body = client.post("/", data={"action": "parse_word", "word": "resilient",
@@ -199,7 +199,7 @@ def test_the_duplicate_warning_costs_nothing(client, providers, app_module,
 def test_a_word_that_was_not_typed_costs_nothing(client, app_module,
                                                  monkeypatch):
     claimed = []
-    monkeypatch.setattr(app_module, "claim_word_lookup",
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda *a: claimed.append(a) or (True, None, 1))
 
     client.post("/", data={"action": "parse_word", "word": "  ",
@@ -213,7 +213,7 @@ def test_a_refusal_is_claimed_once_not_twice(client, app_module, monkeypatch):
     ask it once and keep the answer. Asking again to decide how to render the
     refusal would take a second slot for a lookup that never happened."""
     calls = []
-    monkeypatch.setattr(app_module, "claim_word_lookup",
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda *a: calls.append(a) or (True, None, 1))
 
     _look_up(client)
@@ -228,7 +228,7 @@ def test_the_edit_dialogs_lookup_is_capped_too(user_client, providers,
     """#191's *Look up & update* spends the same providers on the same key.
     Leaving it out would not be a smaller cap -- it would be a hole in the
     account ceiling, reachable from every card page."""
-    monkeypatch.setattr(app_module, "claim_word_lookup",
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda *a: (False, "user", 50))
 
     response = user_client.post("/lookup.json", json={"word": "resilient"})

@@ -123,7 +123,7 @@ STORED = {
 }
 
 
-def test_a_later_lookup_fills_the_empty_columns(monkeypatch):
+def test_a_later_lookup_fills_the_empty_columns(monkeypatch, real_utils):
     cursor, conn = fake_card_db(monkeypatch, duplicate=dict(STORED))
 
     filled = utils.fill_missing_fields({
@@ -151,7 +151,7 @@ def test_a_column_that_holds_something_is_never_overwritten(monkeypatch):
     assert not [q for q, _ in cursor.queries if q.startswith("UPDATE")]
 
 
-def test_an_empty_json_list_counts_as_empty(monkeypatch):
+def test_an_empty_json_list_counts_as_empty(monkeypatch, real_utils):
     """`examples_en` is stored as JSON, so a card that never had examples holds
     the two-character string `[]` rather than NULL — and looks full to a plain
     IS NULL test."""
@@ -191,9 +191,9 @@ def test_a_filled_duplicate_is_still_not_a_save(
     """**A fill is not a save.** Returning True here would put the app back
     where #308 was, with Mykola confirming a card that was never written.
     """
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
-    monkeypatch.setattr(app_module, "fill_missing_fields",
+    monkeypatch.setattr("utils.fill_missing_fields",
                         lambda entry: ["translation_ukr"])
 
     # A session with an identity: `_save_and_log()` refuses an anonymous

@@ -25,7 +25,7 @@ def stored_names(app_module, monkeypatch):
         calls.append((user_id, name))
         return True
 
-    monkeypatch.setattr(app_module, "set_preferred_name", fake)
+    monkeypatch.setattr("utils.set_preferred_name", fake)
     return calls
 
 
@@ -70,7 +70,7 @@ def test_clearing_stores_none(app_module, stored_names):
 
 
 def test_a_missing_account_is_reported_not_swallowed(app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "set_preferred_name",
+    monkeypatch.setattr("utils.set_preferred_name",
                         lambda user_id, name: False)
     ctx = _signed_in(app_module)
     try:

@@ -41,7 +41,7 @@ def test_sign_in_records_the_user(client, app_module, monkeypatch):
         return 7, None
 
     _google(app_module, monkeypatch, CLAIMS)
-    monkeypatch.setattr(app_module, "upsert_user", fake_upsert)
+    monkeypatch.setattr("utils.upsert_user", fake_upsert)
 
     resp = client.get("/auth/google/callback")
     assert resp.status_code == 302
@@ -64,7 +64,7 @@ def test_sign_in_survives_a_dead_database(client, app_module, monkeypatch):
         raise RuntimeError("db unreachable")
 
     _google(app_module, monkeypatch, CLAIMS)
-    monkeypatch.setattr(app_module, "upsert_user", boom)
+    monkeypatch.setattr("utils.upsert_user", boom)
 
     resp = client.get("/auth/google/callback")
     assert resp.status_code == 302
@@ -77,7 +77,7 @@ def test_placeholder_name_is_never_stored(client, app_module, monkeypatch):
     """'there' is a rendering placeholder, not somebody's name."""
     recorded = {}
     _google(app_module, monkeypatch, {"sub": "s", "email": "nameless@example.com"})
-    monkeypatch.setattr(app_module, "upsert_user",
+    monkeypatch.setattr("utils.upsert_user",
                         lambda sub, email, **c: recorded.update(c) or (1, None))
 
     client.get("/auth/google/callback")
@@ -92,7 +92,7 @@ def test_blank_claims_become_null(client, app_module, monkeypatch):
     _google(app_module, monkeypatch,
             {"sub": "s", "email": "x@example.com", "name": "  ",
              "given_name": "", "family_name": "   "})
-    monkeypatch.setattr(app_module, "upsert_user",
+    monkeypatch.setattr("utils.upsert_user",
                         lambda sub, email, **c: recorded.update(c) or (1, None))
 
     client.get("/auth/google/callback")
@@ -104,7 +104,7 @@ def test_sign_in_without_a_subject_is_not_recorded(client, app_module, monkeypat
     the visitor should still get in rather than see an error."""
     called = []
     _google(app_module, monkeypatch, {"email": "x@example.com", "name": "X"})
-    monkeypatch.setattr(app_module, "upsert_user",
+    monkeypatch.setattr("utils.upsert_user",
                         lambda *a, **k: called.append(1) or (1, None))
 
     resp = client.get("/auth/google/callback")

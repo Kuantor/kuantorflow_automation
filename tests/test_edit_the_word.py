@@ -202,7 +202,7 @@ def deck(app_module, monkeypatch):
                     for word, _pos in pairs]
 
     state = Deck()
-    monkeypatch.setattr(app_module, "find_saved_words", state, raising=False)
+    monkeypatch.setattr("utils.find_saved_words", state, raising=False)
     return state
 
 
@@ -269,7 +269,7 @@ def test_a_dead_database_answers_unknown_rather_than_failing(user_client,
     def boom(pairs):
         raise RuntimeError("MySQL has gone away")
 
-    monkeypatch.setattr(app_module, "find_saved_words", boom, raising=False)
+    monkeypatch.setattr("utils.find_saved_words", boom, raising=False)
 
     body = user_client.post("/saved.json", json={"word": "distinct"}).get_json()
 

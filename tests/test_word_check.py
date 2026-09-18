@@ -188,9 +188,9 @@ def checker(app_module, monkeypatch):
 
     state = Checker()
     monkeypatch.setattr(app_module.parsers, "confirm_word", state.confirm)
-    monkeypatch.setattr(app_module, "remember_confirmed_word", state.remember,
+    monkeypatch.setattr("utils.remember_confirmed_word", state.remember,
                         raising=False)
-    monkeypatch.setattr(app_module, "confirmed_words", lambda: set(),
+    monkeypatch.setattr("utils.confirmed_words", lambda: set(),
                         raising=False)
     return state
 
@@ -218,7 +218,7 @@ def test_a_settled_word_asks_nobody(user_client, app_module, monkeypatch,
                                     checker):
     """A second learner disputing the same word pays nothing, and the answer
     cannot change between rounds."""
-    monkeypatch.setattr(app_module, "confirmed_words",
+    monkeypatch.setattr("utils.confirmed_words",
                         lambda: {"bailment"}, raising=False)
 
     body = user_client.post("/games/word-check.json",
@@ -275,7 +275,7 @@ def test_the_round_rejects_words_already_confirmed(user_client, app_module,
     learner is marked wrong for it a second time."""
     stub_deck(cards=[{"id": 1, "word": "resilient", "topic": "Work",
                       "explanation_en": "able to recover quickly"}])
-    monkeypatch.setattr(app_module, "confirmed_words",
+    monkeypatch.setattr("utils.confirmed_words",
                         lambda: {"bailment"}, raising=False)
     known = {}
 

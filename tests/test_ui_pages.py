@@ -12,7 +12,7 @@ def _meta(body, prop, attr="property"):
 
 def test_topic_tiles(client, app_module, monkeypatch):
     """Each topic is a tile linking to it, with its card count (#184)."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(
                             [("basics", 12), ("it-vocab", 5)]))
     body = client.get("/").get_data(as_text=True)
@@ -28,7 +28,7 @@ def test_no_topics_hint(client):
 def test_page_survives_db_failure(client, app_module, monkeypatch):
     def boom(owner_id=None):
         raise RuntimeError("db down")
-    monkeypatch.setattr(app_module, "get_topics_by_section", boom)
+    monkeypatch.setattr("utils.get_topics_by_section", boom)
     r = client.get("/")
     assert r.status_code == 200
     assert "No topics yet" in r.get_data(as_text=True)
@@ -78,7 +78,7 @@ def test_proxyfix_makes_absolute_https_urls(client):
 
 
 def test_page_specific_titles_in_og_title(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic, owner_id=None, **kw: [])
+    monkeypatch.setattr("utils.get_flashcards_by_topic", lambda topic, owner_id=None, **kw: [])
     body = client.get("/flashcards/basics").get_data(as_text=True)
     assert "basics" in _meta(body, "og:title")
 

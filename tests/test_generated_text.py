@@ -57,7 +57,7 @@ def has_key(monkeypatch):
 def no_ceilings(app_module, monkeypatch):
     """No database behind the daily counters. Tests about the ceilings patch
     this themselves; every other test would otherwise write to a real one."""
-    monkeypatch.setattr(app_module, "claim_text_generation",
+    monkeypatch.setattr("utils.claim_text_generation",
                         lambda user_id, user_limit, daily: (True, None, 1))
     monkeypatch.setattr(app_module, "GENERATION_ANON_LIMIT", 0)
 
@@ -384,7 +384,7 @@ def test_a_refusal_keeps_the_text_the_learner_already_has(
 
 def test_the_daily_account_ceiling_says_so_plainly(client, deck, claude,
                                                    app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "claim_text_generation",
+    monkeypatch.setattr("utils.claim_text_generation",
                         lambda *a: (False, "user", 10))
     body = _write(client).get_data(as_text=True)
     assert claude == []
@@ -394,7 +394,7 @@ def test_the_daily_account_ceiling_says_so_plainly(client, deck, claude,
 
 def test_the_site_wide_ceiling_says_so_plainly(client, deck, claude,
                                                app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "claim_text_generation",
+    monkeypatch.setattr("utils.claim_text_generation",
                         lambda *a: (False, "daily", 100))
     body = _write(client).get_data(as_text=True)
     assert claude == []
@@ -416,7 +416,7 @@ def test_a_dead_counter_does_not_take_the_activity_down(client, deck, claude,
     def boom(*a):
         raise RuntimeError("database is away")
 
-    monkeypatch.setattr(app_module, "claim_text_generation", boom)
+    monkeypatch.setattr("utils.claim_text_generation", boom)
     assert "she had resigned" in _passage(_write(client).get_data(as_text=True))
 
 

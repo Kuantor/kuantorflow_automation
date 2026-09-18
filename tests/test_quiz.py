@@ -19,9 +19,9 @@ def quiz_client(user_client, app_module, monkeypatch):
     # The quiz reads through the several-topic function since kuantorflow#250
     # -- /quiz/<topic> is that function with a list of one -- so the stub goes
     # on the plural. The singular stays stubbed for anything else on the page.
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(c) for c in CARDS])
-    monkeypatch.setattr(app_module, "get_flashcards_by_topics",
+    monkeypatch.setattr("utils.get_flashcards_by_topics",
                         lambda topics, owner_id=None, **kw: [dict(c) for c in CARDS])
     return user_client
 
@@ -93,7 +93,7 @@ def test_wrong_answers_reveal_expected(quiz_client):
 
 
 def test_empty_topic_message(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topics",
+    monkeypatch.setattr("utils.get_flashcards_by_topics",
                         lambda topics, owner_id=None, **kw: [])
     body = client.get("/quiz/empty").get_data(as_text=True)
     assert "nothing to quiz on" in body

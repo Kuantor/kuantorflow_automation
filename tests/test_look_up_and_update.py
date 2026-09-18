@@ -210,7 +210,7 @@ def _edit_dialog(user_client, app_module, monkeypatch):
             "explanation_en": "", "translation_ukr": "стійкий",
             "translation_rus": "", "examples_en": ["An old example."],
             "examples_ukr": [], "examples_rus": []}
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(card)])
     return user_client.get("/flashcards/character").get_data(as_text=True)
 

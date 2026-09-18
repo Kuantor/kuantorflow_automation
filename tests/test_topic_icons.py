@@ -101,7 +101,7 @@ def test_a_tile_with_an_icon_carries_the_image_and_the_modifier(
         client, app_module, monkeypatch):
     _icons(app_module, monkeypatch, "work_and_careers",
            "daily_life_and_routines")
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
 
     body = client.get("/").get_data(as_text=True)
@@ -118,8 +118,7 @@ def test_a_tile_without_an_icon_has_no_image_at_all(client, app_module,
     """Not an empty src, not a placeholder — no element. A broken-image icon on
     every topic in `Other` would be worse than the plain tile."""
     _icons(app_module, monkeypatch, "work_and_careers")
-    monkeypatch.setattr(
-        app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
         lambda owner_id=None, alphabetical=False, **kw: in_other([("Work and careers", 20),
                                         ("luck and chance", 1)]))
 
@@ -136,7 +135,7 @@ def test_the_image_is_decorative(client, app_module, monkeypatch):
     """An empty alt, on purpose: the topic's name is already on the tile as
     text, so describing the picture would only repeat it to a screen reader."""
     _icons(app_module, monkeypatch, "work_and_careers")
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([("Work and careers", 20)]))
 
     body = client.get("/").get_data(as_text=True)
@@ -149,7 +148,7 @@ def test_the_caption_still_follows_the_image(client, app_module, monkeypatch):
     """Order in the markup is what puts the caption above the scrim. Reversed,
     the name would be painted under it and vanish."""
     _icons(app_module, monkeypatch, "work_and_careers")
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([("Work and careers", 20)]))
 
     inner = _tiles(client.get("/").get_data(as_text=True))[0][1]
@@ -164,9 +163,9 @@ def test_topics_json_carries_an_icon_map(client, app_module, monkeypatch):
     `get_topics_by_section()` returns and what the move dialog reads; widening
     it would push presentation into the database layer."""
     _icons(app_module, monkeypatch, "work_and_careers")
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None, **kw: TOPICS)
+    monkeypatch.setattr("utils.get_topics", lambda owner_id=None, **kw: TOPICS)
 
     data = client.get("/topics.json").get_json()
 
@@ -181,7 +180,7 @@ def test_a_topic_with_no_icon_is_absent_from_the_map(client, app_module,
     """Absent rather than mapped to null, so the JavaScript's `if (iconUrl)`
     reads the same either way and no tile gets an <img> with a null src."""
     _icons(app_module, monkeypatch)
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
 
     assert client.get("/topics.json").get_json()["icons"] == {}

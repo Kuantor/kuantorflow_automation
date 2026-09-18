@@ -185,13 +185,13 @@ def moved(app_module, monkeypatch):
                       "admin": admin})
         return "moved", ("resilient", "vocab")
 
-    monkeypatch.setattr(app_module, "move_flashcard", fake)
-    monkeypatch.setattr(app_module, "get_topics",
+    monkeypatch.setattr("utils.move_flashcard", fake)
+    monkeypatch.setattr("utils.get_topics",
                         lambda owner_id=None, **kw: [("vocab", 1), ("character", 3)])
     # Following a redirect renders the topic page, which would otherwise read
     # the real database — local MySQL is reachable, so "offline" is a property
     # of the fixtures, not the network.
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(CARD)])
     return calls
 
@@ -267,7 +267,7 @@ def test_a_move_out_of_no_topic_logs_no_origin(user_client, app_module,
                                                monkeypatch, moved, action_logs):
     """"No topic" is a real state (#207), so the field is absent rather than
     empty — the same way every other None is dropped from a line."""
-    monkeypatch.setattr(app_module, "move_flashcard",
+    monkeypatch.setattr("utils.move_flashcard",
                         lambda card_id, to_topic, owner_id=None, admin=False:
                         ("moved", ("resilient", None)))
 
@@ -285,9 +285,9 @@ def test_a_forged_move_of_someone_elses_card_is_refused(user_client,
                                                         action_logs):
     """The control is greyed, but that is presentation — this is the part
     that holds."""
-    monkeypatch.setattr(app_module, "move_flashcard",
+    monkeypatch.setattr("utils.move_flashcard",
                         lambda *a, **k: ("denied", None))
-    monkeypatch.setattr(app_module, "get_topics",
+    monkeypatch.setattr("utils.get_topics",
                         lambda owner_id=None, **kw: [("vocab", 1)])
     resp = user_client.post("/flashcards/vocab/move/5",
                             data={"to_topic": "character"},
@@ -310,7 +310,7 @@ def test_emptying_a_topic_sends_the_user_to_the_topic_list(user_client,
                                                            monkeypatch, moved):
     """The topic has just ceased to exist — there is no topics table — so the
     page they came from would be empty and its chip gone."""
-    monkeypatch.setattr(app_module, "get_topics",
+    monkeypatch.setattr("utils.get_topics",
                         lambda owner_id=None, **kw: [("character", 4)])
     resp = _move(user_client)
     assert resp.headers["Location"] in ("/", "http://localhost/")
@@ -320,7 +320,7 @@ def test_a_dead_database_leaves_them_where_they_were(user_client, app_module,
                                                      monkeypatch, moved):
     def boom(owner_id=None):
         raise RuntimeError("database is down")
-    monkeypatch.setattr(app_module, "get_topics", boom)
+    monkeypatch.setattr("utils.get_topics", boom)
     resp = _move(user_client)
     assert resp.headers["Location"].endswith("/flashcards/vocab")
 
@@ -331,7 +331,7 @@ def test_a_dead_database_leaves_them_where_they_were(user_client, app_module,
 def test_the_move_control_is_rendered_for_your_own_card(user_client,
                                                         app_module,
                                                         monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(CARD)])
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
     marker = body[body.index('class="card-move"'):]
@@ -341,7 +341,7 @@ def test_the_move_control_is_rendered_for_your_own_card(user_client,
 def test_the_move_control_is_greyed_for_someone_elses_card(user_client,
                                                            app_module,
                                                            monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [
                             dict(CARD, added_by_user_id=99)])
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
@@ -356,9 +356,9 @@ def test_the_topic_page_does_not_query_the_topic_list(user_client, app_module,
     """Suggestions are fetched from /topics.json only when the dialog opens,
     so a page everyone loads does not pay for a feature few use."""
     calls = []
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(CARD)])
-    monkeypatch.setattr(app_module, "get_topics",
+    monkeypatch.setattr("utils.get_topics",
                         lambda owner_id=None, **kw: calls.append(owner_id) or [])
     user_client.get("/flashcards/vocab")
     assert calls == []

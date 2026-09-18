@@ -462,7 +462,7 @@ def test_a_new_explanation_may_bring_its_own_credit(monkeypatch):
     assert "wiktionary" in params
 
 
-def test_a_gap_filled_by_a_later_lookup_is_credited(monkeypatch):
+def test_a_gap_filled_by_a_later_lookup_is_credited(monkeypatch, real_utils):
     """#349's repair path writes an explanation, so it writes a credit."""
     cursor, _ = fake_card_db(monkeypatch, duplicate={
         "id": 7, "explanation_en": None, "examples_en": None,
@@ -480,7 +480,7 @@ def test_a_gap_filled_by_a_later_lookup_is_credited(monkeypatch):
     assert "wiktionary" in params
 
 
-def test_a_credit_is_never_filled_on_its_own(monkeypatch):
+def test_a_credit_is_never_filled_on_its_own(monkeypatch, real_utils):
     """The sharp edge of a repair that fills only empty columns: a card that
     already holds Oxford's sentence and no credit must not be handed
     Wiktionary's name for it."""

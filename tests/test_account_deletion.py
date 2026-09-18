@@ -139,8 +139,8 @@ def account(app_module, monkeypatch, chat_logs, settings_dir):
         order.append(("row", user_id))
         return True
 
-    monkeypatch.setattr(app_module, "resolve_user_cards", fake_resolve)
-    monkeypatch.setattr(app_module, "delete_user", fake_delete_user)
+    monkeypatch.setattr("utils.resolve_user_cards", fake_resolve)
+    monkeypatch.setattr("utils.delete_user", fake_delete_user)
 
     log_dir = chat_logs / str(DELETED_USER)
     log_dir.mkdir(parents=True)
@@ -177,8 +177,8 @@ def test_the_card_choice_is_passed_through(app_module, account):
 def test_a_user_with_no_files_still_deletes(app_module, monkeypatch, chat_logs,
                                             settings_dir):
     """Never saved settings, never chatted — not a failure."""
-    monkeypatch.setattr(app_module, "resolve_user_cards", lambda *a, **k: 0)
-    monkeypatch.setattr(app_module, "delete_user", lambda uid: True)
+    monkeypatch.setattr("utils.resolve_user_cards", lambda *a, **k: 0)
+    monkeypatch.setattr("utils.delete_user", lambda uid: True)
     result = app_module.delete_account(99, keep_cards=True)
     assert result["row"] is True
     assert result["settings"] is False and result["logs"] is False

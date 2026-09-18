@@ -138,7 +138,7 @@ def test_the_sign_in_stores_the_claim(client, app_module, monkeypatch, claim,
     import types
 
     monkeypatch.setattr(app_module, "GOOGLE_AUTH_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "upsert_user",
+    monkeypatch.setattr("utils.upsert_user",
                         lambda *a, **k: (1, None))
     info = {"sub": "s1", "email": ADMIN, "name": "Admin",
             "email_verified": claim}

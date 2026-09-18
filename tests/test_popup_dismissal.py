@@ -58,7 +58,7 @@ def popup(client, app_module, monkeypatch):
 @pytest.fixture()
 def warning(client, app_module, monkeypatch):
     """The page as it looks with the duplicate-word warning open (#145)."""
-    monkeypatch.setattr(app_module, "flashcard_word_exists", lambda w: True)
+    monkeypatch.setattr("utils.flashcard_word_exists", lambda w: True)
     return client.post("/", data={"action": "parse_word", "word": "probability",
                                   "topic": "vocab"}).get_data(as_text=True)
 

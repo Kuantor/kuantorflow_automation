@@ -24,7 +24,7 @@ TOPICS = [("basics", 12), ("it-vocab", 5), ("solo", 1)]
 @pytest.fixture()
 def topics(app_module, monkeypatch):
     # Grouped since #218; `in_other` files them the way a real database does.
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
     return TOPICS
 
@@ -137,7 +137,7 @@ def test_a_topic_page_is_still_reachable_by_url(client, topics, app_module,
                                                  monkeypatch):
     """#290 removed a way in, not the page — and the tiles, Mykola and any
     bookmark all still point at it."""
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda *a, **k: [])
     assert client.get("/flashcards/basics").status_code == 200
 
@@ -148,7 +148,7 @@ def test_the_empty_states_are_unchanged(client, app_module, monkeypatch):
     # Both sections present but empty — the shape a real database returns for
     # a deck with no cards, which #218 must still answer with the hint rather
     # than with two bare headings.
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     body = client.get("/").get_data(as_text=True)
     assert "No topics yet" in body
@@ -200,7 +200,7 @@ def test_the_button_works_for_anonymous_visitors(client):
 
 def test_the_button_is_on_every_page_not_just_the_index(client, app_module,
                                                         monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [])
     body = client.get("/flashcards/basics").get_data(as_text=True)
     assert 'id="test-db-btn"' in body
@@ -210,7 +210,7 @@ def test_a_reachable_database_answers_ok(client, app_module, monkeypatch):
     class FakeConn:
         def close(self):
             pass
-    monkeypatch.setattr(app_module, "get_db_connection", FakeConn)
+    monkeypatch.setattr("utils.get_db_connection", FakeConn)
     resp = client.post("/db/test")
     assert resp.status_code == 200
     assert resp.get_json() == {"ok": True}
@@ -221,7 +221,7 @@ def test_an_unreachable_database_answers_why(client, app_module, monkeypatch):
     error — so it is still a 200 and the popup can show the reason."""
     def boom():
         raise RuntimeError("db down")
-    monkeypatch.setattr(app_module, "get_db_connection", boom)
+    monkeypatch.setattr("utils.get_db_connection", boom)
     resp = client.post("/db/test")
     assert resp.status_code == 200
     body = resp.get_json()
@@ -234,9 +234,9 @@ def test_the_check_never_redirects(client, app_module, monkeypatch):
     redirect would drop the visitor onto the index from wherever they were."""
     def boom():
         raise RuntimeError("db down")
-    monkeypatch.setattr(app_module, "get_db_connection", boom)
+    monkeypatch.setattr("utils.get_db_connection", boom)
     for stub in (boom, lambda: type("C", (), {"close": lambda self: None})()):
-        monkeypatch.setattr(app_module, "get_db_connection", stub)
+        monkeypatch.setattr("utils.get_db_connection", stub)
         assert client.post("/db/test").status_code == 200
 
 

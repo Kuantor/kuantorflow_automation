@@ -40,7 +40,7 @@ def sections(app_module, monkeypatch):
     """One topic in the curriculum section, two in Other."""
     grouped = [(CURRICULUM_SECTION, [("environment", 4)]),
                ("Other", list(TOPICS))]
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: grouped)
     return grouped
 
@@ -102,7 +102,7 @@ def test_an_empty_section_gets_a_plain_heading_and_no_fold(client, app_module,
                                                             monkeypatch):
     """#218 keeps the heading for a section with no topics — it says what the
     deck is going to be. A disclosure there would offer to reveal nothing."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
     panel = _browse(client.get("/").get_data(as_text=True))
 
@@ -118,7 +118,7 @@ def test_the_section_name_is_what_identifies_a_fold(client, app_module,
     """`data-section` is the key the fold state is stored under, so it carries
     the name as it is — including a quote, which would otherwise break out of
     the attribute and take the rest of the panel with it."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: [('Ann\'s "shelf"', [("a", 1)])])
     panel = _browse(client.get("/").get_data(as_text=True))
     assert 'data-section="Ann&#39;s &#34;shelf&#34;"' in panel
@@ -127,7 +127,7 @@ def test_the_section_name_is_what_identifies_a_fold(client, app_module,
 
 def test_an_empty_deck_still_says_so(client, app_module, monkeypatch):
     """No headings, no folds, one sentence — #218's rule, unchanged."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     panel = _browse(client.get("/").get_data(as_text=True))
     assert "topic-fold" not in panel
@@ -153,7 +153,7 @@ def test_it_is_not_loaded_on_pages_without_the_panel(client, app_module,
                                                      monkeypatch):
     """It is the index page's script, not the site's: nothing else renders
     this block, and base.html carries enough already."""
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda *a, **k: [])
     body = client.get("/flashcards/basics").get_data(as_text=True)
     assert "browse_folds.js" not in body

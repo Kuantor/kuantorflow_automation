@@ -24,12 +24,12 @@ ENTRY = {"word": "aspiration", "pos": "noun", "topic": "emotions"}
 @pytest.fixture()
 def skipped(app_module, monkeypatch):
     """save_flashcard() reporting a duplicate — the None that started it all."""
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
-    monkeypatch.setattr(app_module, "duplicate_topic",
+    monkeypatch.setattr("utils.duplicate_topic",
                         lambda word, pos: "psychology")
     # Visible to this learner: their own card, so #186 stays quiet.
-    monkeypatch.setattr(app_module, "find_duplicate",
+    monkeypatch.setattr("utils.find_duplicate",
                         lambda word, pos, exclude_id=None: (9, TEST_USER_ID))
 
 
@@ -66,7 +66,7 @@ def test_a_hidden_duplicate_is_explained_rather_than_located(app_module,
     else and #127 hides it, so its topic is not ours to name — naming it would
     send them looking through a deck they cannot see, and leak where another
     account files its cards."""
-    monkeypatch.setattr(app_module, "find_duplicate",
+    monkeypatch.setattr("utils.find_duplicate",
                         lambda word, pos, exclude_id=None: (9, 99))
     monkeypatch.setattr(app_module, "current_settings",
                         lambda: {"individual_cards": True, "quiz_lang": "ukr"})
@@ -91,7 +91,7 @@ def test_a_dead_database_still_corrects_the_claim(app_module, monkeypatch,
     def boom(word, pos):
         raise RuntimeError("database is down")
 
-    monkeypatch.setattr(app_module, "duplicate_topic", boom)
+    monkeypatch.setattr("utils.duplicate_topic", boom)
     with pytest.raises(Exception) as excinfo:
         _save(app_module)
     assert "already saved" in str(excinfo.value).lower()

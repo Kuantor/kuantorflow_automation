@@ -108,7 +108,7 @@ def test_the_automatic_add_path_is_refused(blocked_client, app_module,
 def test_deleting_a_card_is_refused(blocked_client, app_module, monkeypatch):
     """Their own card, which they could delete before the block (#162)."""
     deleted = []
-    monkeypatch.setattr(app_module, "delete_flashcard",
+    monkeypatch.setattr("utils.delete_flashcard",
                         lambda *a, **k: deleted.append(a) or ("resilient", "deleted"))
     resp = blocked_client.post("/flashcards/character/delete/1",
                                follow_redirects=True)
@@ -122,7 +122,7 @@ def test_the_delete_cross_is_greyed_with_the_reason(blocked_client, app_module,
     """Read off the cross itself, not the page: a blocked visitor's page also
     carries the Settings notice, so `"blocked" in body` would prove nothing."""
     monkeypatch.setattr(app_module, "ADMIN_EMAILS", {"admin@example.com"})
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(STORED_CARD)])
     body = blocked_client.get("/flashcards/character").get_data(as_text=True)
     cross = body[body.index('class="card-delete"'):]
@@ -139,7 +139,7 @@ def test_a_blocked_admin_cannot_delete_either(blocked_client, app_module,
     monkeypatch.setattr(app_module, "ADMIN_EMAILS", {TEST_USER_EMAIL})
     with blocked_client.session_transaction() as sess:
         sess["user"]["email_verified"] = True
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(STORED_CARD, added_by_user_id=99)])
     with app_module.app.test_request_context("/"):
         session["user"] = {"id": TEST_USER_ID, "email": TEST_USER_EMAIL,
@@ -205,7 +205,7 @@ def test_mykola_cannot_save_a_card_for_them(app_module, saved, block_state):
 @pytest.mark.parametrize("path", ["/", "/flashcards/character",
                                   "/deck/character", "/quiz/character"])
 def test_reading_pages_stay_open(blocked_client, app_module, monkeypatch, path):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(STORED_CARD)])
     assert blocked_client.get(path).status_code == 200
 
@@ -276,7 +276,7 @@ def test_the_block_is_read_once_per_request(user_client, app_module,
     """Cached in `g`: the widget, the pages and the save routes all ask, and
     one page must not become one query per question."""
     calls = []
-    monkeypatch.setattr(app_module, "get_user_block",
+    monkeypatch.setattr("utils.get_user_block",
                         lambda user_id: calls.append(user_id) or None)
     user_client.get("/")
     assert len(calls) == 1
@@ -286,7 +286,7 @@ def test_an_anonymous_visitor_is_never_looked_up(client, app_module,
                                                  monkeypatch):
     """There is no account to block, so there is nothing to ask the database."""
     calls = []
-    monkeypatch.setattr(app_module, "get_user_block",
+    monkeypatch.setattr("utils.get_user_block",
                         lambda user_id: calls.append(user_id) or None)
     client.get("/")
     assert calls == [] or calls == [None]
@@ -298,7 +298,7 @@ def test_a_dead_database_does_not_lock_the_site(user_client, app_module,
     is visible, rather than every signed-in visitor being treated as blocked."""
     def boom(user_id):
         raise RuntimeError("database is down")
-    monkeypatch.setattr(app_module, "get_user_block", boom)
+    monkeypatch.setattr("utils.get_user_block", boom)
     assert user_client.post("/cards/add", data=dict(CARD_FORM)).status_code == 200
 
 

@@ -256,7 +256,7 @@ def edited(app_module, monkeypatch):
                       "admin": admin})
         return calls[-1].get("result", ("updated", sorted(entry)))
 
-    monkeypatch.setattr(app_module, "update_flashcard", fake)
+    monkeypatch.setattr("utils.update_flashcard", fake)
     return calls
 
 
@@ -313,7 +313,7 @@ def test_a_field_absent_from_the_form_is_absent_from_the_entry(user_client,
 def test_a_refused_rename_is_a_409_naming_the_other_card(user_client,
                                                          app_module,
                                                          monkeypatch):
-    monkeypatch.setattr(app_module, "update_flashcard",
+    monkeypatch.setattr("utils.update_flashcard",
                         lambda *a, **k: ("duplicate", (9, "walk", "verb")))
     resp = _post(user_client, word="walk", pos="verb")
     assert resp.status_code == 409
@@ -323,7 +323,7 @@ def test_a_refused_rename_is_a_409_naming_the_other_card(user_client,
 
 def test_someone_elses_card_is_refused_by_the_route(user_client, app_module,
                                                     monkeypatch, action_logs):
-    monkeypatch.setattr(app_module, "update_flashcard",
+    monkeypatch.setattr("utils.update_flashcard",
                         lambda *a, **k: ("denied", None))
     resp = _post(user_client, explanation_en="mine now")
     assert resp.status_code == 403
@@ -332,14 +332,14 @@ def test_someone_elses_card_is_refused_by_the_route(user_client, app_module,
 
 
 def test_a_missing_card_is_a_404(user_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "update_flashcard",
+    monkeypatch.setattr("utils.update_flashcard",
                         lambda *a, **k: ("missing", None))
     assert _post(user_client).status_code == 404
 
 
 def test_the_edit_is_logged_with_what_changed(user_client, app_module,
                                               monkeypatch, action_logs):
-    monkeypatch.setattr(app_module, "update_flashcard",
+    monkeypatch.setattr("utils.update_flashcard",
                         lambda *a, **k: ("updated", ["word", "explanation_en"]))
     _post(user_client, word="walk")
     line = [l for l in (action_logs / "cards.log").read_text(encoding="utf-8")
@@ -352,7 +352,7 @@ def test_an_edit_that_changed_nothing_writes_no_log_line(user_client,
                                                          app_module,
                                                          monkeypatch,
                                                          action_logs):
-    monkeypatch.setattr(app_module, "update_flashcard",
+    monkeypatch.setattr("utils.update_flashcard",
                         lambda *a, **k: ("unchanged", []))
     resp = _post(user_client)
     assert resp.status_code == 200 and resp.get_json()["changed"] == []
@@ -365,7 +365,7 @@ def test_an_edit_that_changed_nothing_writes_no_log_line(user_client,
 
 def test_the_pencil_is_rendered_for_your_own_card(user_client, app_module,
                                                   monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(CARD_FOR_PAGE)])
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
     assert "card-edit" in body
@@ -375,7 +375,7 @@ def test_the_pencil_is_rendered_for_your_own_card(user_client, app_module,
 
 def test_the_pencil_is_greyed_for_someone_elses_card(user_client, app_module,
                                                      monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [
                             dict(CARD_FOR_PAGE, added_by_user_id=99)])
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
@@ -390,7 +390,7 @@ def test_a_hidden_language_never_reaches_the_edit_markup(user_client,
                                                          monkeypatch):
     """The whole reason the route reads only submitted fields: a hidden
     language must not appear in the page, so its field is not rendered."""
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(CARD_FOR_PAGE)])
     user_client.post("/settings", json={"show_russian": False})
     body = user_client.get("/flashcards/vocab").get_data(as_text=True)
@@ -404,7 +404,7 @@ def test_a_hidden_language_never_reaches_the_edit_markup(user_client,
 
 def test_no_extra_note_when_the_filter_is_off(user_client, app_module,
                                               monkeypatch, saved):
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
     body = user_client.post("/cards/add",
                             data={"word": "resilient"}).get_json()
@@ -416,9 +416,9 @@ def test_a_hidden_duplicate_is_explained(user_client, app_module, monkeypatch,
                                          saved):
     """#186: 'already in the database' about a card the filter hides reads as
     the app contradicting itself."""
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
-    monkeypatch.setattr(app_module, "find_duplicate",
+    monkeypatch.setattr("utils.find_duplicate",
                         lambda word, pos, exclude_id=None: (9, 99))
     user_client.post("/settings", json={"individual_cards": True})
     body = user_client.post("/cards/add",
@@ -430,9 +430,9 @@ def test_your_own_hidden_duplicate_needs_no_explanation(user_client,
                                                         app_module,
                                                         monkeypatch, saved):
     """It is your card and the filter shows it — the plain message is true."""
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
-    monkeypatch.setattr(app_module, "find_duplicate",
+    monkeypatch.setattr("utils.find_duplicate",
                         lambda word, pos, exclude_id=None: (9, TEST_USER_ID))
     user_client.post("/settings", json={"individual_cards": True})
     body = user_client.post("/cards/add",
@@ -444,9 +444,9 @@ def test_a_dead_database_costs_the_note_not_the_answer(user_client, app_module,
                                                        monkeypatch, saved):
     def boom(word, pos, exclude_id=None):
         raise RuntimeError("database is down")
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
-    monkeypatch.setattr(app_module, "find_duplicate", boom)
+    monkeypatch.setattr("utils.find_duplicate", boom)
     user_client.post("/settings", json={"individual_cards": True})
     body = user_client.post("/cards/add",
                             data={"word": "resilient"}).get_json()

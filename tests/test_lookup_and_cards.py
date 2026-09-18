@@ -24,7 +24,7 @@ def _stub_lookup(app_module, monkeypatch):
 def test_existing_word_warns_before_lookup(client, app_module, monkeypatch):
     """Looking up a word that already has cards shows a warning modal and does
     not run the (slow) lookup or open the review popup yet."""
-    monkeypatch.setattr(app_module, "flashcard_word_exists", lambda w: True)
+    monkeypatch.setattr("utils.flashcard_word_exists", lambda w: True)
     called = []
     monkeypatch.setattr(app_module, "lookup_word",
                         lambda *a, **k: called.append(1) or [])
@@ -37,7 +37,7 @@ def test_existing_word_warns_before_lookup(client, app_module, monkeypatch):
 
 
 def test_look_up_anyway_bypasses_the_warning(client, app_module, monkeypatch, saved):
-    monkeypatch.setattr(app_module, "flashcard_word_exists", lambda w: True)
+    monkeypatch.setattr("utils.flashcard_word_exists", lambda w: True)
     _stub_lookup(app_module, monkeypatch)
     body = client.post("/", data={"action": "parse_word", "word": "resilient",
                                   "topic": "vocab", "force_lookup": "1"}).get_data(as_text=True)
@@ -57,7 +57,7 @@ def test_new_word_skips_the_warning(client, app_module, monkeypatch, saved):
 def test_warning_check_degrades_on_db_error(client, app_module, monkeypatch, saved):
     def boom(word):
         raise RuntimeError("db unreachable")
-    monkeypatch.setattr(app_module, "flashcard_word_exists", boom)
+    monkeypatch.setattr("utils.flashcard_word_exists", boom)
     _stub_lookup(app_module, monkeypatch)
     body = client.post("/", data={"action": "parse_word", "word": "resilient",
                                   "topic": "vocab"}).get_data(as_text=True)
@@ -197,7 +197,7 @@ CARD = {"id": 7, "word": "resilient", "pos": "adjective", "topic": "vocab",
 
 
 def test_flashcards_page_has_delete_cross_and_modal(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(CARD)])
     body = client.get("/flashcards/vocab").get_data(as_text=True)
     assert 'class="card-delete"' in body
@@ -210,8 +210,7 @@ def test_flashcards_page_has_delete_cross_and_modal(client, app_module, monkeypa
 def test_delete_card_flow(user_client, app_module, monkeypatch):
     """Deleting needs an identity since kuantorflow#162, hence user_client."""
     deleted = []
-    monkeypatch.setattr(
-        app_module, "delete_flashcard",
+    monkeypatch.setattr("utils.delete_flashcard",
         lambda card_id, **kw: deleted.append(card_id) or ("resilient", "deleted"))
     r = user_client.post("/flashcards/vocab/delete/7", follow_redirects=True)
     body = r.get_data(as_text=True)
@@ -220,7 +219,7 @@ def test_delete_card_flow(user_client, app_module, monkeypatch):
 
 
 def test_delete_missing_card_is_friendly(user_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "delete_flashcard",
+    monkeypatch.setattr("utils.delete_flashcard",
                         lambda card_id, **kw: (None, "missing"))
     body = user_client.post("/flashcards/vocab/delete/999",
                             follow_redirects=True).get_data(as_text=True)
