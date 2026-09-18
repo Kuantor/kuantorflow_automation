@@ -194,7 +194,7 @@ def test_an_owner_adds_an_equality_clause(monkeypatch):
     assert "!=" not in query
 
 
-def test_topics_are_counted_per_owner(monkeypatch):
+def test_topics_are_counted_per_owner(monkeypatch, real_utils):
     cursor = _fake_db(monkeypatch, rows=[("character", 1)])
     utils.get_topics(owner_id=TEST_USER_ID)
     query, params = cursor.queries[0]
@@ -210,7 +210,7 @@ def test_topics_are_counted_per_owner(monkeypatch):
         "a topic's creator must never filter a view"
 
 
-def test_topics_unfiltered_by_default(monkeypatch):
+def test_topics_unfiltered_by_default(monkeypatch, real_utils):
     cursor = _fake_db(monkeypatch, rows=[("character", 1)])
     utils.get_topics()
     query, params = cursor.queries[0]

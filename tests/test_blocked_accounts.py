@@ -410,7 +410,7 @@ def test_get_user_block_reads_none_for_an_unblocked_account(monkeypatch):
     assert utils.get_user_block(7) is None
 
 
-def test_get_user_block_returns_when_and_why(monkeypatch):
+def test_get_user_block_returns_when_and_why(monkeypatch, real_utils):
     _fake_db(monkeypatch, ("2026-08-02 10:00:00", "spam in chat"))
     assert utils.get_user_block(7) == ("2026-08-02 10:00:00", "spam in chat")
 

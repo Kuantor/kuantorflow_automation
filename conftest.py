@@ -108,14 +108,14 @@ def stub_deck(app_module, monkeypatch):
             sections = in_other(topics)
         # Copied per call so a test that mutates what it got back cannot
         # change what the next read returns.
-        monkeypatch.setattr(
-            app_module, "get_topics_by_section",
+        _stub_everywhere(
+            monkeypatch, app_module, "get_topics_by_section",
             lambda owner_id=None, alphabetical=False, **kw: [(name, list(pairs)) for name, pairs in sections])
-        monkeypatch.setattr(
-            app_module, "get_flashcards_by_topics",
+        _stub_everywhere(
+            monkeypatch, app_module, "get_flashcards_by_topics",
             lambda topics_, owner_id=None, **kw: [dict(c) for c in cards])
-        monkeypatch.setattr(
-            app_module, "get_flashcards_by_topic",
+        _stub_everywhere(
+            monkeypatch, app_module, "get_flashcards_by_topic",
             lambda topic, owner_id=None, **kw: [dict(c) for c in cards])
         return cards
 
@@ -184,6 +184,48 @@ def keyword():
     return TEST_KEYWORD
 
 
+# The genuine implementations, captured before anything stubs them. A test
+# that exercises `utils` itself -- rather than a route that happens to call it
+# -- asks for `real_utils` and gets these back (kuantorflow#436).
+_UTILS_ORIGINALS = {}
+
+
+def _remember(name):
+    import utils
+    if name not in _UTILS_ORIGINALS and hasattr(utils, name):
+        _UTILS_ORIGINALS[name] = getattr(utils, name)
+
+
+def _stub_everywhere(monkeypatch, app_mod, name, value, raising=False):
+    """Stub a database reader on **`utils`, which owns it, and on `app`, which
+    imported it** (kuantorflow#436).
+
+    `app.py` opens with `from utils import get_topics, ...`, which copies each
+    function into `app`'s namespace at import. There are then two names for one
+    function, `app.py`'s own code reads its copy, and so the stubs here have
+    always patched that copy. It works for exactly as long as every caller
+    lives in `app.py`.
+
+    #418 moves callers into feature modules, and a module that imports the same
+    function gets a *third* copy. The patch on `app` reaches none of it, nothing
+    raises, and the round quietly reads whatever `DB_*` points at while the
+    suite stays green. Simulating one such move flagged 21 routes, all
+    answering 200 -- see test_suite_stays_offline.py, which is what makes it
+    visible at all.
+
+    Patching the owner is the destination: `utils.get_topics` is looked up on
+    every call, so one stub covers every module that will ever call it. Both
+    are patched here because both spellings exist while the sweep is in
+    progress -- app.py still binds these names today.
+
+    `raising` is accepted and ignored: these stubs always create the name if it
+    is absent, which is what every caller here meant by passing it.
+    """
+    _remember(name)
+    monkeypatch.setattr("utils." + name, value, raising=False)
+    monkeypatch.setattr(app_mod, name, value, raising=False)
+
+
 @pytest.fixture()
 def app_module(monkeypatch):
     """The imported app module with a known gate keyword and a stubbed
@@ -191,27 +233,28 @@ def app_module(monkeypatch):
     import app as app_mod
 
     monkeypatch.setattr(app_mod, "ACCESS_KEYWORD", TEST_KEYWORD)
-    monkeypatch.setattr(app_mod, "get_topics", lambda owner_id=None, **kw: [])
+    _stub_everywhere(monkeypatch, app_mod, "get_topics",
+                     lambda owner_id=None, **kw: [])
     # The index page reads the grouped shape now (kuantorflow#218); /topics.json
     # reads both. Stubbed alongside get_topics so no test reaches a real
     # database by accident, which is the whole point of this fixture.
-    monkeypatch.setattr(app_mod, "get_topics_by_section",
-                        lambda owner_id=None, alphabetical=False, **kw: [], raising=False)
+    _stub_everywhere(monkeypatch, app_mod, "get_topics_by_section",
+                     lambda owner_id=None, alphabetical=False, **kw: [])
     # Any anonymous chat message counts itself against the daily ceiling
     # (kuantorflow#164) — a real database write. Stub it here so the whole
     # suite stays offline; the tests that care patch it themselves.
-    monkeypatch.setattr(app_mod, "claim_anonymous_message",
+    _stub_everywhere(monkeypatch, app_mod, "claim_anonymous_message",
                         lambda limit: (True, 0), raising=False)
     # Default: no word already exists, so lookup tests reach the review popup
     # without touching a real DB (#145). Tests opt in by re-patching this.
-    monkeypatch.setattr(app_mod, "flashcard_word_exists", lambda word: False,
+    _stub_everywhere(monkeypatch, app_mod, "flashcard_word_exists", lambda word: False,
                         raising=False)
     # And the same for kuantorflow#377's chips, for the same reason: the
     # review popup asks the database what it already holds for every card it
     # is about to show, so *any* test that opens that popup would otherwise
     # open a connection to whatever DB_* points at. Nothing is saved by
     # default, so the popup renders unmarked; tests opt in by re-patching.
-    monkeypatch.setattr(app_mod, "find_saved_words",
+    _stub_everywhere(monkeypatch, app_mod, "find_saved_words",
                         lambda pairs: [{"exact": None, "others": []}
                                        for _ in pairs],
                         raising=False)
@@ -441,9 +484,25 @@ def block_state(app_module, monkeypatch):
     state = BlockState()
     # Keyed on there being a user id at all: an anonymous visitor has no
     # account to block, exactly as get_user_block() answers None for one.
-    monkeypatch.setattr(app_module, "get_user_block",
-                        lambda user_id: state.value if user_id else None)
+    _stub_everywhere(monkeypatch, app_module, "get_user_block",
+                     lambda user_id: state.value if user_id else None)
     return state
+
+
+@pytest.fixture()
+def real_utils(app_module, monkeypatch):
+    """The genuine `utils` functions, for a test that exercises `utils` itself.
+
+    The stubs exist to stop a *route* reaching a database. A unit test of
+    `utils` installs its own fake cursor and then calls the real function, so
+    for those the stub is not protection but interference -- it answers before
+    the code under test runs. Depends on `app_module` so it is applied after
+    the stubbing, not before.
+    """
+    import utils
+    for name, original in _UTILS_ORIGINALS.items():
+        monkeypatch.setattr(utils, name, original)
+    return utils
 
 
 @pytest.fixture()

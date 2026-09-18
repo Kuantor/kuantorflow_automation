@@ -24,6 +24,14 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
+
+@pytest.fixture(autouse=True)
+def _the_real_utils(real_utils):
+    """This file talks to a real scratch database, so the offline stubs are
+    never what it wants (kuantorflow#436): they would answer before the code
+    under test could run its SQL.
+    """
+
 AUTO_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(AUTO_ROOT / ".env")
 
