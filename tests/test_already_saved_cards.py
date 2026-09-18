@@ -376,7 +376,7 @@ def stored(monkeypatch):
     return install
 
 
-def test_a_pos_less_card_is_a_duplicate_of_a_pos_less_card(stored):
+def test_a_pos_less_card_is_a_duplicate_of_a_pos_less_card(stored, real_utils):
     """`pos <=> %s` is NULL-safe, which is what lets `.mht` imports be
     deduplicated at all - and a UNIQUE index could not do it, since MySQL
     treats NULLs in a unique key as distinct."""
@@ -390,7 +390,7 @@ def test_a_pos_less_card_is_a_duplicate_of_a_pos_less_card(stored):
     assert state["others"] == []
 
 
-def test_a_pos_less_card_is_not_a_duplicate_of_a_noun(stored):
+def test_a_pos_less_card_is_not_a_duplicate_of_a_noun(stored, real_utils):
     """The case the two chips exist for: this card *will* be saved, beside the
     noun already there."""
     import utils
@@ -403,7 +403,7 @@ def test_a_pos_less_card_is_not_a_duplicate_of_a_noun(stored):
     assert state["others"] == ["noun", "verb"]
 
 
-def test_the_part_of_speech_is_matched_case_insensitively(stored):
+def test_the_part_of_speech_is_matched_case_insensitively(stored, real_utils):
     """Same as the column's collation, so the chip predicts what the save will
     really do rather than a stricter rule of its own."""
     import utils
@@ -416,7 +416,7 @@ def test_the_part_of_speech_is_matched_case_insensitively(stored):
     assert state["others"] == []
 
 
-def test_the_matching_entry_is_not_also_listed_as_another(stored):
+def test_the_matching_entry_is_not_also_listed_as_another(stored, real_utils):
     import utils
 
     stored([("record", "noun", 1, 7), ("record", "verb", 2, 7)])
@@ -436,7 +436,7 @@ def test_an_unknown_word_holds_nothing(stored):
         "exact": None, "others": []}
 
 
-def test_thirty_cards_are_one_statement(stored):
+def test_thirty_cards_are_one_statement(stored, real_utils):
     """The promise that makes this affordable at page-build time. One query
     per card would put thirty round trips in front of a popup that already
     waited for a file to be parsed."""

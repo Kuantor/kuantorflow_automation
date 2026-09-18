@@ -106,7 +106,7 @@ def test_duplicate_check_is_null_safe_on_pos(monkeypatch):
 
 # --- flashcard_word_exists (the early-warning check, #145) ---------------------
 
-def test_flashcard_word_exists_true(monkeypatch):
+def test_flashcard_word_exists_true(monkeypatch, real_utils):
     cursor = FakeCursor(existing_row=(1,))
     _fake_db(monkeypatch, cursor)
     assert utils.flashcard_word_exists("run") is True
