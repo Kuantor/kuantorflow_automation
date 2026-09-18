@@ -163,6 +163,6 @@ def test_the_popup_still_asks_its_question(client, app_module, monkeypatch,
 def test_no_topic_line_without_a_popup(client, app_module, monkeypatch):
     """It belongs to the popup, not to the page — the index renders the same
     template every time, popup or not."""
-    monkeypatch.setattr(app_module, "flashcard_word_exists", lambda w: True)
+    monkeypatch.setattr("utils.flashcard_word_exists", lambda w: True)
     body = client.get("/").get_data(as_text=True)
     assert "proposal-topic" not in body

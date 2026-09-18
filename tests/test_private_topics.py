@@ -43,10 +43,10 @@ def _capture_viewer(app_module, monkeypatch):
         seen.append((viewer_id, admin))
         return []
 
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic", record)
-    monkeypatch.setattr(app_module, "get_flashcards_by_topics", record)
-    monkeypatch.setattr(app_module, "get_topics", record)
-    monkeypatch.setattr(app_module, "get_topics_by_section", record_sections)
+    monkeypatch.setattr("utils.get_flashcards_by_topic", record)
+    monkeypatch.setattr("utils.get_flashcards_by_topics", record)
+    monkeypatch.setattr("utils.get_topics", record)
+    monkeypatch.setattr("utils.get_topics_by_section", record_sections)
     return seen
 
 
@@ -55,8 +55,7 @@ def topic(app_module, monkeypatch):
     """What `resolve_topic()` answers for the page under test."""
     def install(name="vocab", is_public=True, creator=TEST_USER_ID,
                 creator_name="Anton", topic_id=11):
-        monkeypatch.setattr(
-            app_module, "resolve_topic",
+        monkeypatch.setattr("utils.resolve_topic",
             lambda name_=None, viewer_id=None, admin=False, topic_id_=None,
             **kw: ({"id": topic_id, "name": name, "is_public": is_public,
                     "created_by_user_id": creator, "creator": creator_name}
@@ -68,7 +67,7 @@ def topic(app_module, monkeypatch):
 @pytest.fixture()
 def hidden(app_module, monkeypatch):
     """A topic this visitor may not see: the resolver finds nothing."""
-    monkeypatch.setattr(app_module, "resolve_topic",
+    monkeypatch.setattr("utils.resolve_topic",
                         lambda *a, **kw: None, raising=False)
 
 
@@ -155,7 +154,7 @@ def test_the_page_asks_the_resolver_before_it_reads_cards(user_client,
                                                           monkeypatch, hidden):
     """Order matters: a refused topic must cost no card read at all."""
     reads = []
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda *a, **kw: reads.append(a) or [])
 
     user_client.get("/flashcards/somebody-elses")
@@ -175,7 +174,7 @@ def test_an_id_in_the_url_is_checked_rather_than_trusted(user_client,
                      topic_id=topic_id)
         return None
 
-    monkeypatch.setattr(app_module, "resolve_topic", resolver, raising=False)
+    monkeypatch.setattr("utils.resolve_topic", resolver, raising=False)
 
     assert user_client.get("/flashcards/vocab?t=99").status_code == 404
     assert asked["topic_id"] == 99
@@ -236,7 +235,7 @@ def flip(app_module, monkeypatch):
             calls.append({"id": topic_id, "public": public,
                           "viewer_id": viewer_id, "admin": admin})
             return outcome
-        monkeypatch.setattr(app_module, "set_topic_visibility", fake,
+        monkeypatch.setattr("utils.set_topic_visibility", fake,
                             raising=False)
         return calls
     return install
@@ -319,7 +318,7 @@ def test_a_refusal_is_logged_too(user_client, flip, action_logs):
 @pytest.fixture()
 def marks(app_module, monkeypatch):
     def install(**topics):
-        monkeypatch.setattr(app_module, "private_topics",
+        monkeypatch.setattr("utils.private_topics",
                             lambda viewer_id=None, admin=False: topics,
                             raising=False)
     return install
@@ -327,7 +326,7 @@ def marks(app_module, monkeypatch):
 
 def test_a_private_topic_wears_a_padlock(user_client, app_module, monkeypatch,
                                          marks):
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda *a, **kw: [("Other", [("diary", 3)])])
     marks(diary={"id": 11, "created_by_user_id": TEST_USER_ID,
                  "creator": "Anton", "mine": True})
@@ -340,7 +339,7 @@ def test_a_private_topic_wears_a_padlock(user_client, app_module, monkeypatch,
 
 def test_the_admin_sees_whose_it_is(user_client, app_module, monkeypatch,
                                     marks):
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda *a, **kw: [("Other", [("diary", 3)])])
     marks(diary={"id": 11, "created_by_user_id": 999, "creator": "Olena",
                  "mine": False})
@@ -355,7 +354,7 @@ def test_an_ordinary_topic_carries_no_id_in_its_link(user_client, app_module,
                                                      monkeypatch, marks):
     """A name is what keeps these URLs readable, and every visitor but the
     admin resolves one to a single topic."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda *a, **kw: [("Other", [("vocab", 3)])])
     marks()
 
@@ -378,7 +377,7 @@ def test_the_widget_draws_the_same_padlock(user_client, app_module,
     # The widget's renderer only reaches the page when Mykola is available,
     # which is the environment this pair actually has to agree in.
     monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda *a, **kw: [("Other", [("diary", 3)])])
     marks(diary={"id": 11, "created_by_user_id": TEST_USER_ID,
                  "creator": "Anton", "mine": True})
@@ -405,7 +404,7 @@ def test_a_dead_database_costs_the_padlocks_and_nothing_else(user_client,
     def boom(viewer_id=None, admin=False):
         raise RuntimeError("MySQL has gone away")
 
-    monkeypatch.setattr(app_module, "private_topics", boom, raising=False)
+    monkeypatch.setattr("utils.private_topics", boom, raising=False)
 
     assert user_client.get("/").status_code == 200
     assert user_client.get("/topics.json").get_json()["private"] == {}

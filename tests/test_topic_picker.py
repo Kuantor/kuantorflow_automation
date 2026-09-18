@@ -109,7 +109,7 @@ def test_a_section_with_no_topics_is_left_out(client, app_module, monkeypatch):
     """#218 shows an empty heading on the browse page deliberately, because
     there it promises what the deck will become. In a form it is a heading over
     nothing with a Select-section box that selects nothing."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([("animals", 4)]))
     body = client.get("/quiz").get_data(as_text=True)
     assert "animals" in body
@@ -126,7 +126,7 @@ def test_the_start_button_carries_the_activitys_minimum_and_reason(client, deck)
 def test_an_empty_deck_is_explained_in_the_picker(client, app_module, monkeypatch):
     """#233: the tile that sent the learner here has no selection to reason
     about, so this is the only place that can say it."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: [])
     body = client.get("/quiz").get_data(as_text=True)
     assert "nothing to play on yet" in body
@@ -138,7 +138,7 @@ def test_a_dead_database_leaves_an_empty_picker_not_a_500(
     def boom(owner_id=None):
         raise RuntimeError("no database")
 
-    monkeypatch.setattr(app_module, "get_topics_by_section", boom)
+    monkeypatch.setattr("utils.get_topics_by_section", boom)
     response = client.get("/quiz")
     assert response.status_code == 200
     assert "nothing to play on yet" in response.get_data(as_text=True)
@@ -157,7 +157,7 @@ def test_the_picker_lists_only_what_this_visitor_may_see(
         seen.append(owner_id)
         return in_other([("mine", 1)])
 
-    monkeypatch.setattr(app_module, "get_topics_by_section", fake_sections)
+    monkeypatch.setattr("utils.get_topics_by_section", fake_sections)
     monkeypatch.setattr(app_module, "current_settings",
                         lambda: dict(__import__("settings_store").DEFAULTS,
                                      individual_cards=True))
@@ -191,7 +191,7 @@ def test_an_anonymous_visitor_is_remembered_too(client, deck):
 def test_a_remembered_topic_that_has_gone_is_dropped_and_the_rest_survive(
         client, deck, app_module, monkeypatch):
     client.get("/quiz?topic=Work&topic=animals")
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([("animals", 4)]))
     response = client.get("/quiz")
     body = response.get_data(as_text=True)

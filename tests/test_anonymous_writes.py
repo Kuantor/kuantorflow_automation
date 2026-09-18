@@ -73,7 +73,7 @@ def test_the_refusal_comes_before_the_duplicate_check(client, app_module,
                                                       monkeypatch, saved):
     """A refused save must not be reported as 'already in the database' —
     the visitor would go looking for a card that was never written."""
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
     body = client.post("/cards/add", data=dict(CARD_FORM)).get_json()
     assert body.get("duplicate") is not True
@@ -165,7 +165,7 @@ def test_the_refusal_is_logged(client, saved, action_logs):
 @pytest.mark.parametrize("path", ["/", "/flashcards/character", "/deck/character",
                                   "/quiz/character"])
 def test_reading_pages_stay_open(client, app_module, monkeypatch, path):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic", lambda topic, owner_id=None, **kw: [{
+    monkeypatch.setattr("utils.get_flashcards_by_topic", lambda topic, owner_id=None, **kw: [{
         "id": 1, "word": "resilient", "pos": "adjective",
         "explanation_en": "able to recover quickly", "examples_en": [],
         "translation_ukr": "стійкий", "examples_ukr": [],

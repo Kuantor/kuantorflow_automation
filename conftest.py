@@ -187,7 +187,20 @@ def keyword():
 # The genuine implementations, captured before anything stubs them. A test
 # that exercises `utils` itself -- rather than a route that happens to call it
 # -- asks for `real_utils` and gets these back (kuantorflow#436).
-_UTILS_ORIGINALS = {}
+def _capture_utils_originals():
+    """Every public function `utils` exposes, before anything stubs it.
+
+    Captured eagerly rather than as each name is first stubbed, so
+    `real_utils` can restore *anything* -- a fixture that patches a utils
+    function directly, without going through `_stub_everywhere`, would
+    otherwise leave that name unrestorable (kuantorflow#436).
+    """
+    import utils
+    return {name: getattr(utils, name) for name in dir(utils)
+            if not name.startswith("__") and callable(getattr(utils, name))}
+
+
+_UTILS_ORIGINALS = _capture_utils_originals()
 
 
 def _remember(name):
@@ -263,14 +276,14 @@ def app_module(monkeypatch):
     # stubbing this reaches a real database -- found by the route walk in
     # test_suite_stays_offline.py, which is the first thing here that could
     # see it. Nothing confirmed by default; the tests that care re-patch it.
-    monkeypatch.setattr(app_mod, "confirmed_words", lambda: set(),
+    monkeypatch.setattr("utils.confirmed_words", lambda: set(),
                         raising=False)
     # A skipped duplicate asks the database whether the stored card has gaps
     # this entry could fill (kuantorflow#349), so every duplicate answer runs
     # a query too - and since kuantorflow#377 reports what it filled, what a
     # developer happens to have in their local MySQL could decide an assertion
     # about the response. Nothing to fill by default; tests opt in.
-    monkeypatch.setattr(app_mod, "fill_missing_fields", lambda entry: [],
+    monkeypatch.setattr("utils.fill_missing_fields", lambda entry: [],
                         raising=False)
     # kuantorflow#382: the topic page resolves its name against the database
     # before it reads a card, so *every* test that opens one would otherwise
@@ -278,20 +291,19 @@ def app_module(monkeypatch):
     # has none of the fixtures' topics. The default answer is the one the site
     # had before private topics existed: the topic is there, it is public, and
     # nobody in particular created it. Tests about visibility re-patch this.
-    monkeypatch.setattr(
-        app_mod, "resolve_topic",
+    monkeypatch.setattr("utils.resolve_topic",
         lambda name=None, viewer_id=None, admin=False, topic_id=None: (
             {"id": 1, "name": name, "is_public": True,
              "created_by_user_id": None, "creator": None} if name else None),
         raising=False)
-    monkeypatch.setattr(app_mod, "private_topics",
+    monkeypatch.setattr("utils.private_topics",
                         lambda viewer_id=None, admin=False: {}, raising=False)
     # kuantorflow#388: every word lookup now claims a slot against a daily
     # counter *before* the providers run, so any test that posts `parse_word`
     # or calls /lookup.json would otherwise write to whatever DB_* points at.
     # The default is "allowed, nothing counted"; the tests about the cap patch
     # this themselves. The session nudge needs no stub -- it is a cookie.
-    monkeypatch.setattr(app_mod, "claim_word_lookup",
+    monkeypatch.setattr("utils.claim_word_lookup",
                         lambda user_id, user_limit, anon_limit: (True, None, 0),
                         raising=False)
     # kuantorflow#237's counter needs the same treatment, and #406 is what
@@ -302,16 +314,16 @@ def app_module(monkeypatch):
     # failing for a reason that had nothing to do with them. A suite that
     # passes ten times a day and then stops is worse than one that never
     # passed.
-    monkeypatch.setattr(app_mod, "claim_text_generation",
+    monkeypatch.setattr("utils.claim_text_generation",
                         lambda user_id, user_limit, daily_limit: (True, None, 0),
                         raising=False)
     # #406's batch claim, for the same reason and with the same default.
-    monkeypatch.setattr(app_mod, "claim_word_lookups",
+    monkeypatch.setattr("utils.claim_word_lookups",
                         lambda user_id, count, user_limit, anon_limit:
                         (True, None, 0), raising=False)
-    monkeypatch.setattr(app_mod, "lookups_used_today",
+    monkeypatch.setattr("utils.lookups_used_today",
                         lambda user_id: 0, raising=False)
-    monkeypatch.setattr(app_mod, "existing_words",
+    monkeypatch.setattr("utils.existing_words",
                         lambda owner_id=None: set(), raising=False)
     return app_mod
 
@@ -456,7 +468,7 @@ def saved(app_module, monkeypatch):
         captured.allowed_duplicates.append(allow_duplicate)
         return 1
 
-    monkeypatch.setattr(app_module, "save_flashcard", fake_save)
+    monkeypatch.setattr("utils.save_flashcard", fake_save)
     return captured
 
 

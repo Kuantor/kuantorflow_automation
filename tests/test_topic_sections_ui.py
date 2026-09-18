@@ -56,7 +56,7 @@ def sections(app_module, monkeypatch):
     """Two sections with topics in each, so ordering is observable."""
     grouped = [(CURRICULUM_SECTION, [("environment", 4)]),
                ("Other", list(TOPICS))]
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: grouped)
     return grouped
 
@@ -75,7 +75,7 @@ def test_sections_render_in_the_order_they_are_given(client, app_module,
                                                      monkeypatch):
     """The order is the query's — `(section.position, …)` from #215 — and the
     template must not re-sort it into something alphabetical."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: [("Zebra", [("a", 1)]),
                                                ("Apple", [("b", 1)])])
     body = client.get("/").get_data(as_text=True)
@@ -87,7 +87,7 @@ def test_an_empty_section_keeps_its_heading_and_gets_no_grid(client, app_module,
     """#215 left this open and #218 answers it: the B2–C1 shelf appears, empty,
     until #203 fills it. A heading that showed up only once it had content
     could not do the one job it has."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
     assert _layout(client.get("/").get_data(as_text=True)) == [
         ("section", CURRICULUM_SECTION),
@@ -101,7 +101,7 @@ def test_topics_keep_their_order_within_a_section(client, app_module,
     'Other' holds position 0, so alphabetical there is a *consequence*, not a
     rule the page applies."""
     ordered = [("second", 1), ("first", 1), ("third", 1)]
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: [("Curriculum", ordered)])
     body = _browse(client.get("/").get_data(as_text=True))
     assert re.findall(r'topic-tile-name">([^<]+)<', body) == \
@@ -120,7 +120,7 @@ def test_a_tile_still_links_to_its_topic_with_a_count(client, sections):
 
 def test_an_empty_deck_shows_the_hint_not_bare_headings(client, app_module,
                                                         monkeypatch):
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     body = client.get("/").get_data(as_text=True)
     assert HEADING.findall(_browse(body)) == []
@@ -137,7 +137,7 @@ def test_the_individual_cards_explanation_still_wins(user_client, app_module,
     monkeypatch.setattr(app_module, "current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      individual_cards=True))
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     body = _browse(user_client.get("/").get_data(as_text=True))
     assert "No topics of your own" in body
@@ -148,7 +148,7 @@ def test_a_dead_database_still_renders_the_page(client, app_module, monkeypatch)
     def boom(owner_id=None):
         raise RuntimeError("db down")
 
-    monkeypatch.setattr(app_module, "get_topics_by_section", boom)
+    monkeypatch.setattr("utils.get_topics_by_section", boom)
     resp = client.get("/")
     assert resp.status_code == 200
     assert "No topics yet" in resp.get_data(as_text=True)
@@ -161,9 +161,9 @@ def test_topics_json_carries_both_shapes(client, app_module, monkeypatch):
     """`sections` for the browse tiles, `topics` for the move dialog's
     suggestions (#177). Dropping the flat list while adding the grouped one
     would have emptied that datalist and nothing else would have noticed."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other(TOPICS))
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None, **kw: TOPICS)
+    monkeypatch.setattr("utils.get_topics", lambda owner_id=None, **kw: TOPICS)
 
     data = client.get("/topics.json").get_json()
 
@@ -176,7 +176,7 @@ def test_topics_json_survives_a_dead_database(client, app_module, monkeypatch):
     def boom(owner_id=None):
         raise RuntimeError("db down")
 
-    monkeypatch.setattr(app_module, "get_topics_by_section", boom)
+    monkeypatch.setattr("utils.get_topics_by_section", boom)
     data = client.get("/topics.json").get_json()
     # Compared exactly, on purpose: the point is that nothing leaks through a
     # failed read, and that a new key added to this payload has to be thought

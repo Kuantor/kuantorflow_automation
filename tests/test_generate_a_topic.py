@@ -40,9 +40,9 @@ def proposes(monkeypatch, app_module):
                         lambda idea, count: ("Renting a flat", PROPOSED[:count]))
     monkeypatch.setattr(app_module.parsers, "wiktionary_pages",
                         lambda words: {w for w in words if w != "quorble"})
-    monkeypatch.setattr(app_module, "existing_words", lambda owner_id=None: set())
-    monkeypatch.setattr(app_module, "lookups_used_today", lambda user_id: 0)
-    monkeypatch.setattr(app_module, "claim_word_lookups",
+    monkeypatch.setattr("utils.existing_words", lambda owner_id=None: set())
+    monkeypatch.setattr("utils.lookups_used_today", lambda user_id: 0)
+    monkeypatch.setattr("utils.claim_word_lookups",
                         lambda user_id, count, u, a: (True, None, count))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
@@ -61,7 +61,7 @@ def test_a_proposal_writes_nothing_and_spends_no_lookup(user_client, proposes,
     saved, claimed = [], []
     monkeypatch.setattr(app_module, "_save_and_log",
                         lambda entry, source, **kw: saved.append(entry))
-    monkeypatch.setattr(app_module, "claim_word_lookups",
+    monkeypatch.setattr("utils.claim_word_lookups",
                         lambda *a: claimed.append(a) or (True, None, 0))
 
     body = _propose(user_client).get_data(as_text=True)
@@ -102,7 +102,7 @@ def test_a_word_already_in_the_deck_is_noted_but_left_ticked(user_client,
     """A note, not a veto. #101 keeps one card per word **and part of speech**,
     so a deck holding `tip` the noun still gains `tip` the verb -- unticking it
     would be the screen claiming something it does not know."""
-    monkeypatch.setattr(app_module, "existing_words",
+    monkeypatch.setattr("utils.existing_words",
                         lambda owner_id=None: {"deposit"})
 
     body = _propose(user_client).get_data(as_text=True)
@@ -192,7 +192,7 @@ def test_only_the_ticked_words_are_paid_for(user_client, proposes, app_module,
     """The tick is the decision. A word the learner unticked is not looked up
     and not claimed for."""
     claimed = []
-    monkeypatch.setattr(app_module, "claim_word_lookups",
+    monkeypatch.setattr("utils.claim_word_lookups",
                         lambda user_id, count, u, a: claimed.append(count)
                         or (True, None, count))
 
@@ -209,7 +209,7 @@ def test_the_claim_happens_before_the_fill_page(user_client, proposes,
     write after the first byte of a stream never reaches the browser, so the
     claim cannot live inside the fill."""
     order = []
-    monkeypatch.setattr(app_module, "claim_word_lookups",
+    monkeypatch.setattr("utils.claim_word_lookups",
                         lambda *a: order.append("claim") or (True, None, 1))
 
     reply = user_client.post("/topics/generate/start",
@@ -224,7 +224,7 @@ def test_a_refused_claim_builds_nothing(user_client, proposes, app_module,
                                         monkeypatch):
     """The refusal arrives while the learner is still looking at the list,
     which is the whole point of stating the cost on that screen."""
-    monkeypatch.setattr(app_module, "claim_word_lookups",
+    monkeypatch.setattr("utils.claim_word_lookups",
                         lambda *a: (False, "user", 48))
 
     reply = user_client.post("/topics/generate/start",
@@ -241,7 +241,7 @@ def test_a_word_that_is_not_a_headword_never_reaches_a_dictionary(
     """The form is a form: what comes back is whatever was posted, and
     `lookup_word()` is built for single alphabetic headwords."""
     claimed = []
-    monkeypatch.setattr(app_module, "claim_word_lookups",
+    monkeypatch.setattr("utils.claim_word_lookups",
                         lambda user_id, count, u, a: claimed.append(count)
                         or (True, None, count))
 

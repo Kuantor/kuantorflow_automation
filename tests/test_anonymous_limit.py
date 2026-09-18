@@ -17,7 +17,7 @@ def mykola(app_module, monkeypatch):
                         lambda q, h: calls.append(q) or
                         {"response": "Indeed.", "history": h, "sources": []})
     # the daily ceiling is exercised on its own below; keep the DB out of it
-    monkeypatch.setattr(app_module, "claim_anonymous_message",
+    monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (True, 1))
     return calls
 
@@ -81,7 +81,7 @@ def test_zero_disables_the_session_limit(client, app_module, monkeypatch, mykola
 
 def test_daily_ceiling_refuses_with_its_own_message(client, app_module,
                                                     monkeypatch, mykola):
-    monkeypatch.setattr(app_module, "claim_anonymous_message",
+    monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (False, 200))
     resp = _ask(client)
     assert resp.status_code == 402
@@ -95,7 +95,7 @@ def test_the_daily_ceiling_ignores_signed_in_visitors(user_client, app_module,
                                                       monkeypatch, mykola):
     def fail(limit):
         raise AssertionError("signed-in traffic must not touch the day's count")
-    monkeypatch.setattr(app_module, "claim_anonymous_message", fail)
+    monkeypatch.setattr("utils.claim_anonymous_message", fail)
     assert _ask(user_client).status_code == 200
 
 
@@ -104,7 +104,7 @@ def test_a_dead_database_does_not_silence_mykola(client, app_module,
     """Fail open: an unreachable database must not stop everyone chatting."""
     def boom(limit):
         raise RuntimeError("db unreachable")
-    monkeypatch.setattr(app_module, "claim_anonymous_message", boom)
+    monkeypatch.setattr("utils.claim_anonymous_message", boom)
     assert _ask(client).status_code == 200
     assert len(mykola) == 1
 

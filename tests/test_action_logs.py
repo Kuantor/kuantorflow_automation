@@ -59,7 +59,7 @@ def test_signed_in_user_is_named(user_client, saved, action_logs):
 
 def test_duplicate_card_is_logged_as_skipped(user_client, app_module,
                                              monkeypatch, action_logs):
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
     resp = user_client.post("/cards/add", data=_card_form())
     assert resp.get_json()["duplicate"] is True
@@ -83,7 +83,7 @@ def test_automatic_add_is_logged_with_its_own_source(user_client, saved,
 
 def test_card_deletion_is_logged(user_client, app_module, monkeypatch,
                                  action_logs):
-    monkeypatch.setattr(app_module, "delete_flashcard",
+    monkeypatch.setattr("utils.delete_flashcard",
                         lambda card_id, **kw: ("resilient", "deleted"))
     user_client.post("/flashcards/character/delete/42")
     line = _find(action_logs, "cards", "DELETE")[0]
@@ -92,7 +92,7 @@ def test_card_deletion_is_logged(user_client, app_module, monkeypatch,
 
 def test_deleting_a_missing_card_is_logged_too(user_client, app_module,
                                                monkeypatch, action_logs):
-    monkeypatch.setattr(app_module, "delete_flashcard",
+    monkeypatch.setattr("utils.delete_flashcard",
                         lambda card_id, **kw: (None, "missing"))
     user_client.post("/flashcards/character/delete/99")
     assert _find(action_logs, "cards", "DELETE-MISS")

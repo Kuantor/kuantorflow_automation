@@ -71,7 +71,7 @@ def deck(app_module, monkeypatch):
                     for word, _pos in pairs]
 
     state = Deck()
-    monkeypatch.setattr(app_module, "find_saved_words", state, raising=False)
+    monkeypatch.setattr("utils.find_saved_words", state, raising=False)
     return state
 
 
@@ -169,7 +169,7 @@ def test_a_dead_database_costs_the_chips_and_nothing_else(review, deck,
     def boom(pairs):
         raise RuntimeError("MySQL has gone away")
 
-    monkeypatch.setattr(app_module, "find_saved_words", boom, raising=False)
+    monkeypatch.setattr("utils.find_saved_words", boom, raising=False)
     html = review("resilient", "wind")
 
     assert html.count('class="proposal-card"') == 2, "the popup still opens"
@@ -467,11 +467,11 @@ def test_no_words_is_no_query_at_all(stored):
 @pytest.fixture()
 def duplicate(app_module, monkeypatch):
     """A save that #101 refuses, with control over what it then fills."""
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
 
     def fills(*fields):
-        monkeypatch.setattr(app_module, "fill_missing_fields",
+        monkeypatch.setattr("utils.fill_missing_fields",
                             lambda entry: list(fields), raising=False)
 
     return fills
@@ -671,7 +671,7 @@ def test_the_log_says_which_card_it_was_added_beside(user_client, app_module,
                                                      action_logs):
     """A second row for one word and part of speech is otherwise
     indistinguishable, later, from the accident #101 exists to prevent."""
-    monkeypatch.setattr(app_module, "find_duplicate",
+    monkeypatch.setattr("utils.find_duplicate",
                         lambda word, pos, exclude_id=None: (671, 7))
 
     user_client.post("/cards/add", data={"word": "castigate", "pos": "verb",

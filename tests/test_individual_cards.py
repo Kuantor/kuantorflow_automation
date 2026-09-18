@@ -62,12 +62,12 @@ def _capture_owner(app_module, monkeypatch, cards=None):
         # exactly what this helper exists to catch.
         return fake_cards(topics[0] if topics else None, owner_id)
 
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic", fake_cards)
-    monkeypatch.setattr(app_module, "get_flashcards_by_topics", fake_cards_multi)
-    monkeypatch.setattr(app_module, "get_topics", fake_topics)
+    monkeypatch.setattr("utils.get_flashcards_by_topic", fake_cards)
+    monkeypatch.setattr("utils.get_flashcards_by_topics", fake_cards_multi)
+    monkeypatch.setattr("utils.get_topics", fake_topics)
     # The index page's read since #218, and /topics.json's second one. A new
     # read path that forgot the filter is exactly what this helper is for.
-    monkeypatch.setattr(app_module, "get_topics_by_section", fake_sections)
+    monkeypatch.setattr("utils.get_topics_by_section", fake_sections)
     return seen
 
 
@@ -234,7 +234,7 @@ def test_someone_elses_card_disappears(user_client, app_module, monkeypatch,
                                        individual):
     """The filter is applied in SQL, so the page simply has nothing to show —
     this checks the page copes rather than rendering a stray card."""
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [])
     body = user_client.get("/flashcards/character").get_data(as_text=True)
     assert "resilient" not in body
@@ -244,7 +244,7 @@ def test_an_empty_topic_page_says_why(user_client, app_module, monkeypatch,
                                       individual):
     """'No flashcards saved under this topic yet' would send the user looking
     for a bug — the cards are there, they are just not theirs."""
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [])
     body = user_client.get("/flashcards/character").get_data(as_text=True)
     assert "individual cards" in body.lower()
@@ -256,7 +256,7 @@ def test_an_empty_topic_list_says_why(user_client, app_module, monkeypatch,
     """The sections still exist — they are everyone's — but none of them has a
     topic holding a card of yours, so the explanation wins over two headings
     above nothing (#218)."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: in_other([]))
     body = user_client.get("/").get_data(as_text=True)
     assert "No topics of your own" in body
@@ -264,7 +264,7 @@ def test_an_empty_topic_list_says_why(user_client, app_module, monkeypatch,
 
 def test_an_empty_deck_says_why(user_client, app_module, monkeypatch,
                                 individual):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [])
     body = user_client.get("/deck/character").get_data(as_text=True)
     assert "No cards of your own" in body
@@ -274,7 +274,7 @@ def test_an_empty_quiz_names_the_filter_as_well(user_client, app_module,
                                                 monkeypatch, individual):
     """The quiz has two reasons to be empty — no translations, or the filter —
     so naming only the first would mislead."""
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [])
     body = user_client.get("/quiz/character").get_data(as_text=True)
     assert "nothing to quiz on" in body
@@ -284,7 +284,7 @@ def test_an_empty_quiz_names_the_filter_as_well(user_client, app_module,
 def test_the_ordinary_empty_message_is_unchanged_when_off(user_client,
                                                           app_module,
                                                           monkeypatch):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [])
     body = user_client.get("/flashcards/character").get_data(as_text=True)
     assert "No flashcards saved under this topic yet" in body

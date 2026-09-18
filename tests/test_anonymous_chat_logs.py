@@ -32,7 +32,7 @@ def mykola(app_module, monkeypatch):
     monkeypatch.setattr(
         app_module, "_agent_answer",
         lambda q, h: {"response": "Indeed, madam.", "history": h, "sources": []})
-    monkeypatch.setattr(app_module, "claim_anonymous_message",
+    monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (True, 1))
     monkeypatch.setattr(app_module, "get_mykola",
                         lambda: types.SimpleNamespace(

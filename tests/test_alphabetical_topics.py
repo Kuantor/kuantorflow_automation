@@ -35,8 +35,8 @@ def asked(app_module, monkeypatch):
         calls.append(alphabetical)
         return in_other([("basics", 3), ("apples", 1)])
 
-    monkeypatch.setattr(app_module, "get_topics_by_section", fake_sections)
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None, **kw: ["apples"])
+    monkeypatch.setattr("utils.get_topics_by_section", fake_sections)
+    monkeypatch.setattr("utils.get_topics", lambda owner_id=None, **kw: ["apples"])
     return calls
 
 
@@ -96,8 +96,8 @@ def test_a_dead_database_still_renders_the_page(user_client, app_module,
     def boom(owner_id=None, alphabetical=False, **kw):
         raise RuntimeError("no database")
 
-    monkeypatch.setattr(app_module, "get_topics_by_section", boom)
-    monkeypatch.setattr(app_module, "get_topics", lambda owner_id=None, **kw: [])
+    monkeypatch.setattr("utils.get_topics_by_section", boom)
+    monkeypatch.setattr("utils.get_topics", lambda owner_id=None, **kw: [])
 
     assert user_client.get("/").status_code == 200
     assert user_client.get("/quiz").status_code == 200

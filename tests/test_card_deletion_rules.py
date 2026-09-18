@@ -128,7 +128,7 @@ def deletes(app_module, monkeypatch):
         calls.append({"card_id": card_id, "owner_id": owner_id, "admin": admin})
         return calls.outcome
 
-    monkeypatch.setattr(app_module, "delete_flashcard", fake_delete)
+    monkeypatch.setattr("utils.delete_flashcard", fake_delete)
     return calls
 
 
@@ -247,7 +247,7 @@ CARD = {
 
 
 def _page(c, app_module, monkeypatch, owner):
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(CARD, added_by_user_id=owner)])
     return c.get("/flashcards/vocab").get_data(as_text=True)
 

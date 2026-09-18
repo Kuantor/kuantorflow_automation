@@ -52,7 +52,7 @@ def streaming(app_module, monkeypatch, chat_logs):
     agent = StubAgent()
     monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
     monkeypatch.setattr(app_module, "get_mykola", lambda: agent)
-    monkeypatch.setattr(app_module, "claim_anonymous_message",
+    monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (True, 1))
     return agent
 
@@ -136,7 +136,7 @@ def test_a_failure_mid_answer_is_an_event_not_a_status(client, app_module,
     monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
     monkeypatch.setattr(app_module, "get_mykola",
                         lambda: StubAgent(boom=True))
-    monkeypatch.setattr(app_module, "claim_anonymous_message",
+    monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (True, 1))
     response = ask(client)
     assert response.status_code == 200

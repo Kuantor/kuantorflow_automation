@@ -291,7 +291,7 @@ STORED_CARD = {
 @pytest.mark.parametrize("path", ["/flashcards/character", "/deck/character"])
 def test_the_owner_is_not_rendered(client, app_module, monkeypatch, path):
     """SELECT * now returns the column, so the card pages must not leak it."""
-    monkeypatch.setattr(app_module, "get_flashcards_by_topic",
+    monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(STORED_CARD)])
     body = client.get(path).get_data(as_text=True)
     assert "added_by_user_id" not in body

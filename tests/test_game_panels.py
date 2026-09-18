@@ -147,7 +147,7 @@ def test_the_panel_sits_outside_the_block_mykola_rebuilds(client, deck):
 def test_the_panel_renders_on_an_empty_deck(client, app_module, monkeypatch):
     """Structure, like #218's empty section heading. A learner who cannot see
     that the games exist will not add cards in order to reach them."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: [])
     body = client.get("/").get_data(as_text=True)
     assert "Practise your words" in body
@@ -167,7 +167,7 @@ def test_no_tile_judges_whether_a_selection_can_play(client, app_module,
 
     So an empty deck must still leave every tile inviting: the greying that
     remains is about the activity, never about the deck."""
-    monkeypatch.setattr(app_module, "get_topics_by_section",
+    monkeypatch.setattr("utils.get_topics_by_section",
                         lambda owner_id=None, alphabetical=False, **kw: [])
     panel = _games_panel(client.get("/").get_data(as_text=True))
     assert "Tick at least" not in panel

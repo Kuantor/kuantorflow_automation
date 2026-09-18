@@ -123,7 +123,7 @@ def test_flashcard_word_exists_false(monkeypatch):
 # --- the save routes report duplicates ----------------------------------------
 
 def test_add_card_reports_duplicate(user_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
     r = user_client.post("/cards/add", data={"word": "resilient", "pos": "adjective"})
     assert r.status_code == 200
@@ -142,8 +142,7 @@ def test_review_popup_knows_the_duplicate_state(client, app_module, monkeypatch,
     caption alone, which meant it would have gone on passing on those words
     being somewhere in the page long after the script stopped using them.
     """
-    monkeypatch.setattr(
-        app_module, "find_saved_words",
+    monkeypatch.setattr("utils.find_saved_words",
         lambda pairs: [{"exact": (1, 7), "others": []} for _ in pairs],
         raising=False)
     monkeypatch.setattr(
@@ -169,8 +168,7 @@ def _stub_lookup_two_cards(app_module, monkeypatch):
 def test_auto_add_banner_counts_skipped_duplicates(user_client, app_module, monkeypatch):
     _stub_lookup_two_cards(app_module, monkeypatch)
     # the noun card is already in the DB, the adjective card is new
-    monkeypatch.setattr(
-        app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
         lambda entry, added_by_user_id=None, **kw: None if entry["pos"] == "noun" else 1,
     )
     user_client.post("/settings", json={"cards_automatically": True})
@@ -182,7 +180,7 @@ def test_auto_add_banner_counts_skipped_duplicates(user_client, app_module, monk
 
 def test_auto_add_banner_when_everything_is_a_duplicate(user_client, app_module, monkeypatch):
     _stub_lookup_two_cards(app_module, monkeypatch)
-    monkeypatch.setattr(app_module, "save_flashcard",
+    monkeypatch.setattr("utils.save_flashcard",
                         lambda entry, added_by_user_id=None, **kw: None)
     user_client.post("/settings", json={"cards_automatically": True})
     body = user_client.post("/", data={"action": "parse_word", "word": "resilient"},
