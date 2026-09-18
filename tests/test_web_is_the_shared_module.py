@@ -65,18 +65,40 @@ def app_tree(app_module):
     return ast.parse(_source(app_module, "app.py"))
 
 
-def test_web_does_not_import_app(web_tree):
-    """The loop that would end the split."""
-    imported = []
-    for node in ast.walk(web_tree):
+def _imports(tree):
+    names = []
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            imported += [a.name.split(".")[0] for a in node.names]
+            names += [a.name.split(".")[0] for a in node.names]
         elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.append(node.module.split(".")[0])
-    assert "app" not in imported, (
-        "web.py imports app.py, which closes the import loop #418 exists to "
-        "open: a feature module taking `app` from web.py would pull the whole "
-        "route table in behind it")
+            names.append(node.module.split(".")[0])
+    return names
+
+
+@pytest.mark.parametrize("module", ["web.py", "rounds.py"])
+def test_no_shared_module_imports_app(app_module, module):
+    """The loop that would end the split.
+
+    The dependency runs one way -- `web.py` <- `rounds.py` <- `app.py` -- and
+    every module #418 still has to write joins the left of that chain. One
+    `import app` anywhere in it and the route table comes along, which is the
+    whole thing the ticket is undoing.
+    """
+    tree = ast.parse(_source(app_module, module))
+    assert "app" not in _imports(tree), (
+        "%s imports app.py, which closes the import loop #418 exists to open: "
+        "a feature module taking `app` from it would pull the whole route "
+        "table in behind it" % module)
+
+
+def test_rounds_is_imported_for_its_side_effects(app_tree):
+    """`app.py` asks `rounds.py` for nothing — the routes, the context
+    processor and `GAME_ROUNDS` all register themselves. A `from rounds import
+    ...` would mean something had been left half-moved."""
+    assert "rounds" in _imports(app_tree)
+    assert not [n for n in ast.walk(app_tree)
+                if isinstance(n, ast.ImportFrom) and n.module == "rounds"], (
+        "app.py imports a name back out of rounds.py")
 
 
 def test_web_defines_the_identity_helpers(web_tree):

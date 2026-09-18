@@ -18,6 +18,7 @@ import pytest
 
 import conftest
 import games
+import rounds
 
 
 CARDS = [
@@ -80,7 +81,7 @@ def generations(monkeypatch):
 
 def _held(client, app_module, title="A quiet week", text=PASSAGE, words=WORDS):
     with client.session_transaction() as s:
-        s[app_module.GENERATED_TEXT_KEY] = {
+        s[rounds.GENERATED_TEXT_KEY] = {
             "title": title, "text": text, "words": list(words),
             "topics": ["Work"], "length": 60, "instruction": "", "error": None,
         }
@@ -209,8 +210,8 @@ def test_it_is_not_a_round(client, deck):
 
 
 def app_rounds():
-    import app
-    return set(app.GAME_ROUNDS)
+    import rounds
+    return set(rounds.GAME_ROUNDS)
 
 
 # --- the way in -------------------------------------------------------------
@@ -265,7 +266,7 @@ def test_the_back_link_carries_what_produced_the_text(client, app_module, deck):
     """Topics, length and instruction all travel, because `_held_for()`
     compares all three."""
     with client.session_transaction() as sess:
-        sess[app_module.GENERATED_TEXT_KEY] = {
+        sess[rounds.GENERATED_TEXT_KEY] = {
             "title": "T", "text": PASSAGE, "words": list(WORDS),
             "topics": ["Work"], "length": 150,
             "instruction": "a letter of complaint", "error": None}

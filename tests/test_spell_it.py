@@ -21,6 +21,7 @@ import re
 import pytest
 
 import games
+import rounds
 
 
 # --- the mask -------------------------------------------------------------
@@ -303,4 +304,4 @@ def test_only_the_two_games_that_need_it_offer_it(client):
 
 
 def test_the_round_is_registered_rather_than_stubbed(app_module):
-    assert app_module.GAME_ROUNDS["spell_it"] is not app_module._round_stub
+    assert rounds.GAME_ROUNDS["spell_it"] is not rounds._round_stub

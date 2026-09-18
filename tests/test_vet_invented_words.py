@@ -26,6 +26,7 @@ import pytest
 
 import games
 import parsers
+import rounds
 
 
 # A deck big enough for a trigram to invent from — the same reasoning as
@@ -80,7 +81,7 @@ def test_a_word_the_lexicon_has_is_not_offered(lexicon, app_module):
     assert first, "the generator has to produce something to reject"
     lexicon.has = {first[0].lower()}
 
-    got = app_module._vetted_pseudowords(DECK, 5, set())
+    got = rounds._vetted_pseudowords(DECK, 5, set())
 
     assert first[0].lower() not in {w.lower() for w in got}
 
@@ -92,7 +93,7 @@ def test_the_round_is_topped_up_after_a_rejection(lexicon, app_module):
     first = games.pseudowords(DECK, 5, rng=random.Random(7))
     lexicon.has = {first[0].lower()}
 
-    got = app_module._vetted_pseudowords(DECK, 5, set())
+    got = rounds._vetted_pseudowords(DECK, 5, set())
 
     assert len(got) == 5
     assert len(lexicon.asked) >= 2, "it went back to the generator"
@@ -105,7 +106,7 @@ def test_a_rejected_word_is_not_offered_again(lexicon, app_module):
     first = games.pseudowords(DECK, 5, rng=random.Random(7))
     lexicon.has = {first[0].lower()}
 
-    app_module._vetted_pseudowords(DECK, 5, set())
+    rounds._vetted_pseudowords(DECK, 5, set())
 
     later = [w.lower() for batch in lexicon.asked[1:] for w in batch]
     assert first[0].lower() not in later
@@ -119,7 +120,7 @@ def test_an_unreachable_lexicon_leaves_the_round_playable(lexicon, app_module):
     path is still underneath."""
     lexicon.answer = None
 
-    got = app_module._vetted_pseudowords(DECK, 5, set())
+    got = rounds._vetted_pseudowords(DECK, 5, set())
 
     assert len(got) == 5, "the words are played unvetted"
     assert len(lexicon.asked) == 1, "and it does not retry a dead lexicon"
@@ -132,7 +133,7 @@ def test_none_is_not_read_as_nothing_found(lexicon, app_module):
     lexicon.answer = None
     lexicon.has = {w.lower() for w in DECK}      # would reject everything
 
-    assert len(app_module._vetted_pseudowords(DECK, 5, set())) == 5
+    assert len(rounds._vetted_pseudowords(DECK, 5, set())) == 5
 
 
 # --- bounded ----------------------------------------------------------------
@@ -149,10 +150,10 @@ def test_it_gives_up_rather_than_looping(lexicon, app_module):
 
     lexicon.has = Everything()
 
-    got = app_module._vetted_pseudowords(DECK, 5, set())
+    got = rounds._vetted_pseudowords(DECK, 5, set())
 
     assert got == []
-    assert len(lexicon.asked) <= app_module.VET_ATTEMPTS
+    assert len(lexicon.asked) <= rounds.VET_ATTEMPTS
 
 
 def test_the_round_plays_what_it_gets(lexicon, app_module):
@@ -161,7 +162,7 @@ def test_the_round_plays_what_it_gets(lexicon, app_module):
     first = games.pseudowords(DECK, 5, rng=random.Random(7))
     lexicon.has = {w.lower() for w in first[:3]}
 
-    got = app_module._vetted_pseudowords(DECK, 5, set())
+    got = rounds._vetted_pseudowords(DECK, 5, set())
 
     assert 0 <= len(got) <= 5
     assert all(w.lower() not in lexicon.has for w in got)
@@ -187,7 +188,8 @@ def test_the_generator_itself_stays_offline():
 
 
 def test_the_vet_does_not_vouch_for_words_in_confirmed_words(lexicon,
-                                                             app_module):
+                                                             app_module,
+                                                             monkeypatch):
     """#389's one correction to its own ticket.
 
     `confirmed_words` is rendered back to a learner as "somebody already
@@ -196,13 +198,27 @@ def test_the_vet_does_not_vouch_for_words_in_confirmed_words(lexicon,
     page, only 17 were English. Writing existence hits into that table would
     have the app vouching for `concile` on the strength of a Dutch entry.
     """
+    # Seeded like the two tests above, and for the same reason: without it the
+    # vet's own batch differs from `first`, the lexicon claims nothing, and
+    # **no word is ever rejected** -- so the assertion below would hold on an
+    # empty run rather than on a run that had something to vouch for.
+    random.seed(7)
     first = games.pseudowords(DECK, 5, rng=random.Random(7))
     lexicon.has = {first[0].lower()}
     written = []
-    app_module.remember_confirmed_word = lambda word, source: written.append(word)
+    # Stubbed on `utils`, where the function lives (kuantorflow#436). This line
+    # used to be a bare assignment on the `app` module, which is a name nothing
+    # reads any more -- so `written` stayed empty whatever the vet did and the
+    # assertion below could not fail. It also never came back off, since a bare
+    # assignment is not `monkeypatch`.
+    monkeypatch.setattr("utils.remember_confirmed_word",
+                        lambda word, source: written.append(word))
 
-    app_module._vetted_pseudowords(DECK, 5, set())
+    rounds._vetted_pseudowords(DECK, 5, set())
 
+    assert lexicon.has & {w for batch in lexicon.asked for w in
+                          (x.lower() for x in batch)}, (
+        "no word was rejected, so there was nothing to vouch for")
     assert written == []
 
 
