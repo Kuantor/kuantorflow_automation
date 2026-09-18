@@ -23,6 +23,7 @@ import re
 import pytest
 
 import games
+import rounds
 
 
 def _rng(seed=0):
@@ -333,5 +334,5 @@ def test_no_activity_is_a_stub_any_more():
 
 
 def test_the_round_is_registered_rather_than_stubbed(app_module):
-    assert (app_module.GAME_ROUNDS["rebuild_the_sentence"]
-            is not app_module._round_stub)
+    assert (rounds.GAME_ROUNDS["rebuild_the_sentence"]
+            is not rounds._round_stub)

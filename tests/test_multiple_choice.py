@@ -26,6 +26,7 @@ import pytest
 from werkzeug.datastructures import MultiDict
 
 import games
+import rounds
 
 
 CARDS = [
@@ -462,7 +463,7 @@ def test_both_languages_hidden_is_a_dead_end_with_a_reason(
 
     Patched at `_visible_quiz_langs`, which is the function whose empty return
     *is* the condition, rather than at the settings underneath it."""
-    monkeypatch.setattr(app_module, "_visible_quiz_langs", lambda prefs: {})
+    monkeypatch.setattr("rounds._visible_quiz_langs", lambda prefs: {})
     body = _play(client)
     assert "no language to be tested in" in body.lower()
     assert _groups(body) == {}
@@ -544,4 +545,4 @@ def test_the_activity_asks_for_a_language():
 
 
 def test_the_round_is_registered_rather_than_stubbed(app_module):
-    assert app_module.GAME_ROUNDS["multiple_choice"] is not app_module._round_stub
+    assert rounds.GAME_ROUNDS["multiple_choice"] is not rounds._round_stub

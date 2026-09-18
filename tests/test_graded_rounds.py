@@ -25,6 +25,8 @@ import re
 import pytest
 from werkzeug.datastructures import MultiDict
 
+import rounds
+
 
 SENTENCE = "The jury acquitted him of murder"
 
@@ -99,14 +101,14 @@ UNATTRIBUTABLE = [
 def seam(app_module, monkeypatch):
     """Records every call to the one helper, and passes them through."""
     calls = []
-    original = app_module._graded_answers
+    original = rounds._graded_answers
 
     def recording(cards, judge):
         graded = original(cards, judge)
         calls.append(graded)
         return graded
 
-    monkeypatch.setattr(app_module, "_graded_answers", recording)
+    monkeypatch.setattr("rounds._graded_answers", recording)
     return calls
 
 
@@ -144,7 +146,7 @@ def test_a_round_with_no_card_behind_it_cannot_reach_the_helper(
 def _graded(app_module, cards, judge, data):
     with app_module.app.test_request_context(
             "/", method="POST", data=MultiDict(data)):
-        return app_module._graded_answers(cards, judge)
+        return rounds._graded_answers(cards, judge)
 
 
 def _always(card, given):

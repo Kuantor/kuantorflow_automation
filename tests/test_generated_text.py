@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 import games
+import rounds
 import textgen
 
 
@@ -761,7 +762,7 @@ def test_the_worst_case_still_fits_in_the_session_cookie(app_module):
         games.HINT_KEY: games.HINT_FIRST_LAST,
         "generated_texts": 9,
         "generated_about": "x" * textgen.INSTRUCTION_MAX_CHARS,
-        app_module.GENERATED_TEXT_KEY: {
+        rounds.GENERATED_TEXT_KEY: {
             "title": " ".join(rnd(6, 4, 9)),
             "text": " ".join(rnd(games.GENERATED_WORDS_MAX, 3, 8)),
             "words": rnd(textgen.WORDS_PER_TEXT_MAX, 4, 12),

@@ -21,6 +21,7 @@ import re
 import pytest
 
 import games
+import rounds
 
 
 CARDS = [
@@ -268,5 +269,5 @@ def test_the_activity_no_longer_carries_a_ticket():
 
 
 def test_the_round_is_registered_rather_than_stubbed(app_module):
-    assert (app_module.GAME_ROUNDS["listen_and_type"]
-            is not app_module._round_stub)
+    assert (rounds.GAME_ROUNDS["listen_and_type"]
+            is not rounds._round_stub)

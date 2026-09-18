@@ -21,6 +21,7 @@ import pytest
 from werkzeug.datastructures import MultiDict
 
 import games
+import rounds
 
 
 BY_TOPIC = {
@@ -283,4 +284,4 @@ def test_it_asks_nothing_of_a_card():
 
 
 def test_the_round_is_registered_rather_than_stubbed(app_module):
-    assert app_module.GAME_ROUNDS["odd_one_out"] is not app_module._round_stub
+    assert rounds.GAME_ROUNDS["odd_one_out"] is not rounds._round_stub

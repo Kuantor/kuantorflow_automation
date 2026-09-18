@@ -396,15 +396,15 @@ def test_one_wording_across_all_three_surfaces(client, deck, with_key):
     the gap — so a literal here is a test that fails on success, which is the
     worst kind: it says "something broke" when the right thing happened.
     """
-    import app as app_mod
     import games
+    import rounds
 
     stubs = [a for a in games.ACTIVITIES.values() if a.ticket]
     home = client.get("/").get_data(as_text=True)
     topic = client.get("/flashcards/Work%20and%20careers").get_data(as_text=True)
-    assert home.count(app_mod.UNDER_CONSTRUCTION) == len(stubs)
+    assert home.count(rounds.UNDER_CONSTRUCTION) == len(stubs)
     if stubs:
-        assert app_mod.UNDER_CONSTRUCTION in _row(topic)
+        assert rounds.UNDER_CONSTRUCTION in _row(topic)
 
 
 def test_a_game_that_lands_ungreys_itself(client, deck, monkeypatch):
