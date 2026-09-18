@@ -215,6 +215,13 @@ def app_module(monkeypatch):
                         lambda pairs: [{"exact": None, "others": []}
                                        for _ in pairs],
                         raising=False)
+    # Real or fake asks which invented words a learner has already disputed
+    # and won (kuantorflow#258), so *any* test that opens that round without
+    # stubbing this reaches a real database -- found by the route walk in
+    # test_suite_stays_offline.py, which is the first thing here that could
+    # see it. Nothing confirmed by default; the tests that care re-patch it.
+    monkeypatch.setattr(app_mod, "confirmed_words", lambda: set(),
+                        raising=False)
     # A skipped duplicate asks the database whether the stored card has gaps
     # this entry could fill (kuantorflow#349), so every duplicate answer runs
     # a query too - and since kuantorflow#377 reports what it filled, what a
