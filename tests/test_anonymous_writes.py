@@ -34,7 +34,7 @@ NO_ROW_SESSION = {"id": None, "name": "Test User",
 def _stub_lookup(app_module, monkeypatch, cards_automatically=True):
     monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
         {"word": "resilient", "pos": "adjective", "topic": "vocab"}])
-    monkeypatch.setattr(app_module, "current_settings", lambda: dict(
+    monkeypatch.setattr("web.current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
         cards_automatically=cards_automatically, show_ukrainian=True,
         show_russian=True, quiz_lang="ukr"))

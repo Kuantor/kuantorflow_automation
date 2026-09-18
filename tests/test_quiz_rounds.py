@@ -278,7 +278,7 @@ def test_with_one_visible_language_there_is_nothing_to_confirm(
     """#46/#79: a hidden language offers no switch link, so the dialog's script
     returns early rather than wiring nothing."""
     import settings_store
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS, show_russian=False))
     body = client.get("/quiz?topic=Work").get_data(as_text=True)
     assert 'data-lang-name="' not in body

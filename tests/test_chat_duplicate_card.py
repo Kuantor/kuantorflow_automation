@@ -68,7 +68,7 @@ def test_a_hidden_duplicate_is_explained_rather_than_located(app_module,
     account files its cards."""
     monkeypatch.setattr("utils.find_duplicate",
                         lambda word, pos, exclude_id=None: (9, 99))
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: {"individual_cards": True, "quiz_lang": "ukr"})
     with pytest.raises(Exception) as excinfo:
         _save(app_module)

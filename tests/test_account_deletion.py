@@ -342,7 +342,7 @@ ADMIN = "admin@example.com"
 
 @pytest.fixture()
 def admin_client(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "ADMIN_EMAILS",
+    monkeypatch.setattr("web.ADMIN_EMAILS",
                         app_module._admin_emails(ADMIN))
     with client.session_transaction() as sess:
         sess["user"] = {"id": 1, "name": "Admin", "email": ADMIN,

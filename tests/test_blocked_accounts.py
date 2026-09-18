@@ -63,7 +63,7 @@ def test_the_refusal_says_it_is_a_block_not_a_sign_in(blocked_client, saved):
 
 def test_the_refusal_names_an_admin_to_write_to(blocked_client, app_module,
                                                 monkeypatch, saved):
-    monkeypatch.setattr(app_module, "ADMIN_EMAILS", {"admin@example.com"})
+    monkeypatch.setattr("web.ADMIN_EMAILS", {"admin@example.com"})
     body = blocked_client.post("/cards/add", data=dict(CARD_FORM)).get_json()
     assert "admin@example.com" in body["error"]
 
@@ -72,7 +72,7 @@ def test_with_no_admin_configured_the_message_still_makes_sense(
         blocked_client, app_module, monkeypatch, saved):
     """ADMIN_EMAILS may be empty (#158) — then there is nobody to name, and
     the sentence has to stop rather than trail off into an empty address."""
-    monkeypatch.setattr(app_module, "ADMIN_EMAILS", set())
+    monkeypatch.setattr("web.ADMIN_EMAILS", set())
     body = blocked_client.post("/cards/add", data=dict(CARD_FORM)).get_json()
     assert "blocked" in body["error"].lower()
     assert "@" not in body["error"]
@@ -92,7 +92,7 @@ def test_the_automatic_add_path_is_refused(blocked_client, app_module,
     called = []
     monkeypatch.setattr(app_module, "lookup_word",
                         lambda *a, **k: called.append(1) or [])
-    monkeypatch.setattr(app_module, "current_settings", lambda: dict(
+    monkeypatch.setattr("web.current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
         cards_automatically=True, show_ukrainian=True, show_russian=True,
         quiz_lang="ukr", restart_chat_interval=2))
@@ -121,7 +121,7 @@ def test_the_delete_cross_is_greyed_with_the_reason(blocked_client, app_module,
                                                     monkeypatch):
     """Read off the cross itself, not the page: a blocked visitor's page also
     carries the Settings notice, so `"blocked" in body` would prove nothing."""
-    monkeypatch.setattr(app_module, "ADMIN_EMAILS", {"admin@example.com"})
+    monkeypatch.setattr("web.ADMIN_EMAILS", {"admin@example.com"})
     monkeypatch.setattr("utils.get_flashcards_by_topic",
                         lambda topic, owner_id=None, **kw: [dict(STORED_CARD)])
     body = blocked_client.get("/flashcards/character").get_data(as_text=True)
@@ -136,7 +136,7 @@ def test_a_blocked_admin_cannot_delete_either(blocked_client, app_module,
     """Admin-ness is checked after the block, so an admin who blocked their
     own account is taken at their word. #165 stops them deleting that account,
     so this cannot become permanent."""
-    monkeypatch.setattr(app_module, "ADMIN_EMAILS", {TEST_USER_EMAIL})
+    monkeypatch.setattr("web.ADMIN_EMAILS", {TEST_USER_EMAIL})
     with blocked_client.session_transaction() as sess:
         sess["user"]["email_verified"] = True
     monkeypatch.setattr("utils.get_flashcards_by_topic",
@@ -249,7 +249,7 @@ def test_their_own_settings_still_save(blocked_client):
 
 def test_the_settings_popup_tells_them_how_to_ask(blocked_client, app_module,
                                                   monkeypatch):
-    monkeypatch.setattr(app_module, "ADMIN_EMAILS", {"admin@example.com"})
+    monkeypatch.setattr("web.ADMIN_EMAILS", {"admin@example.com"})
     body = blocked_client.get("/").get_data(as_text=True)
     assert "settings-blocked" in body
     assert "admin@example.com" in body

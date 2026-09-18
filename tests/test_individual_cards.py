@@ -37,7 +37,7 @@ def individual(app_module, monkeypatch):
         stored = dict(settings_store.DEFAULTS)
         stored["individual_cards"] = True
         return stored
-    monkeypatch.setattr(app_module, "current_settings", prefs)
+    monkeypatch.setattr("web.current_settings", prefs)
 
 
 def _capture_owner(app_module, monkeypatch, cards=None):

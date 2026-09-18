@@ -158,7 +158,7 @@ def test_the_picker_lists_only_what_this_visitor_may_see(
         return in_other([("mine", 1)])
 
     monkeypatch.setattr("utils.get_topics_by_section", fake_sections)
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(__import__("settings_store").DEFAULTS,
                                      individual_cards=True))
     user_client.get("/quiz")
@@ -295,7 +295,7 @@ def test_the_language_starts_on_the_identitys_setting(client, deck):
 def test_the_setting_decides_which_language_is_preselected(client, app_module,
                                                            monkeypatch, deck):
     import settings_store
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS, quiz_lang="russian"))
     body = client.get("/quiz").get_data(as_text=True)
     rus = body.index('value="rus"')
@@ -321,7 +321,7 @@ def test_one_visible_language_offers_no_choice(client, app_module,
     """#46/#79: with a language hidden there is nothing to choose, and a lone
     radio is a control that cannot do anything."""
     import settings_store
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS, show_russian=False))
     body = client.get("/quiz").get_data(as_text=True)
     assert "Translation to:" not in body

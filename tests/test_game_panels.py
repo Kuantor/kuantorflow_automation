@@ -243,7 +243,7 @@ def test_the_quiz_link_still_hides_with_no_visible_language(client, deck,
     language is not fixable from this page, so the link goes. A thin topic is
     fixable by adding another topic, so a game's link stays."""
     import settings_store
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      show_ukrainian=False, show_russian=False))
     row = _row(client.get("/flashcards/Work%20and%20careers").get_data(as_text=True))

@@ -77,7 +77,7 @@ def test_the_write_guard_runs_before_the_model(user_client, proposes,
     asked = []
     monkeypatch.setattr(app_module.topicgen, "propose",
                         lambda idea, count: asked.append(idea) or ("T", ["x"]))
-    monkeypatch.setattr(app_module, "add_refusal", lambda: "Sign in to add cards.")
+    monkeypatch.setattr("web.add_refusal", lambda: "Sign in to add cards.")
 
     _propose(user_client)
 

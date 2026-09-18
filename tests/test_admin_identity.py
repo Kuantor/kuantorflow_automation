@@ -34,7 +34,7 @@ def _admin_session(email=ADMIN, **overrides):
 def admins(app_module, monkeypatch):
     """Configure ADMIN_EMAILS for the test."""
     def configure(raw):
-        monkeypatch.setattr(app_module, "ADMIN_EMAILS",
+        monkeypatch.setattr("web.ADMIN_EMAILS",
                             app_module._admin_emails(raw))
     configure(ADMIN)
     return configure
