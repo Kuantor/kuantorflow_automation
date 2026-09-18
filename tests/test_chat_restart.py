@@ -87,7 +87,7 @@ def test_restart_after_the_interval(client, app_module, monkeypatch):
 
 def test_zero_interval_never_restarts(client, app_module, monkeypatch):
     _mykola(app_module, monkeypatch)
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      restart_chat_interval=0))
     data = _check(client, hours_ago=100)
@@ -217,7 +217,7 @@ def test_settings_popup_has_the_slider_and_never_checkbox(client):
 def test_never_checkbox_is_checked_and_slider_disabled_at_zero(user_client,
                                                                app_module,
                                                                monkeypatch):
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      restart_chat_interval=0))
     body = user_client.get("/").get_data(as_text=True)
@@ -228,7 +228,7 @@ def test_never_checkbox_is_checked_and_slider_disabled_at_zero(user_client,
 
 
 def test_slider_shows_the_stored_hours(user_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      restart_chat_interval=9))
     body = user_client.get("/").get_data(as_text=True)

@@ -140,7 +140,7 @@ def test_the_review_popup_writes_nothing_for_anonymous(client, saved):
 def _stub_automatic_add(app_module, monkeypatch):
     monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
         {"word": "resilient", "pos": "adjective", "topic": "vocab"}])
-    monkeypatch.setattr(app_module, "current_settings", lambda: dict(
+    monkeypatch.setattr("web.current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
         cards_automatically=True, show_ukrainian=True, show_russian=True,
         quiz_lang="ukr"))

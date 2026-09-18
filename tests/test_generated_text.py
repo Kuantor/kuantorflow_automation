@@ -403,7 +403,7 @@ def test_the_site_wide_ceiling_says_so_plainly(client, deck, claude,
 
 def test_a_blocked_account_cannot_spend_anything(client, deck, claude,
                                                  app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "is_blocked", lambda: True)
+    monkeypatch.setattr("web.is_blocked", lambda: True)
     _write(client)
     assert claude == []
 

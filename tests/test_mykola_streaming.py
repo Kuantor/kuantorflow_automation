@@ -154,7 +154,7 @@ def test_an_empty_question_is_refused_as_json(client, streaming):
 
 
 def test_a_blocked_visitor_is_refused(client, app_module, monkeypatch, streaming):
-    monkeypatch.setattr(app_module, "is_blocked", lambda: True)
+    monkeypatch.setattr("web.is_blocked", lambda: True)
     assert ask(client).status_code == 403
 
 

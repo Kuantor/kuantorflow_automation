@@ -147,7 +147,7 @@ def test_a_hidden_topic_is_not_suggested(client, app_module, monkeypatch):
     would show them."""
     import settings_store
 
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      individual_cards=True))
     monkeypatch.setattr("utils.get_topics_by_section",

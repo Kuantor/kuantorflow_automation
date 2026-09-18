@@ -107,7 +107,7 @@ def test_the_admin_asks_as_the_admin(user_client, app_module, monkeypatch,
                                      topic):
     """Their decision, and the reason the guide says "only you and the admin"
     rather than "only you"."""
-    monkeypatch.setattr(app_module, "is_admin", lambda: True)
+    monkeypatch.setattr("web.is_admin", lambda: True)
     topic()
     seen = _capture_viewer(app_module, monkeypatch)
 

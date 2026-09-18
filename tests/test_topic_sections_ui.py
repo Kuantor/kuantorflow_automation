@@ -134,7 +134,7 @@ def test_the_individual_cards_explanation_still_wins(user_client, app_module,
     card of yours."""
     import settings_store
 
-    monkeypatch.setattr(app_module, "current_settings",
+    monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      individual_cards=True))
     monkeypatch.setattr("utils.get_topics_by_section",
