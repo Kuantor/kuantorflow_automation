@@ -113,8 +113,13 @@ def scratch_db(monkeypatch):
 def _rows():
     conn = _connect(SCRATCH_DB)
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, lookups FROM word_lookup_usage "
-                   "WHERE day = CURDATE() ORDER BY user_id")
+    # `action_usage` since kuantorflow#447: one table, the action in a
+    # column. Both lookup actions are read together and projected back to
+    # `(user_id, used)`, so what these tests assert is unchanged -- the
+    # account rows carry a real id and the shared one is still row zero.
+    cursor.execute("SELECT user_id, used FROM action_usage "
+                   "WHERE day = CURDATE() AND action IN ('lookup', 'lookup:anon') "
+                   "ORDER BY user_id")
     found = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -206,7 +211,7 @@ def test_the_count_is_the_day_and_not_the_run(claim):
     """The primary key is (day, user_id), so yesterday's row cannot refuse
     today's lookup."""
     claim(LEARNER, 2, 100)
-    _execute(["UPDATE word_lookup_usage SET day = day - INTERVAL 1 DAY"],
+    _execute(["UPDATE action_usage SET day = day - INTERVAL 1 DAY"],
              database=SCRATCH_DB)
 
     assert [claim(LEARNER, 2, 100)[0] for _ in range(2)] == [True, True]
