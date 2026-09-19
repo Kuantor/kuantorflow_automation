@@ -23,6 +23,12 @@ KUANTORFLOW_PATH = os.environ.get(
     str(Path(__file__).resolve().parent.parent.parent / "kuantorflow"),
 )
 sys.path.insert(0, KUANTORFLOW_PATH)
+
+# The app refuses to start without a signing key (kuantorflow#445), and that
+# refusal happens at import -- long before any fixture could set one. It is
+# `setdefault`, not an assignment: a real key in this repo's .env still wins,
+# which is what the live-site tests want.
+os.environ.setdefault("SECRET_KEY", "test-signing-key-never-deployed")
 # The console one-offs live in `scripts/` since kuantorflow#442 -- this suite
 # imports five of them by bare name (`import seed_words`), and the app itself
 # never does, so their directory goes on the path beside the repo root rather
