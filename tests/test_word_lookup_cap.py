@@ -43,7 +43,7 @@ def providers(app_module, monkeypatch):
         asked.append(word)
         return [dict(CARD, word=word, topic=topic)]
 
-    monkeypatch.setattr(app_module, "lookup_word", fake_lookup)
+    monkeypatch.setattr("parsers.lookup_word", fake_lookup)
     return asked
 
 

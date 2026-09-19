@@ -17,6 +17,7 @@ import pytest
 from flask import session
 
 from conftest import TEST_USER_ID
+import cards
 
 ENTRY = {"word": "aspiration", "pos": "noun", "topic": "emotions"}
 

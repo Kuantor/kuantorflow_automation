@@ -26,6 +26,7 @@ import json
 import pytest
 
 import settings_store
+import cards
 
 
 TEST_USER_ID = 7          # conftest's signed-in user

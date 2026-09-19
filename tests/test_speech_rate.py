@@ -14,6 +14,7 @@ That is recorded on the PR; none of it can live here.
 import re
 
 import settings_store
+import cards
 
 
 # --- the setting ----------------------------------------------------------

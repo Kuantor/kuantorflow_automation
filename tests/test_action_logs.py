@@ -13,6 +13,7 @@ import pytest
 
 import applog
 import parsers
+import cards
 
 
 def _lines(directory, name):
@@ -70,7 +71,7 @@ def test_duplicate_card_is_logged_as_skipped(user_client, app_module,
 def test_automatic_add_is_logged_with_its_own_source(user_client, saved,
                                                      app_module, monkeypatch,
                                                      action_logs):
-    monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
+    monkeypatch.setattr("parsers.lookup_word", lambda *a, **k: [
         {"word": "resilient", "pos": "adjective", "topic": "vocab"}])
     monkeypatch.setattr("web.current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
@@ -226,7 +227,7 @@ def test_failed_lookup_is_logged(action_logs, monkeypatch):
 
 def test_lookup_route_logs_the_user_and_their_providers(client, saved, app_module,
                                                         monkeypatch, action_logs):
-    monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [])
+    monkeypatch.setattr("parsers.lookup_word", lambda *a, **k: [])
     client.post("/", data={"action": "parse_word", "word": "resilient",
                            "topic": "vocab"})
     line = _find(action_logs, "dict", "LOOKUP")[0]

@@ -163,8 +163,7 @@ PROPOSED = [
 @pytest.fixture()
 def popup(client, app_module, monkeypatch, saved):
     """The page with the review popup open, from a word lookup."""
-    monkeypatch.setattr(
-        app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [dict(c, topic=topic)
                                                for c in PROPOSED])
     return client.post("/", data={"action": "parse_word", "word": "probability",

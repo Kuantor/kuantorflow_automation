@@ -138,7 +138,7 @@ def test_the_review_popup_writes_nothing_for_anonymous(client, saved):
 
 
 def _stub_automatic_add(app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
+    monkeypatch.setattr("parsers.lookup_word", lambda *a, **k: [
         {"word": "resilient", "pos": "adjective", "topic": "vocab"}])
     monkeypatch.setattr("web.current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
@@ -299,7 +299,7 @@ def test_the_owner_is_not_rendered(client, app_module, monkeypatch, path):
 
 
 def test_the_review_popup_posts_no_owner_field(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
+    monkeypatch.setattr("parsers.lookup_word", lambda *a, **k: [
         {"word": "resilient", "pos": "adjective", "topic": "vocab",
          "explanation_en": "able to recover quickly"}])
     body = client.post("/", data={"action": "parse_word", "word": "resilient",

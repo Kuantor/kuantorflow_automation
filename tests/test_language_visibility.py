@@ -71,8 +71,7 @@ def test_flashcards_hide_quiz_link_when_no_language_visible(user_client, app_mod
 # --- Lookup review popup (#46/#79) --------------------------------------------
 
 def test_review_popup_carries_hidden_language_as_hidden_input(user_client, app_module, monkeypatch):
-    monkeypatch.setattr(
-        app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "noun", "topic": topic,
              "translation_ukr": "дім", "translation_rus": "дом"}],

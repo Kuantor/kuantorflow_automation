@@ -27,7 +27,7 @@ def _upload(client, filename="notes.docx"):
 def parses(app_module, monkeypatch):
     """Record every call to the parser — it is what costs money."""
     calls = []
-    monkeypatch.setattr(app_module, "parse_notes_preview",
+    monkeypatch.setattr("parsers.parse_notes_preview",
                         lambda *a, **k: calls.append(a) or ([], ""))
     return calls
 

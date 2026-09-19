@@ -145,8 +145,7 @@ def test_review_popup_knows_the_duplicate_state(client, app_module, monkeypatch,
     monkeypatch.setattr("utils.find_saved_words",
         lambda pairs: [{"exact": (1, 7), "others": []} for _ in pairs],
         raising=False)
-    monkeypatch.setattr(
-        app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "noun", "topic": topic}],
     )
@@ -156,8 +155,7 @@ def test_review_popup_knows_the_duplicate_state(client, app_module, monkeypatch,
 
 
 def _stub_lookup_two_cards(app_module, monkeypatch):
-    monkeypatch.setattr(
-        app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "adjective", "topic": topic},
             {"word": word, "pos": "noun", "topic": topic},

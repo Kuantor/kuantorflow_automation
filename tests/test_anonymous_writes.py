@@ -17,6 +17,7 @@ import pytest
 from flask import session
 
 from conftest import TEST_USER_ID
+import cards
 
 CARD_FORM = {
     "word": "resilient",
@@ -32,7 +33,7 @@ NO_ROW_SESSION = {"id": None, "name": "Test User",
 
 
 def _stub_lookup(app_module, monkeypatch, cards_automatically=True):
-    monkeypatch.setattr(app_module, "lookup_word", lambda *a, **k: [
+    monkeypatch.setattr("parsers.lookup_word", lambda *a, **k: [
         {"word": "resilient", "pos": "adjective", "topic": "vocab"}])
     monkeypatch.setattr("web.current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
@@ -145,7 +146,7 @@ def test_the_save_funnel_refuses_even_without_a_route(app_module, saved):
     future save route that forgets to ask fails loudly instead of writing."""
     with app_module.app.test_request_context("/"):
         with pytest.raises(PermissionError):
-            app_module._save_and_log({"word": "resilient"}, source="test")
+            cards._save_and_log({"word": "resilient"}, source="test")
     assert saved == []
 
 

@@ -28,6 +28,7 @@ import json
 import pytest
 
 import topicgen
+import cards
 
 
 PROPOSED = ["tenancy", "deposit", "landlord", "sublet", "quorble"]
@@ -59,7 +60,7 @@ def test_a_proposal_writes_nothing_and_spends_no_lookup(user_client, proposes,
     """The half of #406 that is free, and must stay free. Nothing is saved and
     no dictionary is asked until the learner has seen the list and approved it."""
     saved, claimed = [], []
-    monkeypatch.setattr(app_module, "_save_and_log",
+    monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: saved.append(entry))
     monkeypatch.setattr("utils.claim_word_lookups",
                         lambda *a: claimed.append(a) or (True, None, 0))
@@ -262,10 +263,10 @@ def _events(client):
 
 def test_the_fill_reports_every_word_and_then_finishes(user_client, proposes,
                                                        app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "TOPIC_FILL_PAUSE", 0)
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda w, t, d: [{"word": w, "pos": "noun"}])
-    monkeypatch.setattr(app_module, "_save_and_log",
+    monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: True)
     user_client.post("/topics/generate/start",
                      data={"title": "Renting a flat",
@@ -284,15 +285,15 @@ def test_a_failed_lookup_is_a_skipped_word_not_a_dead_run(user_client, proposes,
     """`seed_topics.py`'s rule, and it matters more here: Reverso and
     Merriam-Webster are blocked from PythonAnywhere, so one word failing is
     ordinary. Losing the other nineteen to it would not be."""
-    monkeypatch.setattr(app_module, "TOPIC_FILL_PAUSE", 0)
+    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
 
     def flaky(word, translator, dictionary):
         if word == "deposit":
             raise ValueError("nothing came back")
         return [{"word": word, "pos": "noun"}]
 
-    monkeypatch.setattr(app_module, "lookup_word", flaky)
-    monkeypatch.setattr(app_module, "_save_and_log",
+    monkeypatch.setattr("parsers.lookup_word", flaky)
+    monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: True)
     user_client.post("/topics/generate/start",
                      data={"title": "T",
@@ -313,11 +314,11 @@ def test_every_card_still_goes_through_the_single_write_path(user_client,
     """CLAUDE.md's rule for a new save path: it goes through `_save_and_log()`,
     which is where #125, #89 and the card log all live. A generator that wrote
     cards its own way would be a second place to get permissions wrong."""
-    monkeypatch.setattr(app_module, "TOPIC_FILL_PAUSE", 0)
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda w, t, d: [{"word": w, "pos": "noun"}])
     through = []
-    monkeypatch.setattr(app_module, "_save_and_log",
+    monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: through.append(
                             (entry["word"], entry["topic"], source)) or True)
     user_client.post("/topics/generate/start",

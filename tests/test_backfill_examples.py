@@ -19,6 +19,7 @@ import sys
 import pytest
 
 from maintenance import backfill_examples as backfill
+import cards
 
 CARDS = [
     {"id": 1, "word": "delegate", "pos": "verb", "topic": "Work"},

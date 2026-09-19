@@ -25,12 +25,14 @@ import pytest
 
 from conftest import CURRICULUM_SECTION, browse_panel, in_other
 
+import icons
+
 TOPICS = [("Work and careers", 20), ("Daily life and routines", 21)]
 
 
 def _icons(app_module, monkeypatch, *slugs):
     """Pretend the icon directory holds exactly these slugs."""
-    monkeypatch.setattr(app_module, "_topic_icon_slugs", lambda: set(slugs))
+    monkeypatch.setattr("icons._topic_icon_slugs", lambda: set(slugs))
 
 
 def _tiles(body):
@@ -64,13 +66,13 @@ def test_the_slug_is_the_name_lower_cased_with_runs_collapsed(app_module,
                                                              name, slug):
     """The only thing joining a topics row to a file on disk. A change here
     silently unhooks every icon, so it is spelled out rather than sampled."""
-    assert app_module.topic_slug(name) == slug
+    assert icons.topic_slug(name) == slug
 
 
 def test_a_topic_with_a_file_gets_a_static_url(app_module, monkeypatch, client):
     _icons(app_module, monkeypatch, "work_and_careers")
     with client.application.test_request_context():
-        assert app_module.topic_icon("Work and careers") == \
+        assert icons.topic_icon("Work and careers") == \
             "/static/img/topics/work_and_careers.webp"
 
 
@@ -79,19 +81,19 @@ def test_a_topic_with_no_file_gets_none(app_module, monkeypatch, client):
     flat colour rather than rendering a broken image."""
     _icons(app_module, monkeypatch, "work_and_careers")
     with client.application.test_request_context():
-        assert app_module.topic_icon("Luck and chance") is None
-        assert app_module.topic_icon("") is None
+        assert icons.topic_icon("Luck and chance") is None
+        assert icons.topic_icon("") is None
 
 
 def test_a_missing_icon_directory_is_not_an_error(app_module, monkeypatch,
                                                   tmp_path, client):
     """A checkout with no icons committed must still render every tile."""
-    monkeypatch.setattr(app_module, "TOPIC_ICON_DIR", tmp_path / "nope")
+    monkeypatch.setattr("icons.TOPIC_ICON_DIR", tmp_path / "nope")
     # One cache keyed by directory since kuantorflow#253, shared with the game
     # icons, so it is emptied rather than set to None.
-    monkeypatch.setattr(app_module._icon_slugs, "cache", {})
+    monkeypatch.setattr(icons._icon_slugs, "cache", {})
     with client.application.test_request_context():
-        assert app_module.topic_icon("Work and careers") is None
+        assert icons.topic_icon("Work and careers") is None
 
 
 # --- the tile -----------------------------------------------------------
@@ -216,9 +218,9 @@ def test_every_seeded_topic_has_an_icon_file():
     except ImportError:
         pytest.skip("seed_words.py is not on the checked-out branch (#203)")
 
-    have = app_mod._topic_icon_slugs()
+    have = icons._topic_icon_slugs()
     missing = [name for name in seed_words.SEED_WORDS
-               if app_mod.topic_slug(name) not in have]
+               if icons.topic_slug(name) not in have]
     assert missing == []
 
 
@@ -232,6 +234,6 @@ def test_no_icon_file_is_orphaned():
     except ImportError:
         pytest.skip("seed_words.py is not on the checked-out branch (#203)")
 
-    expected = {app_mod.topic_slug(name) for name in seed_words.SEED_WORDS}
-    orphans = sorted(app_mod._topic_icon_slugs() - expected)
+    expected = {icons.topic_slug(name) for name in seed_words.SEED_WORDS}
+    orphans = sorted(icons._topic_icon_slugs() - expected)
     assert orphans == []

@@ -11,6 +11,7 @@ import pytest
 
 import utils
 from conftest import TEST_USER_EMAIL, TEST_USER_ID
+import cards
 
 
 ADMIN = "admin@example.com"

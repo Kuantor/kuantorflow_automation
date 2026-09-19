@@ -118,7 +118,7 @@ def test_the_review_popup_shares_the_class_and_is_unharmed(client, app_module,
     pane, the pane inside the dialog, the dialog inside the viewport, and
     nothing scrolls sideways.
     """
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda word, topic=None, **kw: [
                             {"word": word, "pos": "noun", "topic": topic,
                              "explanation_en": "a definition",

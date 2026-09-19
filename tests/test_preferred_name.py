@@ -14,6 +14,7 @@ from flask import session
 
 import utils
 from conftest import TEST_USER_ID, TEST_USER_EMAIL
+import cards
 
 
 @pytest.fixture()

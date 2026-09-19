@@ -28,6 +28,7 @@ tell a learner their word was invented because Wikimedia was rate-limiting us.
 import pytest
 
 import parsers
+import cards
 
 
 @pytest.fixture()
@@ -254,7 +255,7 @@ def test_a_run_of_checks_is_capped(user_client, app_module, checker):
     """Not money -- both lexicons are free -- but Wikimedia rate-limits what
     looks like a scraper, and being throttled would turn every dispute into
     "could not check" for everybody."""
-    for _ in range(app_module.WORD_CHECKS_PER_HOUR):
+    for _ in range(cards.WORD_CHECKS_PER_HOUR):
         user_client.post("/games/word-check.json", json={"word": "bailment"})
     spent = len(checker.asked)
 
