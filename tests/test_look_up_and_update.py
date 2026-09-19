@@ -42,7 +42,7 @@ def lookup(app_module, monkeypatch):
         calls.append(dict(word=word, **providers))
         return [dict(e) for e in ENTRIES]
 
-    monkeypatch.setattr(app_module, "lookup_word", fake)
+    monkeypatch.setattr("parsers.lookup_word", fake)
     return calls
 
 
@@ -114,7 +114,7 @@ def test_the_match_goes_through_the_synonym_map(user_client, app_module,
     takes the entry the dictionary filed under `auxiliary verb`. The map lives
     in `parsers`, and matching here rather than in the browser is what keeps
     one copy of it."""
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda word, topic=None, **kw: [
                             {"word": "must", "pos": "auxiliary verb",
                              "explanation_en": "used to say something is necessary"}])
@@ -136,7 +136,7 @@ def test_the_synonym_map_is_applied_to_the_asked_side_too(user_client,
     the name that needs rewriting, so nothing matches unless both sides go
     through `_pos_key()`, which is what CLAUDE.md says the map is for.
     """
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda word, topic=None, **kw: [
                             {"word": "must", "pos": "modal verb",
                              "explanation_en": "used to say something is necessary"}])
@@ -185,7 +185,7 @@ def test_a_provider_outage_is_not_a_500(user_client, app_module, monkeypatch):
     def boom(word, topic=None, **kw):
         raise RuntimeError("every provider is down")
 
-    monkeypatch.setattr(app_module, "lookup_word", boom)
+    monkeypatch.setattr("parsers.lookup_word", boom)
 
     r = _ask(user_client, word="resilient", pos="adjective")
 

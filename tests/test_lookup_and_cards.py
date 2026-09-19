@@ -7,9 +7,7 @@ import re
 def _stub_lookup(app_module, monkeypatch):
     # app.py routes lookups through parsers.lookup_word since provider
     # selection (#20/#21); the extra kwargs carry the stored settings.
-    monkeypatch.setattr(
-        app_module,
-        "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "adjective", "translation_ukr": "стійкий",
              "explanation_en": "able to recover quickly", "topic": topic},
@@ -26,7 +24,7 @@ def test_existing_word_warns_before_lookup(client, app_module, monkeypatch):
     not run the (slow) lookup or open the review popup yet."""
     monkeypatch.setattr("utils.flashcard_word_exists", lambda w: True)
     called = []
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda *a, **k: called.append(1) or [])
     body = client.post("/", data={"action": "parse_word", "word": "resilient",
                                   "topic": "vocab"}).get_data(as_text=True)

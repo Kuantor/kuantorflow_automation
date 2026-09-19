@@ -63,8 +63,7 @@ def _hidden(body, name):
 
 def _lookup(client, app_module, monkeypatch, **overrides):
     card = dict(CARD, **overrides)
-    monkeypatch.setattr(
-        app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [dict(card, topic=topic)])
     return client.post("/", data={"action": "parse_word",
                                   "word": card["word"],

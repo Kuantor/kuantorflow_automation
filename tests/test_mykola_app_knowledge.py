@@ -18,6 +18,7 @@ import inspect
 from pathlib import Path
 
 import pytest
+import cards
 
 
 @pytest.fixture()
@@ -92,7 +93,7 @@ def test_a_newer_agent_is_told_where_an_untitled_card_goes(app_module,
 
     app_module.get_mykola()
 
-    assert seen["default_topic"] == app_module.DEFAULT_TOPIC
+    assert seen["default_topic"] == cards.DEFAULT_TOPIC
 
 
 def test_an_older_agent_is_not_handed_a_default_topic(app_module, monkeypatch):

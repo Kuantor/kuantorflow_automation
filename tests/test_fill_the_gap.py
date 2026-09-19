@@ -21,6 +21,7 @@ import pytest
 
 import games
 import settings_store
+import cards
 
 PLAY = "/games/fill_the_gap/play"
 

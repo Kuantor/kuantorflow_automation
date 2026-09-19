@@ -23,6 +23,7 @@ that #377 and #379 were both filed to end. So the card asks again.
 import io
 
 import pytest
+import cards
 
 
 MHT = """From: <saved>
@@ -56,7 +57,7 @@ def review(user_client):
 
 @pytest.fixture()
 def word_lookup(user_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda word, topic=None, **kw: [
                             {"word": word, "pos": "noun", "topic": topic}])
     return user_client.post("/", data={"action": "parse_word", "word": "x",
@@ -247,7 +248,7 @@ def test_the_sentence_is_the_one_the_popup_would_have_drawn(user_client, deck):
     deck.exact("distinct")
     from_endpoint = user_client.post(
         "/saved.json", json={"word": "distinct"}).get_json()["mark"]
-    rendered = app_module._saved_mark(
+    rendered = cards._saved_mark(
         "distinct", "", {"exact": (1, 7), "others": []}, False, 7)
 
     assert from_endpoint == rendered

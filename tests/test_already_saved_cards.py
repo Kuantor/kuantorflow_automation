@@ -26,6 +26,7 @@ import io
 import re
 
 import pytest
+import cards
 
 
 MHT_TEMPLATE = """From: <saved>
@@ -215,12 +216,20 @@ def test_the_note_is_written_once(app_module):
     literal would pass every behavioural assertion right up until somebody
     reworded one of them.
     """
-    import inspect
+    from pathlib import Path
 
-    source = inspect.getsource(app_module)
+    # Every module of the app, not just the one that happens to hold it today.
+    # This read `app.py` alone until #418 split the file, at which point the
+    # constant moved to `cards.py` and the assertion was counting occurrences
+    # in a file that no longer had any -- passing for the wrong reason would
+    # have been one rename away. The claim is about the codebase, so the test
+    # asks the codebase.
+    root = Path(app_module.app.root_path)
+    copies = sum(f.read_text(encoding="utf-8").count("hidden from you by your")
+                 for f in sorted(root.glob("*.py")))
 
-    assert "individual cards" in app_module.HIDDEN_DUPLICATE_NOTE
-    assert source.count("hidden from you by your") == 1
+    assert "individual cards" in cards.HIDDEN_DUPLICATE_NOTE
+    assert copies == 1, "the note is written in %d places" % copies
 
 
 # --- which popup asks, and which only marks --------------------------------
@@ -233,7 +242,7 @@ def look_up(user_client, app_module, monkeypatch):
     holds before the request runs: a fixture that fetched at setup time would
     have asked the database before the test had answered.
     """
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda word, topic=None, **kw: [
                             {"word": word, "pos": "noun", "topic": topic,
                              "explanation_en": "a definition"}])
@@ -526,7 +535,7 @@ def test_every_fillable_column_has_a_name_a_learner_would_recognise(app_module):
     import utils
 
     missing = [field for field in utils.FILLABLE_FIELDS
-               if field not in app_module.FILLED_FIELD_LABELS]
+               if field not in cards.FILLED_FIELD_LABELS]
 
     assert not missing, "no learner-facing name for %s" % missing
 
@@ -656,7 +665,7 @@ def test_the_automatic_add_never_forces(user_client, app_module, monkeypatch,
                                         saved):
     """Nobody was asked, so nobody answered. #200's auto-add saves without
     opening the popup at all, which is exactly the pile-up #101 is for."""
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda word, topic=None, **kw: [
                             {"word": word, "pos": "verb", "topic": topic}])
     user_client.post("/settings", json={"cards_automatically": True})

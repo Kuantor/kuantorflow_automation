@@ -27,6 +27,7 @@ import pytest
 
 import seed_topics
 import seed_words
+import cards
 
 # A topic, and two of its words taken **by position, not by name**. These tests
 # are about what the script does with a word that fails, not about which words

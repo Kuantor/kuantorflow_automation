@@ -16,6 +16,7 @@ import pytest
 
 import settings_store
 import utils
+import cards
 
 
 DELETED_USER = 7

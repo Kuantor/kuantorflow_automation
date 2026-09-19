@@ -4,6 +4,7 @@ import json
 import re
 
 import settings_store
+import cards
 
 
 # --- The store (#86) ----------------------------------------------------------
@@ -249,9 +250,7 @@ def test_quiz_lang_toggle_disabled_when_one_language_hidden(user_client):
 # --- Auto-add on lookup (#13) -------------------------------------------------
 
 def _stub_lookup(app_module, monkeypatch):
-    monkeypatch.setattr(
-        app_module,
-        "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "adjective", "translation_ukr": "стійкий",
              "topic": topic},
@@ -280,7 +279,7 @@ def test_lookup_receives_the_stored_providers(user_client, app_module, monkeypat
         calls.append(providers)
         return [{"word": word, "pos": "noun", "topic": topic}]
 
-    monkeypatch.setattr(app_module, "lookup_word", capture)
+    monkeypatch.setattr("parsers.lookup_word", capture)
     user_client.post("/settings", json={"translator": "microsoft",
                                    "explanatory_dictionary": "merriam-webster"})
     user_client.post("/", data={"action": "parse_word", "word": "run"})

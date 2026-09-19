@@ -23,6 +23,7 @@ import pytest
 
 import claim_topics
 import utils
+import cards
 
 
 # --- a database that answers the two reads and records the write ------------

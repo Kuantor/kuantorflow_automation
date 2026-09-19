@@ -27,8 +27,7 @@ import pytest
 
 
 def _stub_lookup(app_module, monkeypatch):
-    monkeypatch.setattr(
-        app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "noun", "translation_ukr": "імовірність",
              "topic": topic}])

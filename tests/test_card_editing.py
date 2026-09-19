@@ -16,6 +16,7 @@ import pytest
 
 import utils
 from conftest import TEST_USER_ID, TEST_USER_EMAIL
+import cards
 
 STORED = {
     "id": 5,

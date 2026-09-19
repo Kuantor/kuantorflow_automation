@@ -22,6 +22,7 @@ import pytest
 
 import claim_flashcards
 import utils
+import cards
 
 
 # --- a database that answers the three reads and records the write ----------

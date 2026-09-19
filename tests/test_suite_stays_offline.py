@@ -25,6 +25,7 @@ a decision and a silent gap is not.
 """
 
 import pytest
+import cards
 
 
 # Rules this walk does not visit, and why. Every entry is a decision.

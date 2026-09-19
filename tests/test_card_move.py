@@ -18,6 +18,7 @@ import pytest
 import utils
 from conftest import (TEST_USER_ID, TEST_USER_EMAIL, FakeCardCursor,
                       FakeCardConn, fake_card_db)
+import cards
 
 CARD = {"id": 5, "word": "resilient", "pos": "adjective", "topic": "vocab",
         "explanation_en": "able to recover quickly", "examples_en": [],

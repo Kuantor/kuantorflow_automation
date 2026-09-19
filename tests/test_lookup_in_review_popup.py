@@ -48,7 +48,7 @@ def file_review(user_client, saved):
 
 @pytest.fixture()
 def word_lookup(user_client, app_module, monkeypatch, saved):
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda word, topic=None, **kw: [
                             {"word": word, "pos": "noun", "topic": topic,
                              "explanation_en": "a definition"}])

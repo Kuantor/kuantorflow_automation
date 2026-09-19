@@ -26,6 +26,7 @@ import sys
 import pytest
 
 from maintenance import tidy_punctuation as tidy
+import cards
 
 
 CARD = {

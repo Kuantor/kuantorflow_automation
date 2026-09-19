@@ -25,13 +25,13 @@ import io
 import re
 
 import pytest
+import cards
 
 TOPIC_LINE = re.compile(r'<p class="proposal-topic">Topic: <strong>([^<]*)</strong></p>')
 
 
 def _stub_lookup(app_module, monkeypatch):
-    monkeypatch.setattr(
-        app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
         lambda word, topic=None, **providers: [
             {"word": word, "pos": "noun", "translation_ukr": "імовірність",
              "explanation_en": "how likely something is", "topic": topic},
@@ -93,7 +93,7 @@ def test_an_empty_topic_field_shows_where_the_cards_really_go(
     """
     _stub_lookup(app_module, monkeypatch)
 
-    assert TOPIC_LINE.findall(_lookup(client, "")) == [app_module.DEFAULT_TOPIC]
+    assert TOPIC_LINE.findall(_lookup(client, "")) == [cards.DEFAULT_TOPIC]
 
 
 def test_the_default_is_not_a_topic_the_deck_has_renamed_away(app_module):
@@ -106,8 +106,8 @@ def test_the_default_is_not_a_topic_the_deck_has_renamed_away(app_module):
     restoring the old literal in the constant and everything else staying
     green.
     """
-    assert app_module.DEFAULT_TOPIC.strip()
-    assert app_module.DEFAULT_TOPIC.lower() != "general"
+    assert cards.DEFAULT_TOPIC.strip()
+    assert cards.DEFAULT_TOPIC.lower() != "general"
 
 
 def test_the_line_agrees_with_what_the_cards_will_write(client, app_module,

@@ -640,7 +640,7 @@ def test_the_review_popup_credits_below_both_boxes(user_client, monkeypatch,
                                                    app_module):
     """Between the two, it reads as covering the definition alone -- and where
     Wiktionary answered it wrote the sentences underneath as well."""
-    monkeypatch.setattr(app_module, "lookup_word", lambda word, topic=None, **kw: [
+    monkeypatch.setattr("parsers.lookup_word", lambda word, topic=None, **kw: [
         dict(SENTENCED, topic=topic)])
 
     body = user_client.post("/", data={"action": "parse_word", "word": "thrive",

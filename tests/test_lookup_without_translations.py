@@ -24,6 +24,7 @@ import parsers
 import utils
 
 from conftest import fake_card_db
+import cards
 
 
 DEFS = {"noun": ["a person who studies a subject in detail"]}
@@ -202,7 +203,7 @@ def test_a_filled_duplicate_is_still_not_a_save(
         from flask import session
         session["user"] = {"id": 7, "name": "Test User",
                            "email": "test.user@gmail.com"}
-        assert app_module._save_and_log(
+        assert cards._save_and_log(
             {"word": "scholar", "pos": "noun"}, source="test") is False
 
     log = (action_logs / "cards.log").read_text(encoding="utf-8")

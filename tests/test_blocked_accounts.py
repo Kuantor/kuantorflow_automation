@@ -20,6 +20,7 @@ from flask import session
 
 import utils
 from conftest import TEST_USER_ID, TEST_USER_EMAIL
+import cards
 
 CARD_FORM = {
     "word": "resilient",
@@ -90,7 +91,7 @@ def test_the_automatic_add_path_is_refused(blocked_client, app_module,
     something they are already signed in to.
     """
     called = []
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda *a, **k: called.append(1) or [])
     monkeypatch.setattr("web.current_settings", lambda: dict(
         translator="google", explanatory_dictionary="oxford",
@@ -228,7 +229,7 @@ def test_looking_a_word_up_is_no_longer_free_for_them(blocked_client,
     pages above this still render for them.
     """
     called = []
-    monkeypatch.setattr(app_module, "lookup_word",
+    monkeypatch.setattr("parsers.lookup_word",
                         lambda *a, **k: called.append(1) or [])
     body = blocked_client.post("/", data={"action": "parse_word",
                                           "word": "resilient",
