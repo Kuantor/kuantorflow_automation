@@ -63,8 +63,14 @@ def test_a_refused_message_does_not_consume_more_quota(client, app_module,
         assert sess["anon_messages"] == 1
 
 
-def test_a_signed_in_visitor_is_never_limited(user_client, app_module,
-                                              monkeypatch, mykola):
+def test_a_signed_in_visitor_does_not_meet_the_anonymous_allowance(
+        user_client, app_module, monkeypatch, mykola):
+    """Renamed from "is never limited", which stopped being true in
+    kuantorflow#447: an account now has a ceiling of its own, far above this
+    one. What is still true, and is what this file is about, is that the
+    *anonymous* allowance is not the one they meet -- no session counter, no
+    shared daily row.
+    """
     monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 1)
     for _ in range(5):
         assert _ask(user_client).status_code == 200
