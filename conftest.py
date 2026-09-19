@@ -334,6 +334,20 @@ def app_module(monkeypatch):
                         (True, None, 0), raising=False)
     monkeypatch.setattr("utils.lookups_used_today",
                         lambda user_id: 0, raising=False)
+    # kuantorflow#447: the per-account ceilings on chat, recap and notes
+    # upload claim through one function, so one stub covers all three -- and
+    # will cover the next one without an edit here, which is the point of the
+    # shared primitive. "Allowed, nothing counted"; the tests about the
+    # ceilings patch this themselves.
+    #
+    # Without it the fake cursor's rowcount of 0 reads as "the row did not
+    # advance", so every guarded action is refused and eighteen tests fail on
+    # a ceiling none of them is about.
+    monkeypatch.setattr("utils.claim_action",
+                        lambda action, user_id, limit, amount=1: (True, 0),
+                        raising=False)
+    monkeypatch.setattr("utils.action_used_today",
+                        lambda action, user_id: 0, raising=False)
     monkeypatch.setattr("utils.existing_words",
                         lambda owner_id=None: set(), raising=False)
     return app_mod
