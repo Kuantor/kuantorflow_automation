@@ -45,7 +45,7 @@ def _prerequisites_met():
         os.environ.get("RUN_DB_ROUNDTRIP") == "1"
         and os.environ.get("DB_HOST") in ("localhost", "127.0.0.1")
         and os.environ.get("DB_PASSWORD")
-        and (KUANTORFLOW_PATH / "apply_schema.py").exists()
+        and (KUANTORFLOW_PATH / "scripts" / "apply_schema.py").exists()
     )
 
 
@@ -79,7 +79,7 @@ def scratch_db(monkeypatch):
     """A throwaway database, with the schema applied by the real deploy step."""
     _execute([f"DROP DATABASE IF EXISTS {SCRATCH_DB}",
               f"CREATE DATABASE {SCRATCH_DB} CHARACTER SET utf8mb4"])
-    subprocess.run([sys.executable, str(KUANTORFLOW_PATH / "apply_schema.py")],
+    subprocess.run([sys.executable, str(KUANTORFLOW_PATH / "scripts" / "apply_schema.py")],
                    capture_output=True, text=True,
                    env=dict(os.environ, DB_NAME=SCRATCH_DB), check=True)
     # utils.get_db_connection() reads DB_NAME at call time, so this redirects

@@ -52,7 +52,7 @@ load_dotenv(AUTO_ROOT / ".env")
 
 KUANTORFLOW_PATH = Path(os.environ.get(
     "KUANTORFLOW_PATH", str(AUTO_ROOT.parent.parent / "kuantorflow")))
-SCHEMA_SCRIPT = KUANTORFLOW_PATH / "apply_schema.py"
+SCHEMA_SCRIPT = KUANTORFLOW_PATH / "scripts" / "apply_schema.py"
 
 SCRATCH_DB = "kuantorflow_retopic_test"
 

@@ -40,7 +40,7 @@ load_dotenv(AUTO_ROOT / ".env")
 
 KUANTORFLOW_PATH = Path(os.environ.get(
     "KUANTORFLOW_PATH", str(AUTO_ROOT.parent.parent / "kuantorflow")))
-SCRIPT = KUANTORFLOW_PATH / "apply_schema.py"
+SCRIPT = KUANTORFLOW_PATH / "scripts" / "apply_schema.py"
 
 SCRATCH_DB = "kuantorflow_seed_test"
 CURRICULUM_SECTION = "B2–C1 Conversational Topics"
@@ -54,7 +54,7 @@ def _prerequisites_met():
         and os.environ.get("DB_HOST") in ("localhost", "127.0.0.1")
         and os.environ.get("DB_PASSWORD")
         and SCRIPT.exists()
-        and (KUANTORFLOW_PATH / "seed_topics.py").exists()
+        and (KUANTORFLOW_PATH / "scripts" / "seed_topics.py").exists()
     )
 
 

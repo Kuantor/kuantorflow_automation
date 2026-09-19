@@ -23,6 +23,11 @@ KUANTORFLOW_PATH = os.environ.get(
     str(Path(__file__).resolve().parent.parent.parent / "kuantorflow"),
 )
 sys.path.insert(0, KUANTORFLOW_PATH)
+# The console one-offs live in `scripts/` since kuantorflow#442 -- this suite
+# imports five of them by bare name (`import seed_words`), and the app itself
+# never does, so their directory goes on the path beside the repo root rather
+# than instead of it.
+sys.path.insert(1, str(Path(KUANTORFLOW_PATH) / "scripts"))
 
 # Keyword used by the app-level tests (patched into the app; the real
 # keyword from .env is only used by the live site tests).
