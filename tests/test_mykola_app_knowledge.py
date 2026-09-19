@@ -19,12 +19,13 @@ from pathlib import Path
 
 import pytest
 import cards
+import chat
 
 
 @pytest.fixture()
 def guide(app_module):
     """The document Mykola is given, as text."""
-    return Path(app_module.MYKOLA_KNOWLEDGE[0]).read_text(encoding="utf-8")
+    return Path(chat.MYKOLA_KNOWLEDGE[0]).read_text(encoding="utf-8")
 
 
 # --- the seam ---------------------------------------------------------------
@@ -32,7 +33,7 @@ def guide(app_module):
 def test_the_guide_is_what_gets_handed_over(app_module):
     """The learner's guide itself — not a second description written for him,
     which is the arrangement that went stale last time."""
-    docs = app_module.MYKOLA_KNOWLEDGE
+    docs = chat.MYKOLA_KNOWLEDGE
     assert len(docs) == 1
     assert Path(docs[0]).name == "user-guide.md"
     assert Path(docs[0]).exists(), "the injected document must actually be there"
@@ -50,9 +51,9 @@ def test_the_injection_is_feature_detected(app_module, monkeypatch):
     # raising=False: ai_agent is not importable from the test venv, so
     # `app.MykolaAgent` does not exist here at all — which is itself the
     # "older or absent agent" case this is about.
-    monkeypatch.setattr(app_module, "MykolaAgent", OldAgent, raising=False)
-    monkeypatch.setattr(app_module, "_mykola_agent", None, raising=False)
-    app_module.get_mykola()
+    monkeypatch.setattr("chat.MykolaAgent", OldAgent, raising=False)
+    monkeypatch.setattr("chat._mykola_agent", None, raising=False)
+    chat.get_mykola()
     assert "knowledge_docs" not in seen["kwargs"]
 
 
@@ -64,9 +65,9 @@ def test_a_newer_agent_is_given_the_guide(app_module, monkeypatch):
                      card_reader=None, knowledge_docs=None):
             seen["docs"] = knowledge_docs
 
-    monkeypatch.setattr(app_module, "MykolaAgent", NewAgent, raising=False)
-    monkeypatch.setattr(app_module, "_mykola_agent", None, raising=False)
-    app_module.get_mykola()
+    monkeypatch.setattr("chat.MykolaAgent", NewAgent, raising=False)
+    monkeypatch.setattr("chat._mykola_agent", None, raising=False)
+    chat.get_mykola()
     assert seen["docs"], "a capable agent must be handed the guide"
     assert Path(seen["docs"][0]).name == "user-guide.md"
 
@@ -88,10 +89,10 @@ def test_a_newer_agent_is_told_where_an_untitled_card_goes(app_module,
                      default_topic=None):
             seen["default_topic"] = default_topic
 
-    monkeypatch.setattr(app_module, "MykolaAgent", NewAgent, raising=False)
-    monkeypatch.setattr(app_module, "_mykola_agent", None, raising=False)
+    monkeypatch.setattr("chat.MykolaAgent", NewAgent, raising=False)
+    monkeypatch.setattr("chat._mykola_agent", None, raising=False)
 
-    app_module.get_mykola()
+    chat.get_mykola()
 
     assert seen["default_topic"] == cards.DEFAULT_TOPIC
 
@@ -106,10 +107,10 @@ def test_an_older_agent_is_not_handed_a_default_topic(app_module, monkeypatch):
         def __init__(self, card_saver=None, name_saver=None):
             seen["kwargs"] = {"card_saver": card_saver, "name_saver": name_saver}
 
-    monkeypatch.setattr(app_module, "MykolaAgent", OldAgent, raising=False)
-    monkeypatch.setattr(app_module, "_mykola_agent", None, raising=False)
+    monkeypatch.setattr("chat.MykolaAgent", OldAgent, raising=False)
+    monkeypatch.setattr("chat._mykola_agent", None, raising=False)
 
-    app_module.get_mykola()
+    chat.get_mykola()
 
     assert "default_topic" not in seen["kwargs"]
 
@@ -117,7 +118,7 @@ def test_an_older_agent_is_not_handed_a_default_topic(app_module, monkeypatch):
 def test_get_mykola_passes_only_what_the_agent_accepts(app_module):
     """The rule the whole arrangement rests on: every injected argument is
     checked against the installed agent's signature first."""
-    source = inspect.getsource(app_module.get_mykola)
+    source = inspect.getsource(chat.get_mykola)
     assert "inspect.signature" in source
     assert "knowledge_docs" in source
     assert "default_topic" in source

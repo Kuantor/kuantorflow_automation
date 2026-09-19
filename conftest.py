@@ -175,7 +175,7 @@ def chat_logs(tmp_path, monkeypatch):
 
     directory = tmp_path / "mykola_logs"
     directory.mkdir()
-    monkeypatch.setattr(app_mod, "LOG_DIR", directory)
+    monkeypatch.setattr("web.LOG_DIR", directory)
     return directory
 
 
@@ -245,7 +245,7 @@ def app_module(monkeypatch):
     topic list (so no test touches a real database by accident)."""
     import app as app_mod
 
-    monkeypatch.setattr(app_mod, "ACCESS_KEYWORD", TEST_KEYWORD)
+    monkeypatch.setattr("web.ACCESS_KEYWORD", TEST_KEYWORD)
     _stub_everywhere(monkeypatch, app_mod, "get_topics",
                      lambda owner_id=None, **kw: [])
     # The index page reads the grouped shape now (kuantorflow#218); /topics.json

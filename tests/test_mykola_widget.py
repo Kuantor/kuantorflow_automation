@@ -1,3 +1,4 @@
+import chat
 """Mykola chat widget markup — the 'New Chat' button (ai_agent#55).
 
 The widget only renders when Mykola is available, so these force
@@ -8,7 +9,7 @@ that the welcome-back recap is re-run only for signed-in visitors.
 
 
 def _widget(resp_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     return resp_client.get("/").get_data(as_text=True)
 
 

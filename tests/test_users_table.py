@@ -10,15 +10,17 @@ import pytest
 from flask import session
 
 import utils
+import chat
+import web
 
 
 def _google(app_module, monkeypatch, info):
     """Force Google auth on and stub the token exchange with these claims."""
-    monkeypatch.setattr(app_module, "GOOGLE_AUTH_AVAILABLE", True)
+    monkeypatch.setattr("web.GOOGLE_AUTH_AVAILABLE", True)
     fake = types.SimpleNamespace(
         google=types.SimpleNamespace(
             authorize_access_token=lambda: {"userinfo": info}))
-    monkeypatch.setattr(app_module, "oauth", fake)
+    monkeypatch.setattr("web.oauth", fake)
 
 
 CLAIMS = {
@@ -127,12 +129,12 @@ def test_sign_in_without_a_subject_is_not_recorded(client, app_module, monkeypat
 def test_first_name_resolution_order(app_module, user, expected):
     with app_module.app.test_request_context():
         session["user"] = user
-        assert app_module._current_first_name() == expected
+        assert chat._current_first_name() == expected
 
 
 def test_anonymous_visitor_has_no_first_name(app_module):
     with app_module.app.test_request_context():
-        assert app_module._current_first_name() is None
+        assert chat._current_first_name() is None
 
 
 # --- the query itself -------------------------------------------------------

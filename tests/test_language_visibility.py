@@ -6,6 +6,8 @@ Mykola's answers — while the underlying data stays stored.
 """
 
 import re
+import chat
+import parsers
 
 
 CARD = {
@@ -127,8 +129,8 @@ class FakeAgent:
 
 def _chat(client, app_module, monkeypatch):
     agent = FakeAgent()
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "get_mykola", lambda: agent)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.get_mykola", lambda: agent)
     r = client.post("/mykola/chat", json={"question": "hello"})
     assert r.status_code == 200, r.get_data(as_text=True)
     return agent.calls[-1]

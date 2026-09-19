@@ -24,6 +24,7 @@ once from one invisible cause.
 """
 
 import os
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -99,9 +100,33 @@ def test_the_app_loads_its_own_env_before_the_agents():
     it does not use -- with every other test here still green, because dotenv's
     behaviour would not have changed at all.
     """
-    source = (KUANTORFLOW_PATH / "app.py").read_text(encoding="utf-8")
+    # Asserted against the **running import order** rather than the source
+    # text. Until kuantorflow#418 both imports were lines in `app.py`, so the
+    # order could be read off one file; the agent import now lives in
+    # `chat.py`, which `app.py` imports last. A text comparison has nothing
+    # left to compare -- so this asks the interpreter, which is what the
+    # property was always about, and it keeps holding however the modules are
+    # arranged next.
+    script = (
+        "import sys, json\n"
+        f"sys.path.insert(0, {str(KUANTORFLOW_PATH)!r})\n"
+        "import app\n"
+        "order = list(sys.modules)\n"
+        "where = lambda m: order.index(m) if m in order else -1\n"
+        "print(json.dumps({'utils': where('utils'), 'agent': where('agent')}))\n"
+    )
+    done = subprocess.run([_app_python(), "-c", script], capture_output=True,
+                          text=True, cwd=str(KUANTORFLOW_PATH))
+    assert done.returncode == 0, done.stderr
+    seen = json.loads(done.stdout.strip().splitlines()[-1])
 
-    assert source.index("from utils import") < source.index("from agent import")
+    if seen["agent"] == -1:
+        pytest.skip("this interpreter cannot import ai_agent, so there is no "
+                    "second load_dotenv for the first one to win against")
+    assert seen["utils"] != -1, "the app no longer imports utils at all"
+    assert seen["utils"] < seen["agent"], (
+        "the agent was imported before utils, so ai_agent/.env now wins and "
+        "the deployment silently takes its key from a repo it does not use")
 
 
 # --- the key is documented where it is now read from ------------------------
@@ -156,9 +181,9 @@ def _import_app(tmp_path, **env):
     script = (
         "import sys, os, json\n"
         f"sys.path.insert(0, {str(KUANTORFLOW_PATH)!r})\n"
-        "import app\n"
-        "print(json.dumps({'mykola': app.MYKOLA_AVAILABLE,\n"
-        "                  'generation': app._generation_available()}))\n"
+        "import app, chat, web\n"
+        "print(json.dumps({'mykola': chat.MYKOLA_AVAILABLE,\n"
+        "                  'generation': web._generation_available()}))\n"
     )
     done = subprocess.run(
         [_app_python(), "-c", script], capture_output=True, text=True,

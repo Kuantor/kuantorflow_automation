@@ -18,6 +18,8 @@ from flask import session
 
 from conftest import TEST_USER_ID
 import cards
+import chat
+import web
 
 ENTRY = {"word": "aspiration", "pos": "noun", "topic": "emotions"}
 
@@ -38,7 +40,7 @@ def _save(app_module, entry=None):
     """Call the injected saver as the agent does, signed in."""
     with app_module.app.test_request_context("/mykola/chat"):
         session["user"] = {"id": TEST_USER_ID, "email": "test.user@gmail.com"}
-        return app_module._save_card_from_chat(dict(entry or ENTRY))
+        return chat._save_card_from_chat(dict(entry or ENTRY))
 
 
 def test_a_skipped_duplicate_is_not_reported_as_saved(app_module, skipped):
@@ -116,5 +118,5 @@ def test_an_anonymous_visitor_is_still_refused_first(app_module, skipped):
     refusal says so rather than mentioning duplicates."""
     with app_module.app.test_request_context("/mykola/chat"):
         with pytest.raises(PermissionError) as excinfo:
-            app_module._save_card_from_chat(dict(ENTRY))
+            chat._save_card_from_chat(dict(ENTRY))
     assert "sign in with google" in str(excinfo.value).lower()

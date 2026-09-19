@@ -26,6 +26,7 @@ import pytest
 from conftest import CURRICULUM_SECTION, browse_panel, in_other
 
 import icons
+import chat
 
 TOPICS = [("Work and careers", 20), ("Daily life and routines", 21)]
 
@@ -192,7 +193,7 @@ def test_the_widget_rebuild_uses_the_map_rather_than_guessing(client, app_module
                                                               monkeypatch):
     """The slug rule lives in Python. Re-deriving it in JavaScript is how the two
     would drift apart, and the symptom would be silently missing pictures."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     refresh = body.split("function refreshBrowseTopics()")[1] \
                   .split("\n            function ")[0]

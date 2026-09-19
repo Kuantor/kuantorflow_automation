@@ -27,6 +27,8 @@ import pytest
 
 import settings_store
 import cards
+import chat
+import web
 
 
 TEST_USER_ID = 7          # conftest's signed-in user
@@ -377,7 +379,7 @@ def test_the_widget_draws_the_same_padlock(user_client, app_module,
     """
     # The widget's renderer only reaches the page when Mykola is available,
     # which is the environment this pair actually has to agree in.
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     monkeypatch.setattr("utils.get_topics_by_section",
                         lambda *a, **kw: [("Other", [("diary", 3)])])
     marks(diary={"id": 11, "created_by_user_id": TEST_USER_ID,
@@ -426,7 +428,7 @@ def test_the_chat_readers_pass_the_viewer(user_client, app_module, monkeypatch,
     with app_module.app.test_request_context("/"):
         from flask import session
         session["user"] = {"id": TEST_USER_ID, "email": "test.user@gmail.com"}
-        app_module._topics_for_chat()
-        app_module._cards_for_chat("vocab", 5)
+        chat._topics_for_chat()
+        chat._cards_for_chat("vocab", 5)
 
     assert seen and all(entry == (TEST_USER_ID, False) for entry in seen)

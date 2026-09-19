@@ -16,6 +16,8 @@ import pytest
 
 import settings_store
 from conftest import TEST_USER_ID
+import chat
+import web
 
 
 # --- the setting ------------------------------------------------------------
@@ -48,7 +50,7 @@ def test_never_restart_is_saved_as_zero(user_client, settings_dir):
 
 def _mykola(app_module, monkeypatch, recap="Welcome back!", records=None):
     """Force the widget on and stub the agent's recap()."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
 
     def fake_recap(past_conversations, user_name=None, hidden_languages=None,
                    away_hours=None):
@@ -58,7 +60,7 @@ def _mykola(app_module, monkeypatch, recap="Welcome back!", records=None):
             raise recap
         return recap
 
-    monkeypatch.setattr(app_module, "get_mykola",
+    monkeypatch.setattr("chat.get_mykola",
                         lambda: types.SimpleNamespace(recap=fake_recap))
 
 
@@ -101,7 +103,7 @@ def test_without_any_history_there_is_nothing_to_restart(client, app_module,
 
 
 def test_no_restart_when_mykola_is_unavailable(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", False)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", False)
     assert _check(client, hours_ago=99)["restart"] is False
 
 
@@ -194,8 +196,8 @@ def test_away_hours_is_only_sent_to_agents_that_accept_it(user_client, app_modul
         seen["called"] = True
         return "recap from an older agent"
 
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "get_mykola",
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.get_mykola",
                         lambda: types.SimpleNamespace(recap=old_recap))
     _user_log(chat_logs)
     data = _check(user_client)
@@ -246,7 +248,7 @@ def test_widget_asks_the_server_on_load(client, app_module, monkeypatch):
     unanswered question away — so the one-line spelling this used to match is
     gone while the rule it was protecting is not.
     """
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert "function maybeRestartChat()" in body
     assert "/mykola/restart-check" in body

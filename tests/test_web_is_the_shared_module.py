@@ -75,7 +75,8 @@ def _imports(tree):
     return names
 
 
-@pytest.mark.parametrize("module", ["web.py", "rounds.py"])
+@pytest.mark.parametrize("module", ["web.py", "icons.py", "cards.py",
+                                    "rounds.py", "chat.py"])
 def test_no_shared_module_imports_app(app_module, module):
     """The loop that would end the split.
 
@@ -91,14 +92,22 @@ def test_no_shared_module_imports_app(app_module, module):
         "table in behind it" % module)
 
 
-def test_rounds_is_imported_for_its_side_effects(app_tree):
-    """`app.py` asks `rounds.py` for nothing — the routes, the context
-    processor and `GAME_ROUNDS` all register themselves. A `from rounds import
-    ...` would mean something had been left half-moved."""
-    assert "rounds" in _imports(app_tree)
+@pytest.mark.parametrize("module", ["cards", "chat", "icons", "rounds"])
+def test_the_feature_modules_are_imported_for_their_side_effects(app_tree,
+                                                                 module):
+    """`app.py` asks them for nothing — routes, context processors, Jinja
+    filters and `GAME_ROUNDS` all register themselves. A `from <module> import
+    ...` would mean something had been left half-moved.
+
+    `cards` is the one exception worth stating: `app.py` *does* reach
+    `cards._save_and_log()` and `cards.DEFAULT_TOPIC`, because Mykola's saver
+    still lives in `app.py` until it moves. It reaches them **through the
+    module**, which is the rule, so there is still no `from cards import`.
+    """
+    assert module in _imports(app_tree), "app.py does not import " + module
     assert not [n for n in ast.walk(app_tree)
-                if isinstance(n, ast.ImportFrom) and n.module == "rounds"], (
-        "app.py imports a name back out of rounds.py")
+                if isinstance(n, ast.ImportFrom) and n.module == module], (
+        "app.py imports a name back out of %s.py" % module)
 
 
 def test_web_defines_the_identity_helpers(web_tree):

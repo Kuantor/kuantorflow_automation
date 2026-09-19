@@ -17,6 +17,7 @@ import re
 import pytest
 
 from conftest import browse_panel, in_other
+import chat
 
 TOPICS = [("basics", 12), ("it-vocab", 5), ("solo", 1)]
 
@@ -162,7 +163,7 @@ def test_the_widget_rebuilds_tiles_not_chips(client, app_module, monkeypatch):
     """Mykola refreshes this section in place after saving a card from chat
     (ai_agent#53). It builds the markup in JavaScript, so it has to be changed
     alongside the template or a chat save quietly restores the old pills."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     refresh = body.split("function refreshBrowseTopics()")[1] \
                   .split("\n            function ")[0]
@@ -247,7 +248,7 @@ def test_the_check_rejects_get(client):
 # --- the page steps aside for the widget (#184) ------------------------------
 
 def _widget_js(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     return client.get("/").get_data(as_text=True)
 
 

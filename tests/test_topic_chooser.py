@@ -33,6 +33,8 @@ import re
 import pytest
 
 from conftest import CURRICULUM_SECTION, browse_panel, in_other
+import chat
+import web
 
 TOPICS = [("Work and careers", 20), ("basics", 12), ("solo", 1)]
 
@@ -207,7 +209,7 @@ def test_the_list_sits_outside_the_block_a_chat_save_rebuilds(client, topics):
 
 
 def _refresh_source(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     return body.split("function refreshTopicOptions(")[1] \
                .split("\n            function ")[0]
@@ -219,7 +221,7 @@ def test_the_rebuild_updates_the_options(client, app_module, monkeypatch):
 
     Called *before* the empty-deck early return, since a deck emptied between
     page load and refresh is an answer about the options too."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     rebuild = body.split("function refreshBrowseTopics()")[1] \
                   .split("\n            function ")[0]

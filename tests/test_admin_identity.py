@@ -11,6 +11,7 @@ mean "not admin".
 
 import pytest
 from flask import render_template_string, session
+import web
 
 
 ADMIN = "admin@example.com"
@@ -137,12 +138,12 @@ def test_the_sign_in_stores_the_claim(client, app_module, monkeypatch, claim,
     """is_admin() reads the session, so the callback has to put it there."""
     import types
 
-    monkeypatch.setattr(app_module, "GOOGLE_AUTH_AVAILABLE", True)
+    monkeypatch.setattr("web.GOOGLE_AUTH_AVAILABLE", True)
     monkeypatch.setattr("utils.upsert_user",
                         lambda *a, **k: (1, None))
     info = {"sub": "s1", "email": ADMIN, "name": "Admin",
             "email_verified": claim}
-    monkeypatch.setattr(app_module, "oauth", types.SimpleNamespace(
+    monkeypatch.setattr("web.oauth", types.SimpleNamespace(
         google=types.SimpleNamespace(
             authorize_access_token=lambda: {"userinfo": info})))
 
