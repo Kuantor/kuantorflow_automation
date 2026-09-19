@@ -14,6 +14,8 @@ deltas and ignores the rest would silently stop refreshing the deck.
 import json
 
 import pytest
+import chat
+import web
 
 
 class StubAgent:
@@ -50,8 +52,8 @@ class OldAgent:
 @pytest.fixture()
 def streaming(app_module, monkeypatch, chat_logs):
     agent = StubAgent()
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "get_mykola", lambda: agent)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.get_mykola", lambda: agent)
     monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (True, 1))
     return agent
@@ -124,8 +126,8 @@ def test_an_agent_that_cannot_stream_gives_a_404(client, app_module, monkeypatch
     """The two repos deploy in either order, so a kuantorflow that has been
     pulled and an ai_agent that has not must fall back to yesterday's
     behaviour. 404 is what tells the widget to use the JSON endpoint."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "get_mykola", lambda: OldAgent())
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.get_mykola", lambda: OldAgent())
     assert ask(client).status_code == 404
 
 
@@ -133,8 +135,8 @@ def test_a_failure_mid_answer_is_an_event_not_a_status(client, app_module,
                                                        monkeypatch, chat_logs):
     """Once the first byte is out the status is 200 for good — so a failure
     after that point can only be said in an event."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "get_mykola",
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.get_mykola",
                         lambda: StubAgent(boom=True))
     monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (True, 1))
@@ -163,7 +165,7 @@ def test_the_anonymous_allowance_still_counts_down(client, app_module,
     """The counter lives in the session, and a session write after the first
     byte never reaches the browser — so the claim has to happen before the
     stream opens, or free messages become unlimited."""
-    monkeypatch.setattr(app_module, "ANONYMOUS_MESSAGE_LIMIT", 2)
+    monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 2)
     assert ask(client).status_code == 200
     assert ask(client).status_code == 200
     refused = ask(client)
@@ -175,7 +177,7 @@ def test_the_anonymous_allowance_still_counts_down(client, app_module,
 # --- the widget ------------------------------------------------------------
 
 def test_the_widget_streams_and_keeps_a_way_back(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert "/mykola/chat/stream" in body
     assert "/mykola/chat" in body, "no fallback for a server that cannot stream"

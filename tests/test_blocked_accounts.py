@@ -21,6 +21,9 @@ from flask import session
 import utils
 from conftest import TEST_USER_ID, TEST_USER_EMAIL
 import cards
+import chat
+import parsers
+import web
 
 CARD_FORM = {
     "word": "resilient",
@@ -153,14 +156,14 @@ def test_a_blocked_admin_cannot_delete_either(blocked_client, app_module,
 
 
 def test_the_widget_is_not_rendered(blocked_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = blocked_client.get("/").get_data(as_text=True)
     assert "mykola-panel" not in body
 
 
 def test_the_widget_is_rendered_for_everyone_else(user_client, app_module,
                                                   monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = user_client.get("/").get_data(as_text=True)
     assert "mykola-panel" in body
 
@@ -169,8 +172,8 @@ def test_a_hand_made_chat_request_is_refused(blocked_client, app_module,
                                              monkeypatch):
     """Hiding the widget is presentation; this is the part that holds."""
     called = []
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(app_module, "_agent_answer",
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat._agent_answer",
                         lambda *a, **k: called.append(a) or {"response": "hi"})
     resp = blocked_client.post("/mykola/chat", json={"question": "hello"})
     assert resp.status_code == 403
@@ -179,12 +182,12 @@ def test_a_hand_made_chat_request_is_refused(blocked_client, app_module,
 
 
 def test_the_recap_endpoint_stays_quiet(blocked_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     assert blocked_client.post("/mykola/recap").get_json() == {"recap": None}
 
 
 def test_the_restart_check_answers_no(blocked_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = blocked_client.post("/mykola/restart-check", json={}).get_json()
     assert body["restart"] is False
     assert body["reason"] == "blocked"
@@ -195,7 +198,7 @@ def test_mykola_cannot_save_a_card_for_them(app_module, saved, block_state):
     with app_module.app.test_request_context("/mykola/chat"):
         session["user"] = {"id": TEST_USER_ID, "email": TEST_USER_EMAIL}
         with pytest.raises(PermissionError) as excinfo:
-            app_module._save_card_from_chat({"word": "resilient"})
+            chat._save_card_from_chat({"word": "resilient"})
     assert "blocked" in str(excinfo.value).lower()
     assert saved == []
 

@@ -23,18 +23,18 @@ from datetime import datetime, timedelta
 import pytest
 
 from conftest import TEST_USER_ID
+import chat
 
 
 @pytest.fixture()
 def mykola(app_module, monkeypatch):
     """Mykola available, with the model call replaced by a canned answer."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
-    monkeypatch.setattr(
-        app_module, "_agent_answer",
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat._agent_answer",
         lambda q, h: {"response": "Indeed, madam.", "history": h, "sources": []})
     monkeypatch.setattr("utils.claim_anonymous_message",
                         lambda limit: (True, 1))
-    monkeypatch.setattr(app_module, "get_mykola",
+    monkeypatch.setattr("chat.get_mykola",
                         lambda: types.SimpleNamespace(
                             recap=lambda *a, **k: "Welcome back!"))
     return app_module
@@ -129,12 +129,12 @@ def test_the_shared_root_is_never_a_destination(app_module, chat_logs):
     """`_chat_log_path()` is the single place that decides, so both writers
     inherit the rule rather than each remembering it."""
     with app_module.app.test_request_context("/mykola/chat"):
-        assert app_module._chat_log_path("abcd") is None
+        assert chat._chat_log_path("abcd") is None
 
     with app_module.app.test_request_context("/mykola/chat") as ctx:
         ctx.session["user"] = {"id": TEST_USER_ID, "name": "Test User",
                                "email": "test.user@gmail.com"}
-        path = app_module._chat_log_path("abcd")
+        path = chat._chat_log_path("abcd")
     assert path is not None
     assert path.parent == chat_logs / str(TEST_USER_ID), path
 

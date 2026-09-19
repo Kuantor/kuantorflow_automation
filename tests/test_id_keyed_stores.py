@@ -16,6 +16,7 @@ import pytest
 
 import settings_store
 from conftest import TEST_USER_EMAIL, TEST_USER_ID
+import chat
 
 
 ANON = "config-default.json"
@@ -155,12 +156,12 @@ def test_the_log_folder_is_named_after_the_id(user_client, app_module,
         from flask import session
         session["user"] = {"id": TEST_USER_ID, "email": TEST_USER_EMAIL,
                            "name": "Test User"}
-        assert app_module._current_user_log_dir() == chat_logs / str(TEST_USER_ID)
+        assert chat._current_user_log_dir() == chat_logs / str(TEST_USER_ID)
 
 
 def test_anonymous_chats_stay_at_the_top_level(app_module, chat_logs):
     with app_module.app.test_request_context("/"):
-        assert app_module._current_user_log_dir() == chat_logs
+        assert chat._current_user_log_dir() == chat_logs
 
 
 def test_a_legacy_log_folder_is_migrated(app_module, chat_logs):
@@ -168,7 +169,7 @@ def test_a_legacy_log_folder_is_migrated(app_module, chat_logs):
     with app_module.app.test_request_context("/"):
         from flask import session
         session["user"] = {"id": 7, "email": "anton@example.com", "name": "A"}
-        user_dir = app_module._current_user_log_dir()
+        user_dir = chat._current_user_log_dir()
 
     assert user_dir == chat_logs / "7"
     assert (user_dir / "chat_2026-07-20_11-00-00_aaaa.txt").read_text(
@@ -181,7 +182,7 @@ def test_the_folder_records_who_it_belongs_to(app_module, chat_logs):
         from flask import session
         session["user"] = {"id": 7, "email": "anton@example.com",
                            "name": "Anton Kuznietsov"}
-        user_dir = app_module._current_user_log_dir()
+        user_dir = chat._current_user_log_dir()
 
     marker = (user_dir / "user.txt").read_text(encoding="utf-8")
     assert "id: 7" in marker
@@ -195,9 +196,9 @@ def test_the_marker_is_never_read_as_a_conversation(app_module, chat_logs):
     with app_module.app.test_request_context("/"):
         from flask import session
         session["user"] = {"id": 7, "email": "anton@example.com", "name": "A"}
-        app_module._current_user_log_dir()
-        assert app_module._user_log_files() == []
-        assert app_module._read_user_logs() == ""
+        chat._current_user_log_dir()
+        assert chat._user_log_files() == []
+        assert chat._read_user_logs() == ""
 
 
 def test_a_migrated_file_is_stamped_immediately(settings_dir):

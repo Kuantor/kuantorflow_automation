@@ -18,6 +18,9 @@ from flask import session
 
 from conftest import TEST_USER_ID
 import cards
+import chat
+import parsers
+import web
 
 CARD_FORM = {
     "word": "resilient",
@@ -124,7 +127,7 @@ def test_mykola_cannot_save_for_an_anonymous_visitor(app_module, saved):
     relays (ai_agent), so Mykola says why instead of claiming a saved card."""
     with app_module.app.test_request_context("/mykola/chat"):
         with pytest.raises(PermissionError) as excinfo:
-            app_module._save_card_from_chat(
+            chat._save_card_from_chat(
                 {"word": "resilient", "pos": "adjective", "topic": "vocab"})
     assert "sign in with google" in str(excinfo.value).lower()
     assert saved == []
@@ -133,7 +136,7 @@ def test_mykola_cannot_save_for_an_anonymous_visitor(app_module, saved):
 def test_mykola_still_saves_for_a_signed_in_user(app_module, saved):
     with app_module.app.test_request_context("/mykola/chat"):
         session["user"] = {"id": TEST_USER_ID, "email": "test.user@gmail.com"}
-        app_module._save_card_from_chat(
+        chat._save_card_from_chat(
             {"word": "resilient", "pos": "adjective", "topic": "vocab"})
     assert saved.owner_ids == [TEST_USER_ID]
 

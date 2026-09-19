@@ -24,6 +24,7 @@ import pytest
 import settings_store
 
 from conftest import in_other
+import chat
 
 
 @pytest.fixture()
@@ -84,7 +85,7 @@ def test_mykolas_topic_list_asks_too(user_client, app_module, asked):
     """
     user_client.post("/settings", json={"alphabetical_topics": True})
     with app_module.app.test_request_context("/"):
-        app_module._topics_for_chat()
+        chat._topics_for_chat()
 
     assert asked == [True]
 

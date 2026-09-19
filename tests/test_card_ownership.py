@@ -18,6 +18,9 @@ from flask import session
 
 import utils
 from conftest import TEST_USER_ID, fake_card_db, inserted_card
+import chat
+import parsers
+import web
 
 
 CARD_FORM = {
@@ -167,7 +170,7 @@ def test_mykola_chat_saver_records_the_owner(app_module, saved):
     session as every other save path (ai_agent#20)."""
     with app_module.app.test_request_context("/mykola/chat"):
         session["user"] = {"id": TEST_USER_ID, "email": "test.user@gmail.com"}
-        app_module._save_card_from_chat(
+        chat._save_card_from_chat(
             {"word": "resilient", "pos": "adjective", "topic": "vocab"})
     assert saved.owner_ids == [TEST_USER_ID]
 

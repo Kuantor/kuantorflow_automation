@@ -24,6 +24,7 @@ import json
 import pytest
 
 import settings_store
+import chat
 
 
 # --- the setting ------------------------------------------------------------
@@ -87,7 +88,7 @@ def test_it_is_passed_when_on(app_module, user_client, settings_dir):
     with app_module.app.test_request_context() as ctx:
         ctx.session["user"] = {"id": 7, "email": "test.user@example.com",
                                "name": "Test User"}
-        assert app_module._agent_kwargs(new_agent).get("fast") is True
+        assert chat._agent_kwargs(new_agent).get("fast") is True
 
 
 def test_it_is_not_passed_when_off(app_module, user_client, settings_dir):
@@ -96,7 +97,7 @@ def test_it_is_not_passed_when_off(app_module, user_client, settings_dir):
     with app_module.app.test_request_context() as ctx:
         ctx.session["user"] = {"id": 7, "email": "test.user@example.com",
                                "name": "Test User"}
-        assert "fast" not in app_module._agent_kwargs(new_agent)
+        assert "fast" not in chat._agent_kwargs(new_agent)
 
 
 def test_an_older_agent_never_hears_about_it(app_module, user_client,
@@ -108,4 +109,4 @@ def test_an_older_agent_never_hears_about_it(app_module, user_client,
     with app_module.app.test_request_context() as ctx:
         ctx.session["user"] = {"id": 7, "email": "test.user@example.com",
                                "name": "Test User"}
-        assert "fast" not in app_module._agent_kwargs(old_agent)
+        assert "fast" not in chat._agent_kwargs(old_agent)

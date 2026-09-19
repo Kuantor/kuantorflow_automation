@@ -20,6 +20,8 @@ import re
 import pytest
 
 from conftest import CURRICULUM_SECTION, browse_panel, in_other
+import chat
+import web
 
 TOPICS = [("basics", 12), ("solo", 1)]
 
@@ -190,7 +192,7 @@ def test_topics_json_survives_a_dead_database(client, app_module, monkeypatch):
 
 
 def _refresh_source(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     return body.split("function refreshBrowseTopics()")[1] \
                .split("\n            function ")[0]

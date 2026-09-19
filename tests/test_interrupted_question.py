@@ -26,6 +26,7 @@ the card deck, and the follow-up arrived there and read as a follow-up.
 """
 
 import pytest
+import chat
 
 
 @pytest.fixture()
@@ -38,7 +39,7 @@ def widget(client, app_module, monkeypatch):
     and both come before the widget in the rendered HTML. A search over the
     whole page silently reads one of those instead.
     """
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     start = body.index('document.getElementById("mykola-messages")')
     return body[start:body.index("js/speech.js", start)]

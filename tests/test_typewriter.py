@@ -16,6 +16,7 @@ import json
 import pytest
 
 import settings_store
+import chat
 
 
 # --- the setting ------------------------------------------------------------
@@ -77,7 +78,7 @@ def test_it_is_driven_by_a_timer_not_animation_frames(client, app_module,
     event would never be applied, losing the sources and a saved card's deck
     refresh with it. Found by measuring: the preview pane does not composite,
     so the first version of this hung exactly that way."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert "requestAnimationFrame(tick)" not in body
     assert "setTimeout(tick, TYPE_FRAME_MS)" in body
@@ -86,13 +87,13 @@ def test_it_is_driven_by_a_timer_not_animation_frames(client, app_module,
 def test_a_hidden_tab_catches_up_at_once(client, app_module, monkeypatch):
     """Timers survive a hidden tab but are throttled, so typing there would
     crawl. Nobody is watching it type — finish the text instead."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert "document.hidden" in body
 
 
 def test_reduced_motion_turns_it_off(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert "prefers-reduced-motion: reduce" in body
 
@@ -106,7 +107,7 @@ def test_saving_the_setting_takes_effect_without_a_reload(user_client, app_modul
 
     Every other setting in that popup is read server-side on the next request
     and needs none of this."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = user_client.get("/").get_data(as_text=True)
     assert "window.mykolaSetTypewriter = function" in body,         "the widget exposes no way to be told"
     assert "window.mykolaSetTypewriter(settingsForm.mykola_typewriter.checked)" in body,         "saving the popup never tells the widget"
@@ -118,7 +119,7 @@ def test_the_hand_over_cannot_override_reduced_motion(client, app_module,
     """A reader who asked their system for less motion keeps getting it, even
     if the form says otherwise — so the rule is re-applied on the way in
     rather than trusted from the caller."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     setter = body.split("window.mykolaSetTypewriter = function", 1)[1][:200]
     assert "reducedMotion()" in setter
@@ -129,7 +130,7 @@ def test_the_closing_event_waits_for_the_typing_to_catch_up(client, app_module,
     """The answer is only settled — real bubble, sources, copy button, deck
     refresh — once the last character is on screen. Settling early would erase
     the animation mid-word; never settling would lose all of it."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert "if (closing) settle();" in body
     assert "if (!timer) settle();" in body, \

@@ -11,6 +11,7 @@ another tab, or an identity dropped server-side.
 import re
 
 from conftest import TEST_USER_EMAIL, TEST_USER_ID
+import chat
 
 
 def _token(app_module, user=None):
@@ -24,7 +25,7 @@ def _token(app_module, user=None):
 
 
 def _widget(resp_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     return resp_client.get("/").get_data(as_text=True)
 
 

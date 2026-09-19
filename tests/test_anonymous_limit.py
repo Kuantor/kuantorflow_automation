@@ -6,14 +6,16 @@ are checked before the model is called, so a refused message costs nothing.
 """
 
 import pytest
+import chat
+import web
 
 
 @pytest.fixture()
 def mykola(app_module, monkeypatch):
     """Mykola available, with the model call replaced by a counter."""
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     calls = []
-    monkeypatch.setattr(app_module, "_agent_answer",
+    monkeypatch.setattr("chat._agent_answer",
                         lambda q, h: calls.append(q) or
                         {"response": "Indeed.", "history": h, "sources": []})
     # the daily ceiling is exercised on its own below; keep the DB out of it
@@ -30,7 +32,7 @@ def _ask(client, text="what does brittle mean?"):
 
 def test_anonymous_visitor_is_allowed_up_to_the_limit(client, app_module,
                                                       monkeypatch, mykola):
-    monkeypatch.setattr(app_module, "ANONYMOUS_MESSAGE_LIMIT", 3)
+    monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 3)
     for i in range(3):
         assert _ask(client).status_code == 200, f"message {i + 1} refused"
     assert len(mykola) == 3
@@ -39,7 +41,7 @@ def test_anonymous_visitor_is_allowed_up_to_the_limit(client, app_module,
 def test_the_next_message_is_refused_without_calling_the_model(client, app_module,
                                                                monkeypatch, mykola):
     """The whole point: a refused message must cost nothing."""
-    monkeypatch.setattr(app_module, "ANONYMOUS_MESSAGE_LIMIT", 2)
+    monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 2)
     _ask(client), _ask(client)
     assert len(mykola) == 2
 
@@ -53,7 +55,7 @@ def test_the_next_message_is_refused_without_calling_the_model(client, app_modul
 
 def test_a_refused_message_does_not_consume_more_quota(client, app_module,
                                                        monkeypatch, mykola):
-    monkeypatch.setattr(app_module, "ANONYMOUS_MESSAGE_LIMIT", 1)
+    monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 1)
     _ask(client)
     for _ in range(3):
         _ask(client)
@@ -63,7 +65,7 @@ def test_a_refused_message_does_not_consume_more_quota(client, app_module,
 
 def test_a_signed_in_visitor_is_never_limited(user_client, app_module,
                                               monkeypatch, mykola):
-    monkeypatch.setattr(app_module, "ANONYMOUS_MESSAGE_LIMIT", 1)
+    monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 1)
     for _ in range(5):
         assert _ask(user_client).status_code == 200
     assert len(mykola) == 5
@@ -72,7 +74,7 @@ def test_a_signed_in_visitor_is_never_limited(user_client, app_module,
 
 
 def test_zero_disables_the_session_limit(client, app_module, monkeypatch, mykola):
-    monkeypatch.setattr(app_module, "ANONYMOUS_MESSAGE_LIMIT", 0)
+    monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 0)
     for _ in range(6):
         assert _ask(client).status_code == 200
 
@@ -110,7 +112,7 @@ def test_a_dead_database_does_not_silence_mykola(client, app_module,
 
 
 def test_the_refusal_is_logged(client, app_module, monkeypatch, mykola, action_logs):
-    monkeypatch.setattr(app_module, "ANONYMOUS_MESSAGE_LIMIT", 1)
+    monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 1)
     _ask(client)
     _ask(client)
     lines = (action_logs / "dict.log").read_text(encoding="utf-8")
@@ -121,7 +123,7 @@ def test_the_refusal_is_logged(client, app_module, monkeypatch, mykola, action_l
 
 def test_widget_offers_sign_in_when_the_allowance_runs_out(client, app_module,
                                                            monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = client.get("/").get_data(as_text=True)
     assert 'id="mykola-signin-required"' in body
     assert "function showSignInRequired()" in body
@@ -133,6 +135,6 @@ def test_widget_offers_sign_in_when_the_allowance_runs_out(client, app_module,
 
 
 def test_signed_in_widget_has_no_sign_in_offer(user_client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
     body = user_client.get("/").get_data(as_text=True)
     assert 'id="mykola-signin-required"' not in body
