@@ -176,13 +176,24 @@ def action_logs(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def chat_logs(tmp_path, monkeypatch):
+def chat_logs(tmp_path, monkeypatch, request):
     """Redirect Mykola's chat logs to a per-test temp directory.
 
     Same reason as settings_dir and action_logs: the chat endpoint appends a
     log file per exchange, and a restarted chat (ai_agent#54) opens one — all
     of which otherwise pile up in the real kuantorflow checkout's
-    mykola_logs/. Tests that need a pre-existing conversation write it here."""
+    mykola_logs/. Tests that need a pre-existing conversation write it here.
+
+    **Skipped for a `live` test**, which is the one kind that has no app in
+    the process at all: it speaks HTTP to a deployed site and wants no
+    fixture that imports one. Autouse is what made that impossible — a live
+    test importing nothing but `requests` still failed in *setup* with
+    `ModuleNotFoundError: No module named 'authlib'` on a machine that has
+    the test runner and not the app's dependencies, which is exactly the
+    machine a smoke check is run from.
+    """
+    if request.node.get_closest_marker("live"):
+        return None
     import app as app_mod
 
     directory = tmp_path / "mykola_logs"
@@ -504,7 +515,7 @@ def saved(app_module, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def block_state(app_module, monkeypatch):
+def block_state(request, monkeypatch):
     """No account is blocked unless a test says so (kuantorflow#126).
 
     Autouse because `app.current_block()` runs on every signed-in request —
@@ -514,7 +525,15 @@ def block_state(app_module, monkeypatch):
     reachable and "offline" is a property of the fixtures, not the network.
 
     A test that wants a blocked account calls `block_state.block(...)`.
+
+    **Skipped for a `live` test**, for the reason written on `chat_logs`: it
+    took `app_module` as a parameter, so every test in the suite imported the
+    app during setup whether or not it had any use for one.
     """
+    if request.node.get_closest_marker("live"):
+        return None
+    app_module = request.getfixturevalue("app_module")
+
     class BlockState:
         def __init__(self):
             self.value = None
