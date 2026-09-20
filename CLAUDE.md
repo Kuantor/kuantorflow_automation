@@ -25,8 +25,16 @@ imports the KuantorFlow Flask app from a sibling checkout.
 
 ```bash
 venv/Scripts/pytest -m "not live"   # offline app tests (fast, no DB/network)
-venv/Scripts/pytest -m live         # smoke-test the deployed site
+venv/Scripts/pytest tests/test_live_site.py   # smoke-test the deployed site
 ```
+
+**The live check is named by path, not by `-m live`, and is run from here
+rather than on PythonAnywhere.** The marker deselects *after* collection, so
+`-m live` imports all 58 app-level modules and dies on a machine without the
+app's dependencies; and a smoke check run on the deployment host may never
+leave its own network. `SITE_URL` must be set or all six skip in yellow and
+exit 0. `tests/test_live_tests_need_no_app.py` keeps the live tier free of the
+app -- two autouse fixtures used to import one for every test in the suite.
 
 The app is imported via `KUANTORFLOW_PATH` in a gitignored `.env` (defaults to
 a sibling `../../kuantorflow`). `.env` also holds `SITE_URL` and `DB_*` for

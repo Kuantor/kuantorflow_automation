@@ -35,12 +35,28 @@ by default they expect it at `..\..\kuantorflow` (i.e. `!Projects\kuantorflow`).
 
 ```powershell
 .\venv\Scripts\pytest -m "not live"   # app tests only (offline, fast)
-.\venv\Scripts\pytest -m live         # smoke-test the deployed site
+.\venv\Scripts\pytest tests/test_live_site.py   # smoke-test the deployed site
 .\venv\Scripts\pytest                 # everything
 ```
 
 A typical pre-deployment routine: run `-m "not live"` before pushing app
-changes, and `-m live` right after clicking Reload on PythonAnywhere.
+changes, and the live file right after clicking Reload on PythonAnywhere.
+
+**Run the live tests from here, not from PythonAnywhere.** A smoke check
+executed on the deployment host may never leave its own network, so it cannot
+tell you the site is reachable from outside — which is the one thing it is
+for.
+
+**And name the file, not the marker.** `-m live` deselects *after* pytest has
+imported every test module, so the 58 app-level files are imported anyway and
+fail on a machine without the app's dependencies. Scoping by path collects
+only what runs. (The fixtures no longer reach for the app either, so the live
+file needs `pytest` and `requests` and nothing else — `test_live_tests_need_no_app.py`
+is what keeps that true.)
+
+Both need `SITE_URL` in `.env`, and **without it all six skip silently** —
+yellow, exit 0, looks like a pass. Add `-rs` if a run finishes suspiciously
+fast.
 
 ## There is no keyword gate
 
