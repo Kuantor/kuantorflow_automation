@@ -44,7 +44,7 @@ def proposes(monkeypatch, app_module):
     monkeypatch.setattr("utils.existing_words", lambda owner_id=None: set())
     monkeypatch.setattr("utils.lookups_used_today", lambda user_id: 0)
     monkeypatch.setattr("utils.claim_word_lookups",
-                        lambda user_id, count, u, a: (True, None, count))
+                        lambda user_id, count, u, a, **kw: (True, None, count))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
 
@@ -63,7 +63,7 @@ def test_a_proposal_writes_nothing_and_spends_no_lookup(user_client, proposes,
     monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: saved.append(entry))
     monkeypatch.setattr("utils.claim_word_lookups",
-                        lambda *a: claimed.append(a) or (True, None, 0))
+                        lambda *a, **kw: claimed.append(a) or (True, None, 0))
 
     body = _propose(user_client).get_data(as_text=True)
 
@@ -194,7 +194,7 @@ def test_only_the_ticked_words_are_paid_for(user_client, proposes, app_module,
     and not claimed for."""
     claimed = []
     monkeypatch.setattr("utils.claim_word_lookups",
-                        lambda user_id, count, u, a: claimed.append(count)
+                        lambda user_id, count, u, a, **kw: claimed.append(count)
                         or (True, None, count))
 
     user_client.post("/topics/generate/start",
@@ -211,7 +211,7 @@ def test_the_claim_happens_before_the_fill_page(user_client, proposes,
     claim cannot live inside the fill."""
     order = []
     monkeypatch.setattr("utils.claim_word_lookups",
-                        lambda *a: order.append("claim") or (True, None, 1))
+                        lambda *a, **kw: order.append("claim") or (True, None, 1))
 
     reply = user_client.post("/topics/generate/start",
                              data={"title": "T", "word": ["tenancy"]})
@@ -226,7 +226,7 @@ def test_a_refused_claim_builds_nothing(user_client, proposes, app_module,
     """The refusal arrives while the learner is still looking at the list,
     which is the whole point of stating the cost on that screen."""
     monkeypatch.setattr("utils.claim_word_lookups",
-                        lambda *a: (False, "user", 48))
+                        lambda *a, **kw: (False, "user", 48))
 
     reply = user_client.post("/topics/generate/start",
                              data={"title": "T", "word": ["tenancy", "deposit"]})
@@ -243,7 +243,7 @@ def test_a_word_that_is_not_a_headword_never_reaches_a_dictionary(
     `lookup_word()` is built for single alphabetic headwords."""
     claimed = []
     monkeypatch.setattr("utils.claim_word_lookups",
-                        lambda user_id, count, u, a: claimed.append(count)
+                        lambda user_id, count, u, a, **kw: claimed.append(count)
                         or (True, None, count))
 
     user_client.post("/topics/generate/start",

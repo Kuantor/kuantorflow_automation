@@ -89,8 +89,10 @@ def test_zero_disables_the_session_limit(client, app_module, monkeypatch, mykola
 
 def test_daily_ceiling_refuses_with_its_own_message(client, app_module,
                                                     monkeypatch, mykola):
-    monkeypatch.setattr("utils.claim_anonymous_message",
-                        lambda limit: (False, 200))
+    # kuantorflow#456 claims the anonymous day beside everybody's in one
+    # call, so this is where the row is taken now.
+    monkeypatch.setattr("utils.claim_chat_message",
+                        lambda *a, **kw: (False, "anonymous", 40))
     resp = _ask(client)
     assert resp.status_code == 402
     body = resp.get_json()
@@ -99,20 +101,28 @@ def test_daily_ceiling_refuses_with_its_own_message(client, app_module,
     assert mykola == [], "the model must not be called once the day is spent"
 
 
-def test_the_daily_ceiling_ignores_signed_in_visitors(user_client, app_module,
-                                                      monkeypatch, mykola):
-    def fail(limit):
-        raise AssertionError("signed-in traffic must not touch the day's count")
-    monkeypatch.setattr("utils.claim_anonymous_message", fail)
+def test_the_anonymous_day_is_not_the_one_a_signed_in_visitor_meets(
+        user_client, app_module, monkeypatch, mykola):
+    """Renamed from "ignores signed-in visitors", which stopped being the whole
+    truth at kuantorflow#456: an account now meets its own ceiling and the
+    site-wide one. What is still true, and is this file's subject, is that the
+    *anonymous* row is not among them -- signed-in traffic never advances it.
+    """
+    scopes = []
+    monkeypatch.setattr("utils.claim_chat_message",
+                        lambda user_id, *a, **kw:
+                        scopes.append(user_id) or (True, None, 0))
+
     assert _ask(user_client).status_code == 200
+    assert scopes == [7], "claimed against something other than the account"
 
 
 def test_a_dead_database_does_not_silence_mykola(client, app_module,
                                                  monkeypatch, mykola):
     """Fail open: an unreachable database must not stop everyone chatting."""
-    def boom(limit):
+    def boom(*a, **kw):
         raise RuntimeError("db unreachable")
-    monkeypatch.setattr("utils.claim_anonymous_message", boom)
+    monkeypatch.setattr("utils.claim_chat_message", boom)
     assert _ask(client).status_code == 200
     assert len(mykola) == 1
 

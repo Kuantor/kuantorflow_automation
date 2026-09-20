@@ -59,7 +59,7 @@ def no_ceilings(app_module, monkeypatch):
     """No database behind the daily counters. Tests about the ceilings patch
     this themselves; every other test would otherwise write to a real one."""
     monkeypatch.setattr("utils.claim_text_generation",
-                        lambda user_id, user_limit, daily: (True, None, 1))
+                        lambda user_id, user_limit, daily, **kw: (True, None, 1))
     monkeypatch.setattr("web.GENERATION_ANON_LIMIT", 0)
 
 
@@ -386,7 +386,7 @@ def test_a_refusal_keeps_the_text_the_learner_already_has(
 def test_the_daily_account_ceiling_says_so_plainly(client, deck, claude,
                                                    app_module, monkeypatch):
     monkeypatch.setattr("utils.claim_text_generation",
-                        lambda *a: (False, "user", 10))
+                        lambda *a, **kw: (False, "user", 10))
     body = _write(client).get_data(as_text=True)
     assert claude == []
     assert "today" in body.lower()
@@ -396,7 +396,7 @@ def test_the_daily_account_ceiling_says_so_plainly(client, deck, claude,
 def test_the_site_wide_ceiling_says_so_plainly(client, deck, claude,
                                                app_module, monkeypatch):
     monkeypatch.setattr("utils.claim_text_generation",
-                        lambda *a: (False, "daily", 100))
+                        lambda *a, **kw: (False, "daily", 100))
     body = _write(client).get_data(as_text=True)
     assert claude == []
     assert "tomorrow" in body.lower()

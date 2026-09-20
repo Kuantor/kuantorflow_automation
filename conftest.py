@@ -315,7 +315,7 @@ def app_module(monkeypatch):
     # The default is "allowed, nothing counted"; the tests about the cap patch
     # this themselves. The session nudge needs no stub -- it is a cookie.
     monkeypatch.setattr("utils.claim_word_lookup",
-                        lambda user_id, user_limit, anon_limit: (True, None, 0),
+                        lambda user_id, user_limit, anon_limit, **kw: (True, None, 0),
                         raising=False)
     # kuantorflow#237's counter needs the same treatment, and #406 is what
     # found that it never got it: `_generation_refusal()` claims a slot in
@@ -326,11 +326,11 @@ def app_module(monkeypatch):
     # passes ten times a day and then stops is worse than one that never
     # passed.
     monkeypatch.setattr("utils.claim_text_generation",
-                        lambda user_id, user_limit, daily_limit: (True, None, 0),
+                        lambda user_id, user_limit, daily_limit, **kw: (True, None, 0),
                         raising=False)
     # #406's batch claim, for the same reason and with the same default.
     monkeypatch.setattr("utils.claim_word_lookups",
-                        lambda user_id, count, user_limit, anon_limit:
+                        lambda user_id, count, user_limit, anon_limit, **kw:
                         (True, None, 0), raising=False)
     monkeypatch.setattr("utils.lookups_used_today",
                         lambda user_id: 0, raising=False)
