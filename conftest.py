@@ -35,8 +35,9 @@ os.environ.setdefault("SECRET_KEY", "test-signing-key-never-deployed")
 # than instead of it.
 sys.path.insert(1, str(Path(KUANTORFLOW_PATH) / "scripts"))
 
-# Keyword used by the app-level tests (patched into the app; the real
-# keyword from .env is only used by the live site tests).
+# There is no keyword any more (kuantorflow#199). `TEST_KEYWORD` and the
+# `keyword` fixture are kept as constants so that the handful of tests naming
+# them still import; nothing in the app reads either one.
 TEST_KEYWORD = "test-keyword"
 
 # The curriculum section #215 creates empty and #203 will fill. Named here
@@ -192,6 +193,8 @@ def chat_logs(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def keyword():
+    """Kept so tests naming it still resolve; the app reads no keyword since
+    kuantorflow#199."""
     return TEST_KEYWORD
 
 
@@ -252,11 +255,14 @@ def _stub_everywhere(monkeypatch, app_mod, name, value, raising=False):
 
 @pytest.fixture()
 def app_module(monkeypatch):
-    """The imported app module with a known gate keyword and a stubbed
-    topic list (so no test touches a real database by accident)."""
+    """The imported app module with a stubbed topic list, so that no test
+    touches a real database by accident.
+
+    It used to patch a known gate keyword in as well; since kuantorflow#199
+    there is no `web.ACCESS_KEYWORD` to patch.
+    """
     import app as app_mod
 
-    monkeypatch.setattr("web.ACCESS_KEYWORD", TEST_KEYWORD)
     _stub_everywhere(monkeypatch, app_mod, "get_topics",
                      lambda owner_id=None, **kw: [])
     # The index page reads the grouped shape now (kuantorflow#218); /topics.json
@@ -544,16 +550,26 @@ def real_utils(app_module, monkeypatch):
 
 @pytest.fixture()
 def client(app_module):
-    """A test client already through the keyword gate."""
-    c = app_module.app.test_client()
-    resp = c.post("/enter", data={"keyword": TEST_KEYWORD})
-    assert resp.status_code == 302, "gate login failed in fixture"
-    return c
+    """A plain, anonymous test client.
+
+    It used to POST the keyword to `/enter` first; since kuantorflow#199 there
+    is no gate, so there is nothing to enter and this is the same object
+    `fresh_client` returns.
+
+    **Both fixtures are kept rather than collapsed into one.** Several hundred
+    tests name one or the other, and the distinction they encoded — *inside
+    the gate* versus *outside it* — has been removed rather than inverted, so
+    renaming them would be a large diff that says nothing. Where the
+    difference still matters a test says so in its own words: `fresh_client`
+    now means only "a client with no session", which is what several tests
+    about sign-in and cookies actually want.
+    """
+    return app_module.app.test_client()
 
 
 @pytest.fixture()
 def fresh_client(app_module):
-    """A test client with no session — still outside the gate."""
+    """A test client with no session. Identical to `client` since #199."""
     return app_module.app.test_client()
 
 

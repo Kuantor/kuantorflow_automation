@@ -1,31 +1,66 @@
-"""Reset Auth (kuantorflow#98): clear the whole session, land on the gate.
+"""Reset Auth (kuantorflow#98), after the gate came off (#199).
 
-The gate pass and the Google identity both live in the signed session
-cookie; POST /auth/reset clears it entirely. Settings files must survive a
-reset, and the button must stay enabled for anonymous gated visitors
-despite the #102 read-only popup.
+It used to forget **two** things — the keyword gate's pass and the Google
+identity — and land on the gate. Since #199 there is no keyword, so what is
+left is the identity, plus the part that makes it a different control from
+`/logout` rather than a second spelling of it: the popup's JavaScript clears
+this browser's own storage first, and that is where Mykola's conversation
+lives (`localStorage`, keyed on `_identity_token()`, #170).
+
+So the one-sentence summary changed from "hand the site back" to **"hand the
+browser back"**, and that is the thing these tests are about. Signing out
+leaves the thread; resetting does not.
+
+Settings files must still survive a reset — that has not changed and is the
+reason a reset is not the same as deleting an account.
 """
 
 import json
 
 
-def test_reset_clears_gate_pass_and_identity(user_client):
+def test_reset_clears_the_identity(user_client):
     r = user_client.post("/auth/reset")
+
     assert r.status_code == 302
-    assert r.headers["Location"].endswith("/enter")
-    # the gate pass is gone — pages are gated again
-    assert user_client.get("/").status_code == 302
-    # and so is the Google identity
+    assert r.headers["Location"].endswith("/")
     with user_client.session_transaction() as sess:
         assert sess.get("user") is None
-        assert sess.get("access_granted") is None
 
 
-def test_reset_works_for_anonymous_gated_visitors(client):
-    assert client.get("/").status_code == 200          # inside the gate
+def test_reset_clears_the_whole_session_not_just_the_user(user_client):
+    """`session.clear()` rather than `session.pop("user")`, which is what
+    `/logout` does. Anything else the session accumulates -- the anonymous
+    message count, the remembered game selection, #237's held text -- goes
+    too, because the point is a browser handed to somebody else.
+    """
+    with user_client.session_transaction() as sess:
+        sess["anon_messages"] = 4
+        sess["a_left_over_key"] = "still here"
+
+    user_client.post("/auth/reset")
+
+    with user_client.session_transaction() as sess:
+        assert dict(sess) == {}, f"left behind: {dict(sess)}"
+
+
+def test_the_site_still_answers_after_a_reset(user_client):
+    """The assertion this file used to make in reverse. It checked that the
+    pages were *gated again*; the same request now has to keep working, since
+    a reset returns the visitor to being anonymous rather than shut out."""
+    user_client.post("/auth/reset")
+
+    assert user_client.get("/").status_code == 200
+
+
+def test_reset_works_for_an_anonymous_visitor(client):
+    """#102 freezes the settings controls for an anonymous visitor; Reset Auth
+    is an action rather than a setting, so it stays available -- and it still
+    has something to do, because the browser storage it clears is there
+    whether or not anybody signed in."""
     r = client.post("/auth/reset")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/enter")
-    assert client.get("/").status_code == 302          # gated again
+
+    assert r.status_code == 302 and r.headers["Location"].endswith("/")
+    assert client.get("/").status_code == 200
 
 
 def test_reset_rejects_get(client):
@@ -48,13 +83,27 @@ def test_reset_button_enabled_even_in_read_only_popup(client):
     row = body.split('id="reset-auth-btn"')[1].split(">")[0]
     assert "disabled" not in row
     assert 'id="reset-auth-modal"' in body             # confirmation dialog
-    assert "reset authentication" in body
     assert 'action="/auth/reset"' in body
 
 
-def test_keyword_reentry_after_reset(client, keyword):
-    """The full round-trip: reset, then the keyword opens the site again."""
-    client.post("/auth/reset")
-    r = client.post("/enter", data={"keyword": keyword})
-    assert r.status_code == 302
-    assert client.get("/").status_code == 200
+def test_the_confirmation_no_longer_promises_a_keyword(client):
+    """The wording is the part a learner sees, and it said the site would ask
+    for the keyword again. With no keyword that sentence is simply false --
+    and a confirmation dialog that describes something that will not happen is
+    worse than a vague one, because it is the last thing read before an
+    irreversible-looking button."""
+    body = client.get("/").get_data(as_text=True)
+    dialog = body.split('id="reset-auth-modal"')[1].split("</div>")[0]
+
+    assert "keyword" not in dialog.lower()
+    assert "signed out" in dialog.lower()
+
+
+def test_the_button_title_no_longer_promises_a_keyword(client):
+    """Same sentence, in the tooltip, which is the other place it was
+    written."""
+    body = client.get("/").get_data(as_text=True)
+    at = body.index('id="reset-auth-btn"')
+    tag = body[body.rindex("<button", 0, at):body.index(">", at)]
+
+    assert "keyword" not in tag.lower()

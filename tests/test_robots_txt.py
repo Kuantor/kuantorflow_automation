@@ -8,10 +8,11 @@ dropping and this file existing is exactly when indexing would happen.
 
 Two properties carry it, and neither is obvious from reading the file:
 
-**It has to answer without a keyword.** A crawler will never have one. While
-the gate is still on, every other path answers 302 to `/enter`, so a robots
-file behind the gate is a robots file nobody reads — and shipping it early
-would buy nothing at all.
+**It has to answer without a keyword.** A crawler will never have one. That
+was the reason for the gate exemption this file shipped with, and since
+kuantorflow#199 there is no gate and nothing to be exempt from — so what these
+cases now check is simply that it answers a visitor with no session, which is
+the state every crawler is permanently in.
 
 **The paths in it have to be paths that exist.** The file is rendered from one
 declaration for that reason, and this asserts the declaration still matches
@@ -35,10 +36,12 @@ def test_it_answers_without_the_keyword(fresh_client):
     assert r.mimetype == "text/plain"
 
 
-def test_it_is_not_a_redirect_to_the_gate(fresh_client):
-    """The failure this file would have had without the exemption, and it is
-    worth its own assertion because a 302 to `/enter` still *answers* — a
-    crawler would simply index the gate page instead."""
+def test_it_is_not_a_redirect(fresh_client):
+    """Was `..._to_the_gate`: without the exemption this would have answered
+    302 to `/enter`, and a crawler would have indexed the gate page instead.
+    There is no gate to be redirected to since #199, and the assertion is kept
+    because a redirect still *answers* — whatever were to introduce one, the
+    result is a crawler indexing the wrong thing."""
     r = fresh_client.get("/robots.txt", follow_redirects=False)
 
     assert r.status_code == 200
@@ -128,20 +131,33 @@ def test_what_is_served_is_what_is_in_the_file(app_module, fresh_client):
     assert fresh_client.get("/robots.txt").data == on_disk
 
 
-def test_the_gate_still_refuses_everything_it_names(fresh_client):
-    """The exemption is for this one path and no other. A robots file listing
-    the deck must not become a way to read the deck."""
-    for path in ("/flashcards/Law", "/deck/Law", "/quiz",
-                 "/games/spell_it", "/topics.json"):
+def test_it_is_a_request_rather_than_a_control(fresh_client):
+    """This was `test_the_gate_still_refuses_everything_it_names`, and the
+    assertion has **inverted** rather than moved.
+
+    While the gate stood, every path this file disallows answered 302, so the
+    robots file could be read as a second lock. It never was one, and
+    kuantorflow#199 makes that visible: the same paths now answer 200 to
+    anybody. Well-behaved crawlers obey `Disallow` and nothing else does; what
+    actually decides access is #382's namespace and #127's owner filter, in
+    SQL.
+
+    Worth asserting rather than deleting, because the belief that `robots.txt`
+    withholds something is common and is a quiet way to ship a real leak:
+    somebody adds a route holding private data, lists it here, and considers
+    the job done.
+    """
+    for path in ("/quiz", "/games/spell_it", "/topics.json"):
         r = fresh_client.get(path, follow_redirects=False)
-        assert r.status_code == 302, "%s answered %s" % (path, r.status_code)
+        assert r.status_code == 200, "%s answered %s" % (path, r.status_code)
 
 
 @pytest.mark.parametrize("path", ["/flashcards/Law", "/deck/Law", "/quiz",
                                   "/games/spell_it", "/topics.json"])
-def test_a_visitor_with_the_keyword_still_reaches_them(client, stub_deck, path):
+def test_a_person_still_reaches_them(client, stub_deck, path):
     """The other half: robots.txt asks crawlers to stay out and changes
-    nothing for a person."""
+    nothing for a person. (Was `..._with_the_keyword_...`; there is no keyword
+    since #199, and the fixture no longer enters one.)"""
     stub_deck(cards=[{"id": 1, "word": "verdict", "pos": "noun",
                       "topic": "Law", "translation_ukr": "vyrok",
                       "explanation_en": "a jury's decision",

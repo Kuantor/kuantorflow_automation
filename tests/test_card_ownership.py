@@ -192,21 +192,38 @@ def test_a_session_without_an_id_key_is_signed_out(client):
         assert "user" not in sess
 
 
-def test_dropping_the_identity_keeps_the_gate_pass(client):
-    """Only the identity goes — being sent back to the keyword gate as well
-    would make an invisible repair very visible."""
+def test_dropping_the_identity_touches_nothing_else(client):
+    """Only the identity goes, and the page still renders.
+
+    It used to say "keeps the gate pass", which was this property expressed
+    with the one session key that carried the keyword; kuantorflow#199 removed
+    the gate, so it is expressed with another key. The point is unchanged: an
+    invisible repair must stay invisible.
+    """
     with client.session_transaction() as sess:
         sess["user"] = dict(PRE_148_SESSION)
+        sess["a_key_that_is_not_the_identity"] = "still here"
+
     assert client.get("/").status_code == 200
+
     with client.session_transaction() as sess:
-        assert sess.get("access_granted") is True
+        assert "user" not in sess
+        assert sess.get("a_key_that_is_not_the_identity") == "still here"
 
 
-def test_a_gated_request_is_repaired_too(fresh_client):
-    """The check runs before the gate, which short-circuits the chain."""
+def test_the_repair_runs_for_a_visitor_with_nothing_else_in_session(
+        fresh_client):
+    """This was `test_a_gated_request_is_repaired_too`: the repair is
+    registered as the first `before_request`, so it ran even on a request the
+    gate was about to turn away. There is no gate to run before any more
+    (#199), and what is left worth asserting is that the repair does not
+    depend on anything else in the session.
+    """
     with fresh_client.session_transaction() as sess:
         sess["user"] = dict(PRE_148_SESSION)
-    assert fresh_client.get("/").status_code == 302      # still gated
+
+    assert fresh_client.get("/").status_code == 200
+
     with fresh_client.session_transaction() as sess:
         assert "user" not in sess
 

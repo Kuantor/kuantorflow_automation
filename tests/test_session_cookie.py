@@ -43,10 +43,31 @@ def test_bool_env_unset_keeps_the_default(app_module, monkeypatch):
     assert app_module._bool_env("KF_TEST_FLAG", False) is False
 
 
-def test_gate_pass_is_sent_with_all_three_attributes(fresh_client, keyword):
-    """What the browser is actually told, which is the only thing that protects
-    anybody. Entering the keyword is the first thing that writes a session."""
-    response = fresh_client.post("/enter", data={"keyword": keyword})
+def test_the_session_cookie_is_sent_with_all_three_attributes(fresh_client,
+                                                              monkeypatch):
+    """What the browser is actually told, which is the only thing that
+    protects anybody.
+
+    It used to enter the keyword, because that was the first thing in the app
+    that wrote a session. kuantorflow#199 removed the gate, so this drives
+    #164's anonymous message counter instead -- now the first thing an
+    anonymous visitor does that writes one. The model call is replaced by a
+    stub: the point here is the cookie, and a real message costs Opus tokens.
+
+    This matters **more** now rather than less. With the gate gone this cookie
+    is the app's entire authentication state, and `is_admin()` reads
+    `email_verified` from inside it -- so the signature and these three flags
+    are all that stand between a visitor and an admin session (#445).
+    """
+    monkeypatch.setattr("chat.MYKOLA_AVAILABLE", True)
+    monkeypatch.setattr("chat._agent_answer",
+                        lambda q, h: {"response": "Indeed.", "history": h,
+                                      "sources": []})
+    monkeypatch.setattr("utils.claim_anonymous_message", lambda limit: (True, 1))
+
+    response = fresh_client.post("/mykola/chat", json={"question": "hello"})
+
+    assert response.status_code == 200
     cookie = response.headers["Set-Cookie"]
     assert "Secure" in cookie
     assert "HttpOnly" in cookie
