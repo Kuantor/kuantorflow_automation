@@ -752,7 +752,6 @@ def test_the_worst_case_still_fits_in_the_session_cookie(app_module):
     topics = [f"{a.capitalize()} and {b}"
               for a, b in zip(rnd(18, 4, 9), rnd(18, 4, 9))]
     payload = {
-        "access_granted": True,
         "user": {"id": 7, "email": "a.learner@example.com",
                  "name": "A Learner", "given_name": "A",
                  "family_name": "Learner", "preferred_name": "A"},

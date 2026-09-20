@@ -92,9 +92,11 @@ def test_the_nudge_is_a_cookie_and_the_ceiling_is_not(client, providers,
     _look_up(client, "two")
     assert providers == ["one"]
 
+    # A cleared cookie is a brand-new session, which is the whole point: the
+    # nudge is advisory. Nothing has to be put back since kuantorflow#199 --
+    # the gate pass used to be restored here so the next request was not a
+    # redirect.
     client.delete_cookie("session")
-    with client.session_transaction() as session:
-        session["access_granted"] = True
 
     _look_up(client, "three")
     assert providers == ["one", "three"], (

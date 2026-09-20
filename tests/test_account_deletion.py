@@ -231,13 +231,22 @@ def test_the_session_identity_is_cleared(user_client, deletions):
         assert "user" not in sess
 
 
-def test_the_gate_pass_survives(user_client, deletions):
-    """The keyword gate is about the site, not the account — a deleted user
-    lands back inside it as an anonymous visitor. Clearing it is Reset Auth's
-    job (#98), not this one."""
-    user_client.post("/account/delete", data={"cards": "keep"})
+def test_the_rest_of_the_session_survives(user_client, deletions):
+    """The identity only — `session.pop("user")`, not `session.clear()`.
+
+    This used to assert that the keyword gate's pass survived, which was the
+    same property with the one key that existed to carry it; kuantorflow#199
+    removed the gate, so it is stated with any other key instead. Deleting an
+    account is not leaving the site: the visitor stays where they are as an
+    anonymous one, and clearing everything is Reset Auth's job (#98).
+    """
     with user_client.session_transaction() as sess:
-        assert sess.get("access_granted") is True
+        sess["a_key_that_is_not_the_identity"] = "still here"
+
+    user_client.post("/account/delete", data={"cards": "keep"})
+
+    with user_client.session_transaction() as sess:
+        assert sess.get("a_key_that_is_not_the_identity") == "still here"
 
 
 def test_an_anonymous_visitor_has_no_account_to_delete(client, deletions,

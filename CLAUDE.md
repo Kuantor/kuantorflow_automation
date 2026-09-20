@@ -14,8 +14,7 @@ imports the KuantorFlow Flask app from a sibling checkout.
 | Path | What |
 |---|---|
 | `tests/` | Offline app tests (import `app`, DB/network stubbed) + live smoke tests (marker `live`). |
-| `conftest.py` | Fixtures: `client` (through the gate), `user_client` (also signed in), `saved` (captures `save_flashcard`), autouse `settings_dir` (per-test temp), `app_module`. Shared helpers too: `in_other()` and `browse_panel()` — **cut the index page's deck out with the latter**, never by slicing to a landmark, because the games panel reuses `.topic-tile` and an unscoped search counts five activities as topics. |
-| `gate.py` | `enter_gate()` — the one helper for getting a scripted session past the keyword gate. |
+| `conftest.py` | Fixtures: `client` (a plain anonymous client — it used to enter the keyword, and since kuantorflow#199 it is the same object as `fresh_client`; both are kept because several hundred tests name one or the other), `user_client` (also signed in), `saved` (captures `save_flashcard`), autouse `settings_dir` (per-test temp), `app_module`. Shared helpers too: `in_other()` and `browse_panel()` — **cut the index page's deck out with the latter**, never by slicing to a landmark, because the games panel reuses `.topic-tile` and an unscoped search counts five activities as topics. |
 | `backup/` | `backup_db.py` (gzip `mysqldump`, retention) + `restore_db.py`. |
 | `maintenance/` | `dedup_flashcards.py` (remove pre-existing duplicate cards), `block_user.py`, `delete_account.py`, `backfill_examples.py` (fill `examples_en` on cards saved before kuantorflow#225). Repairs for data that predates a fix: each calls the app's own functions rather than writing SQL, and each is a dry run until `--apply`. |
 | `test_reports/` | Per-PR verification reports (`.md` + `.pdf`). |
@@ -30,8 +29,9 @@ venv/Scripts/pytest -m live         # smoke-test the deployed site
 ```
 
 The app is imported via `KUANTORFLOW_PATH` in a gitignored `.env` (defaults to
-a sibling `../../kuantorflow`). `.env` also holds `SITE_URL`, the real
-`ACCESS_KEYWORD`, and `DB_*` for the live/backup tooling.
+a sibling `../../kuantorflow`). `.env` also holds `SITE_URL` and `DB_*` for
+the live/backup tooling. It used to hold `ACCESS_KEYWORD` too; kuantorflow#199
+removed the gate and nothing reads it now.
 
 **A green default run is not the whole suite.** The `db`-marked tests — roughly
 67 of them, against a real local MySQL — are **skipped unless you opt in**:
@@ -60,8 +60,9 @@ regression.
 - **Significant PRs get a report.** Write a Markdown + PDF verification report
   into `test_reports/` (see its `README.md`; render the PDF with KuantorFlow's
   `reports/scripts/md_to_pdf.py`). Small PRs are exempt unless asked.
-- **Pass the gate with `gate.py`** in any scripted site test — don't re-hand-roll
-  the `/enter` POST.
+- **There is no gate to pass** since kuantorflow#199. `gate.py` and
+  `enter_gate()` are deleted; a scripted site test just makes the request.
+  `tests/test_the_site_is_open.py` holds the inverted assertions.
 - Keep the **test catalog** in `docs/` current when tests are added/renamed.
 - Isolation: tests never write to a real DB or the real `settings/` dir (the
   `settings_dir` fixture + stubbed DB helpers see to that). **Never commit

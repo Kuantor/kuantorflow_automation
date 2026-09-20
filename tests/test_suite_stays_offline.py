@@ -33,7 +33,6 @@ SKIPPED = {
     "/static/<path:filename>": "serves a file; no application code runs",
     "/mykola-media/<path:filename>": "serves a file from the agent repo",
     "/mykola-static/<path:filename>": "serves a file from the agent repo",
-    "/enter": "the gate itself; the client fixture is already through it",
     "/logout": "clears the session the rest of the walk depends on",
     "/login/google": "redirects to Google",
     "/auth/google/callback": "expects a code from Google",

@@ -101,14 +101,20 @@ def test_no_page_asks_for_an_unversioned_asset(client, path):
     assert not _unversioned(r.get_data(as_text=True))
 
 
-def test_the_gate_page_is_versioned_too(fresh_client):
-    """`gate.html` is its own document rather than an extension of `base.html`,
-    so it carries its own three static references and is the page most likely
-    to be forgotten -- it is the only one a developer signed in through the
-    fixture never looks at."""
-    html = fresh_client.get("/enter").get_data(as_text=True)
+def test_a_page_reached_with_no_session_is_versioned_too(fresh_client):
+    """Was `test_the_gate_page_is_versioned_too`. `gate.html` was its own
+    document rather than an extension of `base.html`, carried its own three
+    static references, and was the page most likely to be forgotten -- the one
+    a developer signed in through the fixture never looked at.
 
-    assert _static_refs(html), "the gate stopped referencing static assets"
+    kuantorflow#199 deleted it. What is worth keeping is the shape of the
+    case: an asset served to somebody with **no session** must be versioned
+    too, since a first visitor and a crawler are the readers whose cache
+    nobody can clear afterwards.
+    """
+    html = fresh_client.get("/").get_data(as_text=True)
+
+    assert _static_refs(html), "the page stopped referencing static assets"
     assert not _unversioned(html)
 
 

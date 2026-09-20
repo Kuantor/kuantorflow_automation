@@ -50,17 +50,11 @@ def test_about_modal_markup(client):
 # test_main_page_layout.py with the rest of that change.
 
 
-def test_preview_meta_on_gate_page(fresh_client):
-    """Crawlers get redirected to the gate — it must carry the OG tags."""
-    body = fresh_client.get("/enter").get_data(as_text=True)
-    # Compared without the query string since kuantorflow#300: the image now
-    # carries a `?v=` cache-buster, and what this test is about is *which*
-    # image the tag names. The versioning is asserted in
-    # test_static_versions.py, where it is the subject rather than a passenger.
-    assert _meta(body, "og:image").split("?")[0].endswith(
-        "/static/img/preview.jpg")
-    assert _meta(body, "og:title") == "KuantorFlow"
-    assert "flashcards" in _meta(body, "og:description")
+# `test_preview_meta_on_gate_page` was here. The gate page was the one a
+# crawler could actually reach while the keyword was on, so it carried the
+# Open Graph tags separately from `base.html`. kuantorflow#199 deleted both
+# the gate and that second copy; every page a crawler can now reach extends
+# `base.html`, which is what the case below covers.
 
 
 def test_preview_meta_on_index(client):
