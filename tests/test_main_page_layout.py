@@ -217,9 +217,15 @@ def test_a_reachable_database_answers_ok(client, app_module, monkeypatch):
     assert resp.get_json() == {"ok": True}
 
 
-def test_an_unreachable_database_answers_why(client, app_module, monkeypatch):
+def test_an_unreachable_database_still_answers(client, app_module, monkeypatch):
     """A failure is an answer to the question that was asked, not a server
-    error — so it is still a 200 and the popup can show the reason."""
+    error — so it is still a 200 and the popup has something to show.
+
+    It used to assert that the driver's own words came back, which is exactly
+    what kuantorflow#457 removed: that message names the database account and
+    its host. **What** the failure may say is pinned in test_db_test_leak.py;
+    what is left here is #184's property, that it answers at all.
+    """
     def boom():
         raise RuntimeError("db down")
     monkeypatch.setattr("utils.get_db_connection", boom)
@@ -227,7 +233,7 @@ def test_an_unreachable_database_answers_why(client, app_module, monkeypatch):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["ok"] is False
-    assert "db down" in body["error"]
+    assert body["error"], "a failure with nothing to show"
 
 
 def test_the_check_never_redirects(client, app_module, monkeypatch):
