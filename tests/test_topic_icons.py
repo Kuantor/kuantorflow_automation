@@ -73,7 +73,11 @@ def test_the_slug_is_the_name_lower_cased_with_runs_collapsed(app_module,
 def test_a_topic_with_a_file_gets_a_static_url(app_module, monkeypatch, client):
     _icons(app_module, monkeypatch, "work_and_careers")
     with client.application.test_request_context():
-        assert icons.topic_icon("Work and careers") == \
+        # The path only: since kuantorflow#300 an icon URL carries a `?v=`
+        # cache-buster, because a topic icon is replaced **in place** and a
+        # stale one would otherwise be served indefinitely. What this test
+        # is about is which file a topic name resolves to.
+        assert icons.topic_icon("Work and careers").split("?")[0] == \
             "/static/img/topics/work_and_careers.webp"
 
 
@@ -172,7 +176,7 @@ def test_topics_json_carries_an_icon_map(client, app_module, monkeypatch):
 
     data = client.get("/topics.json").get_json()
 
-    assert data["icons"] == {
+    assert {name: url.split("?")[0] for name, url in data["icons"].items()} == {
         "Work and careers": "/static/img/topics/work_and_careers.webp"}
     assert data["sections"][1][1] == [list(t) for t in TOPICS], \
         "the pairs are unchanged"

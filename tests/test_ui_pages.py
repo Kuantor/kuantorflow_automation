@@ -53,7 +53,12 @@ def test_about_modal_markup(client):
 def test_preview_meta_on_gate_page(fresh_client):
     """Crawlers get redirected to the gate — it must carry the OG tags."""
     body = fresh_client.get("/enter").get_data(as_text=True)
-    assert _meta(body, "og:image").endswith("/static/img/preview.jpg")
+    # Compared without the query string since kuantorflow#300: the image now
+    # carries a `?v=` cache-buster, and what this test is about is *which*
+    # image the tag names. The versioning is asserted in
+    # test_static_versions.py, where it is the subject rather than a passenger.
+    assert _meta(body, "og:image").split("?")[0].endswith(
+        "/static/img/preview.jpg")
     assert _meta(body, "og:title") == "KuantorFlow"
     assert "flashcards" in _meta(body, "og:description")
 
@@ -73,7 +78,8 @@ def test_proxyfix_makes_absolute_https_urls(client):
         "X-Forwarded-For": "1.2.3.4",
     })
     body = r.get_data(as_text=True)
-    assert _meta(body, "og:image") == \
+    # The scheme and host are the subject here, not the query string (#300).
+    assert _meta(body, "og:image").split("?")[0] == \
         "https://kuantorflow.pythonanywhere.com/static/img/preview.jpg"
 
 
