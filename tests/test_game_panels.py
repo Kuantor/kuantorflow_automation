@@ -220,8 +220,14 @@ def test_the_key_is_read_per_request_not_at_import(client, deck, monkeypatch):
 
 
 def test_the_row_offers_every_activity(client, deck, with_key):
+    """*Card deck* is deliberately absent since kuantorflow#453: it moved to a
+    banner below the heading rather than appearing twice, and that is what
+    lets #452 narrow this row on a phone to the back arrow alone. The banner
+    is pinned in `test_card_deck_banner.py`, including that the row no longer
+    carries it -- this file is about the activities, and the deck is a way of
+    *reading* the topic rather than one of them."""
     row = _row(client.get("/flashcards/Work%20and%20careers").get_data(as_text=True))
-    for name in ("Card deck", "Take quiz", "Multiple choice", "Real or fake",
+    for name in ("Take quiz", "Multiple choice", "Real or fake",
                  "Scrambled", "Fill the gap", "Generate a text"):
         assert name in row
 
