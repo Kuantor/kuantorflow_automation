@@ -18,6 +18,20 @@ own rather than being trusted.
 import random
 import re
 
+
+def _last_crumbs(body):
+    """The last `.crumbs` row on the page.
+
+    Matched on the class attribute rather than the exact tag: since
+    kuantorflow#452 the topic page's row carries a modifier beside it,
+    and a literal `<p class="crumbs">` stopped matching. These pages do
+    not carry the modifier, but the helper is shaped the same way so the
+    next markup change does not split them apart again.
+    """
+    at = body.rindex('class="crumbs')
+    return body[at:body.index("</p>", at)]
+
+
 import pytest
 
 import games
@@ -290,7 +304,7 @@ def test_playing_again_keeps_the_round_the_same_length(client, deck):
     items = _items(client.get(played).get_data(as_text=True))
     body = client.post(played, data=_answer(items, lambda real: "real")) \
                  .get_data(as_text=True)
-    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    row = _last_crumbs(body)
     assert "words=4" in row
 
 
@@ -300,7 +314,7 @@ def test_playing_again_lands_on_a_round(client, deck):
     items = _items(client.get(played).get_data(as_text=True))
     body = client.post(played, data=_answer(items, lambda real: "real")) \
                  .get_data(as_text=True)
-    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    row = _last_crumbs(body)
     href = re.search(r'href="([^"]+)"[^>]*>\s*Play again', row).group(1)
     again = client.get(href.replace("&amp;", "&")).get_data(as_text=True)
     assert "built yet" not in again
