@@ -17,6 +17,20 @@ mark or show words the learner never saw.
 import pytest
 
 
+def _last_crumbs(body):
+    """The last `.crumbs` row on the page.
+
+    Matched on the class attribute rather than the exact tag: since
+    kuantorflow#452 the topic page's row carries a modifier beside it,
+    and a literal `<p class="crumbs">` stopped matching. These pages do
+    not carry the modifier, but the helper is shaped the same way so the
+    next markup change does not split them apart again.
+    """
+    at = body.rindex('class="crumbs')
+    return body[at:body.index("</p>", at)]
+
+
+
 CARDS = [
     {"id": 1, "word": "resign", "pos": "verb", "topic": "Work",
      "translation_ukr": "звільнятися",
@@ -289,7 +303,7 @@ def test_the_quiz_results_offer_a_way_home(client, deck):
     answers the row at the top of the page is a long way back up."""
     body = client.post("/quiz?topic=Work&lang=ukr",
                        data={"answer_1": ""}).get_data(as_text=True)
-    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    row = _last_crumbs(body)
     assert "Try again" in row
     assert 'href="/"' in row
 

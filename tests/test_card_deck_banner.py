@@ -156,7 +156,9 @@ def test_the_image_is_actually_served(client, topic_page):
 # --- it moved, rather than being duplicated ---------------------------------
 
 def _crumbs(html):
-    at = html.index('class="crumbs"')
+    # On the class attribute, not the exact tag: kuantorflow#452 added
+    # `crumbs--activities` beside it and a literal stopped matching.
+    at = html.index('class="crumbs')
     return html[at:html.index("</p>", at)]
 
 def test_card_deck_is_gone_from_the_activity_row(topic_page):

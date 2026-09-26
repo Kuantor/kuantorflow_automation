@@ -16,6 +16,20 @@ import collections
 import random
 import re
 
+
+def _last_crumbs(body):
+    """The last `.crumbs` row on the page.
+
+    Matched on the class attribute rather than the exact tag: since
+    kuantorflow#452 the topic page's row carries a modifier beside it,
+    and a literal `<p class="crumbs">` stopped matching. These pages do
+    not carry the modifier, but the helper is shaped the same way so the
+    next markup change does not split them apart again.
+    """
+    at = body.rindex('class="crumbs')
+    return body[at:body.index("</p>", at)]
+
+
 import pytest
 
 import games
@@ -228,7 +242,7 @@ def test_the_results_offer_a_way_out_as_well_as_another_round(client, deck):
     ids, _ = _play(client)
     body = client.post("/games/scrambled/play?topic=Work",
                        data=_answers(ids, BY_ID)).get_data(as_text=True)
-    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    row = _last_crumbs(body)
     assert "Play again" in row
     assert 'href="/"' in row
 
@@ -238,5 +252,5 @@ def test_playing_again_keeps_the_round_the_same_length(client, deck):
     played = "/games/scrambled/play?topic=Work&words=3"
     ids = _asked(client.get(played).get_data(as_text=True))
     body = client.post(played, data=_answers(ids, BY_ID)).get_data(as_text=True)
-    row = body.split('<p class="crumbs">')[-1].split("</p>")[0]
+    row = _last_crumbs(body)
     assert "words=3" in row

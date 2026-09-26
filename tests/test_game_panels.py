@@ -53,7 +53,12 @@ def _games_panel(body):
 
 def _row(body):
     """The activity row at the top of a topic page."""
-    return body.split('<p class="crumbs">')[1].split("</p>")[0]
+    # Matched on the class attribute rather than the exact tag: since
+    # kuantorflow#452 the topic page's row is `class="crumbs crumbs--activities"`,
+    # and a literal `<p class="crumbs">` stopped matching it. A parser that
+    # restates markup is a second source of truth for it.
+    at = body.index('class="crumbs')
+    return body[body.rindex("<p", 0, at):body.index("</p>", at)]
 
 
 # --- the games panel ----------------------------------------------------
