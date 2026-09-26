@@ -279,13 +279,20 @@ def test_ai_term_split_is_logged(action_logs, monkeypatch):
 
 # --- the log files themselves -----------------------------------------------
 
-def test_the_three_log_files_are_written_where_the_issue_asks(client, saved,
-                                                              action_logs):
+def test_the_five_log_files_are_written_where_the_issues_ask(client, saved,
+                                                             action_logs):
+    """Exact, not a subset -- the guard that noticed #448's two new files is
+    worth keeping as a guard. `games.log` and `gen_texts.log` joined the three
+    #30 asked for; `mykola.log` is not in the list because nothing here writes
+    to it, which is the point of asserting exactly."""
     client.post("/cards/add", data=_card_form())
     applog.lookup_started("resilient", "google", "oxford")
     applog.file_parsed("notes.txt", 10, 1)
+    applog.round_played("scrambled", 1, 3, correct=2)
+    applog.text_generated(model="m", supplied=3, used=3, length=100)
     assert sorted(p.name for p in action_logs.iterdir()) == [
-        "cards.log", "dict.log", "parsed_files.log"]
+        "cards.log", "dict.log", "games.log", "gen_texts.log",
+        "parsed_files.log"]
 
 
 def test_logs_rotate_monthly_and_keep_a_year():

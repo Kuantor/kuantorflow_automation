@@ -131,8 +131,10 @@ def test_the_refusal_is_logged(client, app_module, monkeypatch, mykola, action_l
     monkeypatch.setattr("web.ANONYMOUS_MESSAGE_LIMIT", 1)
     _ask(client)
     _ask(client)
-    lines = (action_logs / "dict.log").read_text(encoding="utf-8")
-    assert "LIMIT kind=session used=1 limit=1" in lines
+    # In `mykola.log` since kuantorflow#448: a chat refusal is Mykola's, and
+    # `dict.log` now holds dictionary traffic and nothing else.
+    lines = (action_logs / "mykola.log").read_text(encoding="utf-8")
+    assert "LIMIT feature=chat kind=session used=1 limit=1" in lines
 
 
 # --- the widget -------------------------------------------------------------
