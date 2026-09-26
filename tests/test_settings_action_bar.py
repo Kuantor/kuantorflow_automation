@@ -263,3 +263,51 @@ def test_reset_auth_no_longer_pushes_anything_across_the_dialog(client):
 
     assert "auto" not in declarations.split("margin:")[1].split(";")[0], (
         "the auto margin outlived the row it was pushing against")
+
+
+# --- no horizontal scroll bar -----------------------------------------------
+#
+# The panel grew one along its bottom edge the moment the inner scroller was
+# added. Both causes were older than #431 -- the 0.4rem of padding on each
+# side of the scroller is exactly the slack the content had been getting away
+# with -- and both are invisible to this suite, so what is pinned is the two
+# rules, with the measurements in the docstrings.
+#
+# Verified at 320, 375, 480, 700 and 1280: horizontal overflow 0 at every one.
+
+
+def test_the_fieldsets_may_shrink_below_their_content(client):
+    """A `<fieldset>` carries `min-width: min-content` from the UA stylesheet,
+    which no other element does, and will not shrink below it however narrow
+    its grid track is.
+
+    The remedy that looks right is `minmax(0, 1fr)` on the grid, and it is
+    **not** this one: it corrects the track and not the fieldset inside it.
+    Measured at 700 -- `min-width: 0` alone gives 0 overflow, `minmax` alone
+    gives 16, both give 0. Written here so the next person does not swap one
+    for the other and check only the width it happens to work at.
+    """
+    declarations = _rule(_css(client), ".settings-group")
+
+    assert declarations is not None
+    assert "min-width: 0" in declarations, (
+        "the fieldsets can refuse their track again, and the panel scrolls "
+        "sideways")
+
+
+def test_the_long_key_names_can_break(client):
+    """`GOOGLE_TRANSLATE_API_KEY` is 170px in a 274px column on a 375pt phone,
+    so it sets the min-content width of everything above it.
+
+    **`anywhere`, not `break-word`.** Both let a long word break; only
+    `anywhere` counts that when min-content is computed, which is what a grid
+    track sizes against. Measured at 375: `break-word` left all 22px of
+    overflow, `anywhere` took it to zero. The two are one word apart in the
+    source and a world apart in effect.
+    """
+    declarations = _rule(_css(client), ".settings-inline-hint code")
+
+    assert declarations is not None, (
+        "nothing lets the environment-variable names wrap")
+    assert "anywhere" in declarations, (
+        "break-word does not reduce min-content; only anywhere does")
