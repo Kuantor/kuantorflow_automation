@@ -187,17 +187,22 @@ def test_settings_popup_markup(client, monkeypatch):
 
 
 def test_settings_popup_two_column_layout(client):
-    """The four fieldsets sit in a two-column grid and all three action
-    buttons share one row inside the form, so nothing spills below the
-    popup (#118)."""
+    """The four fieldsets sit in a two-column grid, and every control is
+    inside the form so nothing spills below the popup (#118).
+
+    It used to assert that Reset Auth, Cancel and Save **shared one row**.
+    kuantorflow#431 split them deliberately: Cancel and Save are pinned in a
+    footer and Reset Auth moved up under the account caption, so *which
+    container holds what* is now the subject of
+    test_settings_action_bar.py. What is left here is #118's own property --
+    the grid, and that Reset Auth still does not submit the form.
+    """
     body = client.get("/").get_data(as_text=True)
     modal = body.split('id="settings-modal"')[1].split("</form>")[0]
     assert 'class="settings-grid"' in modal        # the 2-column wrapper
-    # a single action row holds Reset Auth, Cancel and Save
-    actions = modal.split('class="modal-actions"')[1]
     for btn in ('id="reset-auth-btn"', 'id="settings-cancel"',
                 'id="settings-save"'):
-        assert btn in actions
+        assert btn in modal, f"{btn} left the form entirely"
     # Reset Auth is now inside the form (was a separate row before) but must
     # not submit it
     assert re.search(r'id="reset-auth-btn"[^>]*type="button"', modal) \

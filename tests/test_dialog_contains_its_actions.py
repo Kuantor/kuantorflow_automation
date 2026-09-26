@@ -194,18 +194,23 @@ def review(user_client, saved):
     ).get_data(as_text=True)
 
 
-def test_the_dialogs_that_scroll_are_the_two_expected_ones(flashcards):
-    """A third one appearing is not a failure -- it is a prompt to check that
-    the rule reaches it, which the test below is what does."""
+def test_the_dialogs_that_scroll_are_the_three_expected_ones(flashcards):
+    """A new one appearing is not a failure -- it is a prompt to check that
+    some arrangement reaches it, which the test below is what does.
+
+    `settings-scroll` is the third, added by kuantorflow#431, and it arrived
+    exactly as this test anticipated: it failed here first, which is what sent
+    somebody to check the containment rather than assume it.
+    """
     ids = sorted(pane.get("id") or pane.get("class")[-1]
                  for pane in _panes(flashcards))
 
-    assert ids == ["edit-form", "rewrite-fields"]
+    assert ids == ["edit-form", "rewrite-fields", "settings-scroll"]
 
 
 @pytest.mark.parametrize("page", ["flashcards", "review"])
-def test_every_scroll_pane_is_reached_by_one_of_the_two_arrangements(page,
-                                                                     request):
+def test_every_scroll_pane_is_reached_by_one_of_the_three_arrangements(page,
+                                                                       request):
     """The regression this guards, which no CSS assertion can.
 
     `.modal-dialog > .modal-scroll` is a **child** selector, so wrapping a pane
@@ -213,8 +218,22 @@ def test_every_scroll_pane_is_reached_by_one_of_the_two_arrangements(page,
     silently stops the rule applying and puts the buttons back outside. Nothing
     breaks loudly; the dialog just grows past itself again on a short window.
 
-    Two arrangements are allowed: a direct child (#375), or the review popup's
-    flex row (#349), which is the one pane that is deliberately nested.
+    Three arrangements are allowed:
+
+    * a direct child of `.modal-dialog` (#375);
+    * the review popup's flex row, `.proposal-body` (#349) -- deliberately
+      nested;
+    * the Settings dialog's form, `#settings-form` (kuantorflow#431), which is
+      nested for the same reason and carries its own flex chain because
+      `:has(> .modal-scroll)` cannot see a grandchild.
+
+    The third earned its place the way #375 asks: **measured** rather than
+    argued. At 1280x500 -- a deliberately short window, well under the ~740px
+    threshold this file's header derives -- the dialog renders 450px tall and
+    fully inside the viewport, the pinned footer sits at y=402-451 with the
+    viewport ending at 500, and the scroll region is 306px rather than a
+    sliver. Scrolled 1257px to the bottom, the footer and the close cross both
+    moved 0px, and each hit-tested to itself.
     """
     html = request.getfixturevalue(page)
     panes = _panes(html)
@@ -225,7 +244,14 @@ def test_every_scroll_pane_is_reached_by_one_of_the_two_arrangements(page,
         classes = parent.get("class") or []
         if "modal-dialog" in classes:
             continue
+        if parent.get("id") == "settings-form":
+            # #431: the form is the flex column, and the dialog above it is
+            # the one capped at 90vh. Its own rules are asserted in
+            # test_settings_action_bar.py; what matters here is that the pane
+            # is reached by *an* arrangement rather than by none.
+            assert "settings-dialog" in (parent.parent.get("class") or [])
+            continue
         assert "proposal-body" in classes, (
-            "%s sits inside <%s class=%r>, which neither arrangement reaches"
+            "%s sits inside <%s class=%r>, which no arrangement reaches"
             % (pane.get("id") or pane.get("class"), parent.name, classes))
         assert "proposal-dialog" in (parent.parent.get("class") or [])
