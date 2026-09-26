@@ -189,7 +189,9 @@ def test_the_words_that_appeared_and_the_ones_that_did_not_are_both_listed(
 def test_a_generation_writes_one_log_line_naming_the_model(client, deck, claude,
                                                            action_logs):
     _write(client)
-    line = (action_logs / "dict.log").read_text(encoding="utf-8")
+    # `gen_texts.log` since kuantorflow#448 -- a paid model call had no
+    # business in a file named for dictionary lookups.
+    line = (action_logs / "gen_texts.log").read_text(encoding="utf-8")
     assert "GENERATE" in line
     assert f"model={textgen.TEXT_MODEL}" in line
     assert "supplied=3" in line and "used=3" in line
@@ -451,7 +453,7 @@ def test_a_failed_call_is_reported_and_logged(client, deck, monkeypatch,
     monkeypatch.setattr(textgen, "_ask_claude", boom)
     body = _write(client).get_data(as_text=True)
     assert "could not be written" in body
-    log = (action_logs / "dict.log").read_text(encoding="utf-8")
+    log = (action_logs / "gen_texts.log").read_text(encoding="utf-8")
     assert "GENERATE" in log and "anthropic is away" in log
 
 
