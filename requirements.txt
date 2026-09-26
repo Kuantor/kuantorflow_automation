@@ -9,6 +9,8 @@ authlib
 mysql-connector-python
 beautifulsoup4
 lxml
+# The Help page renders the guide with it (kuantorflow#460).
+markdown
 
 # The report tooling: imported by test_report_render_check.py (md_to_pdf.py
 # parses Markdown through md_to_docx.py, hence python-docx), and needed to
