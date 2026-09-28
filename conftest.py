@@ -367,6 +367,13 @@ def app_module(monkeypatch):
                         lambda action, user_id: 0, raising=False)
     monkeypatch.setattr("utils.existing_words",
                         lambda owner_id=None: set(), raising=False)
+    # kuantorflow#338: every graded round a *signed-in* learner finishes
+    # appends to `recall_answers`, so every `user_client` test that posts a
+    # round would otherwise INSERT into whatever DB_* points at -- and local
+    # MySQL is reachable, so it would succeed, quietly. Nothing written by
+    # default; test_recall_answers.py records the calls.
+    monkeypatch.setattr("utils.record_answers",
+                        lambda user_id, game, answers: 0, raising=False)
     return app_mod
 
 

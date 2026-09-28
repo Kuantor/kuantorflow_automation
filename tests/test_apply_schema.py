@@ -261,15 +261,20 @@ def test_schema_sql_is_its_tables_in_dependency_order(schema_sql):
     # foreign key, and the three above it are left in place to age out rather
     # than migrated -- every query against them was `WHERE day = CURDATE()`,
     # so there was never anything to move.
+    #
+    # recall_answers (kuantorflow#338) is the last, and has to be: it holds
+    # foreign keys to both `users` and `flashcards`, so it can only be created
+    # once both exist.
     assert [s.name for s in steps] == [
         "anonymous_usage", "text_generation_usage", "word_lookup_usage",
         "action_usage", "confirmed_words", "users", "topic_sections",
-        "topics", "flashcards"]
+        "topics", "flashcards", "recall_answers"]
     assert [s.target for s in steps] == [
         Table("anonymous_usage"), Table("text_generation_usage"),
         Table("word_lookup_usage"), Table("action_usage"),
         Table("confirmed_words"), Table("users"),
-        Table("topic_sections"), Table("topics"), Table("flashcards")]
+        Table("topic_sections"), Table("topics"), Table("flashcards"),
+        Table("recall_answers")]
 
 
 def test_every_foreign_key_target_is_created_before_the_table_needing_it(
@@ -518,14 +523,17 @@ def test_a_fresh_database_gets_its_tables_and_needs_no_migrations(schema_sql):
 
 def test_a_pre_89_database_gets_the_column_index_and_key(schema_sql):
     db = FakeDatabase(_pre_89_objects(), unmigrated=True)
-    created, present = apply_schema.run(
-        apply_schema.schema_steps(schema_sql), apply_schema.Schema(db), db)
-    # topics (#207), topic_sections (#215), text_generation_usage (#237),
-    # confirmed_words (kuantorflow#258), word_lookup_usage
-    # (kuantorflow#388) and action_usage (kuantorflow#447) did not exist
-    # before, so all six are created; the three tables that were already
-    # there are left alone.
-    assert (created, present) == (6, 3)
+    steps = apply_schema.schema_steps(schema_sql)
+    created, present = apply_schema.run(steps, apply_schema.Schema(db), db)
+    # The three tables a pre-#89 database already had are left alone, and
+    # every other table in schema.sql is created -- topics (#207),
+    # topic_sections (#215), text_generation_usage (#237), confirmed_words
+    # (kuantorflow#258), word_lookup_usage (#388), action_usage (#447),
+    # recall_answers (#338) and whatever comes next. Counted from the steps
+    # rather than written as a number, which had to be edited by hand for
+    # every new table and so asserted nothing about this test's subject.
+    assert present == 3
+    assert created == len(steps) - 3
     assert Table("topics") in db.objects
     assert Table("topic_sections") in db.objects
     assert Table("text_generation_usage") in db.objects

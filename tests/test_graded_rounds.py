@@ -25,6 +25,7 @@ import re
 import pytest
 from werkzeug.datastructures import MultiDict
 
+import games
 import rounds
 
 
@@ -103,8 +104,8 @@ def seam(app_module, monkeypatch):
     calls = []
     original = rounds._graded_answers
 
-    def recording(cards, judge):
-        graded = original(cards, judge)
+    def recording(activity, cards, judge):
+        graded = original(activity, cards, judge)
         calls.append(graded)
         return graded
 
@@ -144,9 +145,12 @@ def test_a_round_with_no_card_behind_it_cannot_reach_the_helper(
 
 
 def _graded(app_module, cards, judge, data):
+    # Anonymous, so #338's write is skipped and only the grading runs --
+    # test_recall_answers.py is where the write is tested.
     with app_module.app.test_request_context(
             "/", method="POST", data=MultiDict(data)):
-        return rounds._graded_answers(cards, judge)
+        return rounds._graded_answers(games.ACTIVITIES["spell_it"],
+                                      cards, judge)
 
 
 def _always(card, given):
