@@ -378,6 +378,10 @@ def app_module(monkeypatch):
     # a read and an upsert against the same database, for the same rounds.
     monkeypatch.setattr("utils.refresh_schedule",
                         lambda user_id, words: 0, raising=False)
+    # kuantorflow#480: every round a signed-in learner is *dealt* reads their
+    # schedule to weight the draw. No schedule by default, which is the
+    # uniform draw every test was written against.
+    monkeypatch.setattr("utils.due_dates", lambda user_id: {}, raising=False)
     return app_mod
 
 
