@@ -11,6 +11,9 @@ beautifulsoup4
 lxml
 # The Help page renders the guide with it (kuantorflow#460).
 markdown
+# The recall schedule's day is Kyiv's (kuantorflow#479); Windows has no
+# time-zone database without it.
+tzdata
 
 # The report tooling: imported by test_report_render_check.py (md_to_pdf.py
 # parses Markdown through md_to_docx.py, hence python-docx), and needed to
