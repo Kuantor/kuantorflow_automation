@@ -219,6 +219,41 @@ def test_a_round_through_record_answers_is_scheduled(learner):
     assert row[3:7] == (1, 0, 2500, 1)
 
 
+# --- what the draw reads (#480) ---------------------------------------------------
+
+@requires_local_db
+def test_due_dates_are_keyed_the_way_a_card_is(learner):
+    """The draw finds a card's row through `recall.word_key()`, so the reader
+    must key the same way: case folded, and the stored '' for no part of
+    speech. A mismatch would make every scheduled word look unseen -- which
+    is exactly what a stripped `pos` did to *Listen and type*."""
+    import recall
+    import utils
+
+    _history(learner)
+    _log(learner, "Gist", None, "quiz", True, datetime(2026, 9, 1, 9))
+    utils.rebuild_schedules()
+
+    due = utils.due_dates(learner)
+
+    assert due[recall.word_key("acquit", "verb")] == datetime(2026, 9, 23).date()
+    assert due[recall.word_key("gist", None)] == datetime(2026, 9, 2).date()
+    assert len(due) == 4
+
+
+@requires_local_db
+def test_due_dates_are_one_learners_own(learner):
+    import utils
+
+    other, _ = utils.upsert_user("sub-draw-other", "other@example.com")
+    _history(learner)
+    _log(other, "zeal", "noun", "quiz", True, datetime(2026, 9, 1, 9))
+    utils.rebuild_schedules()
+
+    assert set(utils.due_dates(other)) == {("zeal", "noun")}
+    assert utils.due_dates(None) == {}
+
+
 # --- the rebuild ---------------------------------------------------------------
 
 @requires_local_db
