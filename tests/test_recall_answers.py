@@ -237,6 +237,66 @@ def test_a_failed_write_still_shows_the_results(user_client, deck, monkeypatch,
     assert "for recall" in caplog.text
 
 
+# --- then the schedule (kuantorflow#479) ---------------------------------------
+
+@pytest.fixture()
+def refreshed(app_module, monkeypatch):
+    """Every `utils.refresh_schedule()` call, instead of a replay and upsert."""
+    calls = []
+    monkeypatch.setattr("utils.refresh_schedule",
+                        lambda user_id, words: calls.append((user_id, words)))
+    return calls
+
+
+def test_a_recorded_round_refreshes_the_schedule_for_its_words(
+        user_client, deck, recorded, refreshed):
+    """The words the round answered, with their parts of speech -- the
+    schedule's key -- and nothing else."""
+    user_client.post("/games/spell_it/play?topic=Work",
+                     data={"answer_1": "delegate", "answer_3": "burnout"})
+
+    assert refreshed == [(TEST_USER_ID, [("delegate", "verb"),
+                                         ("burnout", "noun")])]
+
+
+def test_no_log_row_means_no_refresh(user_client, deck, monkeypatch, refreshed):
+    """The schedule is a cache of the log. If the log write failed there is
+    nothing new to replay, and refreshing would only repeat yesterday."""
+    def broken(user_id, game, answers):
+        raise RuntimeError("the database is not answering")
+
+    monkeypatch.setattr("utils.record_answers", broken)
+    user_client.post("/games/spell_it/play?topic=Work",
+                     data={"answer_1": "delegate"})
+
+    assert refreshed == []
+
+
+def test_a_failed_refresh_keeps_the_log_row_and_the_results(
+        user_client, deck, recorded, monkeypatch, caplog):
+    """The two failures mean different things: a lost log row is lost history,
+    a stale schedule row is a cache `rebuild_schedule.py` repairs. So the log
+    is already written, the page still shows, and the log line says which."""
+    def broken(user_id, words):
+        raise RuntimeError("upsert failed")
+
+    monkeypatch.setattr("utils.refresh_schedule", broken)
+    with caplog.at_level(logging.ERROR):
+        response = user_client.post("/games/spell_it/play?topic=Work",
+                                    data={"answer_1": "delegate"})
+
+    assert "Score: 1 / 1" in response.get_data(as_text=True)
+    assert recorded == [(TEST_USER_ID, "spell_it", [(1, True)])]
+    assert "recall schedule" in caplog.text
+    assert "rebuild_schedule.py" in caplog.text
+
+
+def test_an_anonymous_round_refreshes_nothing(client, deck, recorded, refreshed):
+    client.post("/games/spell_it/play?topic=Work", data={"answer_1": "delegate"})
+
+    assert refreshed == []
+
+
 # --- the writer itself, offline ----------------------------------------------
 
 def test_nothing_to_write_opens_no_connection(real_utils, monkeypatch):

@@ -374,6 +374,10 @@ def app_module(monkeypatch):
     # default; test_recall_answers.py records the calls.
     monkeypatch.setattr("utils.record_answers",
                         lambda user_id, game, answers: 0, raising=False)
+    # kuantorflow#479: and after the log, the schedule is refreshed from it --
+    # a read and an upsert against the same database, for the same rounds.
+    monkeypatch.setattr("utils.refresh_schedule",
+                        lambda user_id, words: 0, raising=False)
     return app_mod
 
 
