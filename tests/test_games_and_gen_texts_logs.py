@@ -157,9 +157,8 @@ def test_real_or_fake_logs_though_it_never_reaches_graded_answers(
 
 def test_fill_the_gap_logs_the_deal_and_claims_no_score(client, stub_deck,
                                                         action_logs):
-    """It never submits -- the score is the learner's own ticking, held in the
-    page -- so the deal is the only moment the server sees. `correct` is
-    **absent**, not zero: nobody measured it, and a zero would be a claim."""
+    """At the deal nothing has been marked yet, so `correct` is **absent**,
+    not zero: nobody measured it, and a zero would be a claim."""
     stub_deck(cards=[{"id": i, "word": w, "topic": "Work",
                       "examples_en": [f"She had to {w} the task."]}
                      for i, w in enumerate(["delegate", "resign"], 1)])
@@ -169,6 +168,24 @@ def test_fill_the_gap_logs_the_deal_and_claims_no_score(client, stub_deck,
     assert _field(line, "game") == "fill_the_gap"
     assert _field(line, "stage") == "dealt"
     assert _field(line, "correct") is None, line
+
+
+def test_finishing_fill_the_gap_logs_the_marks_as_self_marked(
+        client, stub_deck, action_logs):
+    """Since kuantorflow#484 *Finish* posts the cards turned over, and that is a
+    second line with its own stage -- `self-marked`, not `graded`, so the log
+    can tell the learner's ticks from answers the site checked. Only the
+    posted cards count: three were dealt, two were turned over."""
+    stub_deck(cards=[{"id": i, "word": w, "topic": "Work",
+                      "examples_en": [f"She had to {w} the task."]}
+                     for i, w in enumerate(["delegate", "resign", "commute"], 1)])
+    client.post("/games/fill_the_gap/play?topic=Work",
+                data={"answer_1": "remembered", "answer_3": ""})
+
+    line = _lines(action_logs, "games", "ROUND")[0]
+    assert _field(line, "game") == "fill_the_gap"
+    assert _field(line, "stage") == "self-marked"
+    assert (_field(line, "asked"), _field(line, "correct")) == ("2", "1")
 
 
 def test_dealing_a_graded_game_writes_nothing(client, stub_deck, action_logs):

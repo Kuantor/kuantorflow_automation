@@ -3,8 +3,9 @@
 The write lives in one place, `rounds._graded_answers()`, which is the point of
 #416: the six rounds that grade an answer against a card reach it, and nothing
 else can. So what this file pins is the *set* -- every graded game records,
-with its own slug, and every other activity does not -- plus the three rules
-about **who**: a signed-in learner is recorded, an anonymous visitor never is,
+with its own slug; *Fill the gap* records the learner's own ticks since
+kuantorflow#484, declared `self_marked` so #479 can weigh them lower; and every
+other activity does not -- plus the three rules about **who**: a signed-in learner is recorded, an anonymous visitor never is,
 and a blocked account still is.
 
 And one rule about failure: the log is history, and a history table that cannot
@@ -15,6 +16,7 @@ NULL on the card -- is in test_recall_answers_db.py, against a real MySQL.
 """
 
 import logging
+import re
 
 import pytest
 from werkzeug.datastructures import MultiDict
@@ -29,13 +31,20 @@ from test_graded_rounds import CARDS, GRADED, UNATTRIBUTABLE
 GRADED_SLUGS = ["scrambled", "multiple_choice", "listen_and_type", "spell_it",
                 "rebuild_the_sentence", "quiz"]
 
+# Activities that record the learner's own marks rather than a checked answer
+# (kuantorflow#484). They write the same rows; `Activity.self_marked` is what
+# lets #479's schedule weigh them lower.
+SELF_MARKED = {"fill_the_gap"}
+
 # Activities that must never record, and why -- each is a claim #338 makes.
 NEVER_RECORDED = {
     "odd_one_out": "posts question indexes, so there is no card to credit",
     "real_or_fake": "asks about invented words with no row behind them",
-    "fill_the_gap": "is self-marked, and the schedule runs on checked answers",
     "read_a_text": "asks no questions at all",
 }
+
+GAP_CARDS = [dict(card, examples_en=[f"She had to {card['word']} the task."])
+             for card in CARDS]
 
 
 @pytest.fixture()
@@ -64,10 +73,20 @@ def test_every_activity_is_either_a_writer_or_excluded_for_a_reason():
     tenth game that grades somewhere of its own would simply not record, and
     every other test here would stay green."""
     assert len(GRADED_SLUGS) == len(GRADED)
-    classified = set(GRADED_SLUGS) | set(NEVER_RECORDED)
+    classified = set(GRADED_SLUGS) | SELF_MARKED | set(NEVER_RECORDED)
 
     assert classified == set(games.ACTIVITIES), (
         "unclassified: %s" % sorted(set(games.ACTIVITIES) ^ classified))
+
+
+def test_the_self_marked_declaration_is_exactly_the_self_marked_games():
+    """#479 reads `Activity.self_marked` to weigh a tick below a checked
+    answer. A checked game carrying it would have its real answers discounted;
+    a self-marked game without it would have ticks counted as proof."""
+    declared = {slug for slug, activity in games.ACTIVITIES.items()
+                if activity.self_marked}
+
+    assert declared == SELF_MARKED
 
 
 @pytest.mark.parametrize("name,url,data,slug",
@@ -102,13 +121,74 @@ def test_a_round_with_no_card_behind_it_records_nothing(
     assert recorded == []
 
 
-def test_fill_the_gap_records_nothing(user_client, deck, recorded):
-    """Self-marked: the learner flips the card and ticks *I remember it*, with
-    nothing compared. Fine for #337's next few minutes, wrong as history."""
+# --- Fill the gap: the learner's own marks (kuantorflow#484) ------------------
+
+def test_dealing_fill_the_gap_records_nothing(user_client, stub_deck, recorded):
+    """The deal is not an answer. Only *Finish* posts anything."""
+    stub_deck(cards=GAP_CARDS)
     response = user_client.get("/games/fill_the_gap/play?topic=Work")
 
     assert response.status_code == 200
     assert recorded == []
+
+
+def test_finishing_fill_the_gap_records_each_card_turned_over(
+        user_client, stub_deck, recorded):
+    """A tick is `remembered`; a card turned over and left unticked posts an
+    empty value and is recorded as not remembered. Cards never turned over are
+    not posted at all -- the page's job -- so only 1 and 3 come back."""
+    stub_deck(cards=GAP_CARDS)
+    response = user_client.post("/games/fill_the_gap/play?topic=Work",
+                                data={"answer_1": "remembered", "answer_3": ""})
+
+    assert response.status_code == 204
+    assert recorded == [(TEST_USER_ID, "fill_the_gap", [(1, True), (3, False)])]
+
+
+def test_only_the_exact_mark_counts_as_remembered(user_client, stub_deck,
+                                                 recorded):
+    """The judge is an exact comparison, so a hand-built POST cannot turn a
+    card into a pass by sending anything truthy."""
+    stub_deck(cards=GAP_CARDS)
+    user_client.post("/games/fill_the_gap/play?topic=Work",
+                     data={"answer_1": "yes", "answer_2": "on"})
+
+    assert recorded == [(TEST_USER_ID, "fill_the_gap", [(1, False), (2, False)])]
+
+
+def test_a_card_outside_the_visible_deck_is_not_recorded(user_client,
+                                                        stub_deck, recorded):
+    """The ids come from the page, so they are read back against this
+    learner's deck -- the same `games.asked()` rule every round uses."""
+    stub_deck(cards=GAP_CARDS)
+    user_client.post("/games/fill_the_gap/play?topic=Work",
+                     data={"answer_999": "remembered", "answer_2": "remembered"})
+
+    assert recorded == [(TEST_USER_ID, "fill_the_gap", [(2, True)])]
+
+
+def test_an_anonymous_finish_records_nothing(client, stub_deck, recorded):
+    stub_deck(cards=GAP_CARDS)
+    response = client.post("/games/fill_the_gap/play?topic=Work",
+                           data={"answer_1": "remembered"})
+
+    assert response.status_code == 204
+    assert recorded == []
+
+
+def test_the_round_page_carries_what_the_post_needs(user_client, stub_deck):
+    """The browser half cannot run here, so its inputs are pinned: every tick
+    box names its card, and the value it posts is the one the server compares
+    against -- rendered from `rounds.GAP_REMEMBERED` rather than written
+    twice. The flip tracking itself was verified in a browser."""
+    import rounds
+    stub_deck(cards=GAP_CARDS)
+    body = user_client.get("/games/fill_the_gap/play?topic=Work").get_data(
+        as_text=True)
+
+    ids = re.findall(r'class="gap-remember-box" data-card-id="(\d+)"', body)
+    assert sorted(map(int, ids)) == [card["id"] for card in GAP_CARDS]
+    assert f'box.checked ? "{rounds.GAP_REMEMBERED}" : ""' in body
 
 
 # --- who ---------------------------------------------------------------------
