@@ -60,6 +60,13 @@ requires_local_db = pytest.mark.skipif(
     "and DB_* configured; the test creates its own scratch database",
 )
 
+# Dropping `flashcards` to rebuild it in an older shape has to take the tables
+# that point at it first: `recall_answers` (kuantorflow#338) holds a foreign
+# key to it, and MySQL refuses to drop a referenced table. A database that
+# really predates #89 has no `recall_answers` either, so this is also the more
+# faithful rewind -- the schema pass recreates it, as it would on the real one.
+DROP_FLASHCARDS = ["DROP TABLE recall_answers", "DROP TABLE flashcards"]
+
 # The flashcards table as it stood before #89 and before the pos column — the
 # shape the production database was actually in when the deploy broke it.
 PRE_89_FLASHCARDS = """
@@ -227,7 +234,7 @@ def test_an_empty_database_gets_the_whole_schema(scratch_db):
 def test_a_pre_89_database_is_migrated_and_keeps_its_cards(scratch_db):
     _apply()                                   # tables as they should be
     fresh_columns = _columns()                 # what a new install looks like
-    _execute(["DROP TABLE flashcards", PRE_89_FLASHCARDS,
+    _execute([*DROP_FLASHCARDS, PRE_89_FLASHCARDS,
               "INSERT INTO flashcards (word, topic) VALUES ('brittle', 'vocab')"],
              SCRATCH_DB)
     assert "added_by_user_id" not in _columns()
@@ -271,7 +278,7 @@ def test_a_second_run_is_a_no_op_and_says_so(scratch_db):
 @requires_local_db
 def test_dry_run_reports_the_pending_work_without_doing_it(scratch_db):
     _apply()
-    _execute(["DROP TABLE flashcards", PRE_89_FLASHCARDS], SCRATCH_DB)
+    _execute([*DROP_FLASHCARDS, PRE_89_FLASHCARDS], SCRATCH_DB)
 
     result = _apply("--dry-run")
     assert result.returncode == 0, result.stderr
@@ -613,7 +620,7 @@ def test_an_empty_section_can_be_deleted(scratch_db):
 def test_a_broken_migration_exits_non_zero(scratch_db):
     """A column of the wrong type: the foreign key cannot be created on it."""
     _apply()
-    _execute(["DROP TABLE flashcards", PRE_89_FLASHCARDS,
+    _execute([*DROP_FLASHCARDS, PRE_89_FLASHCARDS,
               "ALTER TABLE flashcards ADD COLUMN added_by_user_id VARCHAR(10) NULL"],
              SCRATCH_DB)
 
