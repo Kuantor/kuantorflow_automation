@@ -40,6 +40,12 @@ def mykola(app_module, monkeypatch):
         def answer(self, *a, **k):
             return {"response": "Indeed.", "history": [], "sources": []}
 
+        # Since kuantorflow#495 the recap endpoint asks whether the agent can
+        # recap *before* it claims -- a slot is never spent on an agent that
+        # cannot use it -- so the stub has to be able to.
+        def recap(self, *a, **k):
+            return "Last time we talked about idioms."
+
     monkeypatch.setattr("chat.get_mykola", _Agent)
     return calls
 
@@ -145,31 +151,69 @@ def test_an_anonymous_message_is_not_claimed_against_an_account(client,
 
 def test_a_recap_is_claimed_against_the_account(user_client, monkeypatch,
                                                 mykola):
+    """Only a **requested** recap -- the button, kuantorflow#495 -- reaches the
+    model, so only it claims."""
     import utils
     import web
     asked = _allowing(monkeypatch)
     monkeypatch.setattr("chat._said_farewell_today", lambda: False)
     monkeypatch.setattr("chat._read_user_logs", lambda **k: "some history")
 
-    user_client.post("/mykola/recap", json={})
+    user_client.post("/mykola/recap", json={"requested": True})
 
     assert (utils.RECAP, 7, web.RECAP_USER_DAILY, 1) in asked
 
 
-def test_a_refused_recap_is_silence_rather_than_an_error(user_client,
-                                                         monkeypatch, mykola):
-    """Every other thing that can go wrong here answers `{"recap": None}` and
-    the widget keeps its normal greeting. A ceiling is not more interesting to
-    a learner than an older agent or an empty history."""
+def test_opening_the_chat_neither_claims_nor_calls_the_model(user_client,
+                                                            monkeypatch, mykola):
+    """kuantorflow#495. Opening the chat used to be the recap. Now it asks
+    without `requested` and gets only the free farewell, or nothing -- with a
+    history there to recap, which is exactly the case that used to spend."""
+    import utils
+    asked = _allowing(monkeypatch)
+    monkeypatch.setattr("chat._said_farewell_today", lambda: False)
+    monkeypatch.setattr("chat._read_user_logs", lambda **k: "some history")
+    called = []
+    monkeypatch.setattr("chat.get_mykola", lambda: type(
+        "A", (), {"recap": lambda self, *a, **k: called.append(1) or "x"})())
+
+    r = user_client.post("/mykola/recap", json={})
+
+    assert r.get_json() == {"recap": None}
+    assert called == [], "opening the chat called the model"
+    assert not [a for a in asked if a[0] == utils.RECAP]
+
+
+def test_a_refused_recap_says_so(user_client, monkeypatch, mykola):
+    """Before #495 a refusal was silence, which suited a recap nobody had asked
+    for. A learner who pressed the button is waiting, so the day's limit is
+    told to them in a fixed sentence that costs nothing."""
+    import chat
     import utils
     _refusing(monkeypatch, utils.RECAP)
     monkeypatch.setattr("chat._said_farewell_today", lambda: False)
     monkeypatch.setattr("chat._read_user_logs", lambda **k: "some history")
 
-    r = user_client.post("/mykola/recap", json={})
+    r = user_client.post("/mykola/recap", json={"requested": True})
 
     assert r.status_code == 200
-    assert r.get_json() == {"recap": None}
+    assert r.get_json() == {"recap": None, "notice": chat.RECAP_LIMIT_REACHED}
+
+
+def test_nothing_to_recap_is_said_without_spending(user_client, monkeypatch,
+                                                  mykola):
+    """No history is a free answer, so it comes before the claim: a learner
+    who has never chatted is told so without losing one of the day's five."""
+    import chat
+    import utils
+    asked = _allowing(monkeypatch)
+    monkeypatch.setattr("chat._said_farewell_today", lambda: False)
+    monkeypatch.setattr("chat._read_user_logs", lambda **k: "")
+
+    r = user_client.post("/mykola/recap", json={"requested": True})
+
+    assert r.get_json()["notice"] == chat.RECAP_NOTHING_YET
+    assert not [a for a in asked if a[0] == utils.RECAP]
 
 
 def test_a_farewell_costs_no_recap(user_client, monkeypatch, mykola):

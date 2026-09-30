@@ -134,16 +134,23 @@ def _user_log(chat_logs, text=EXCHANGES, hours_ago=5):
     return user_dir
 
 
-def test_only_the_last_three_exchanges_are_reviewed(user_client, app_module,
-                                                    monkeypatch, chat_logs):
+def test_a_restart_never_calls_the_model(user_client, app_module, monkeypatch,
+                                         chat_logs):
+    """kuantorflow#495. The restart used to open the fresh chat with a recap of
+    the last three exchanges -- a claude-opus-5 call on every return after the
+    interval, and the one paid path that claimed no ceiling. The restart stays
+    (it is free); the recap is the learner's to ask for, with the button.
+
+    Signed in, with history, well past the interval: exactly the case that
+    used to spend. The agent is recorded, so a call would show here."""
     records = []
     _mykola(app_module, monkeypatch, records=records)
     _user_log(chat_logs)
-    assert _check(user_client)["restart"] is True
-    reviewed = records[0]["text"]
-    assert "question 3" in reviewed and "question 5" in reviewed
-    assert "question 2" not in reviewed, "only the last three exchanges"
-    assert records[0]["away_hours"] == pytest.approx(5, abs=0.1)
+    data = _check(user_client)
+
+    assert data["restart"] is True
+    assert records == [], "the restart asked the model for a recap"
+    assert data["recap"] is None
 
 
 def test_the_restart_opens_a_new_log_file(user_client, app_module, monkeypatch,
@@ -156,8 +163,8 @@ def test_the_restart_opens_a_new_log_file(user_client, app_module, monkeypatch,
     assert new_log.exists(), "a restarted chat gets its own log file"
     text = new_log.read_text(encoding="utf-8")
     assert "Chat restarted automatically" in text
-    assert "Good to see you again!" in text
-    assert data["recap"] == "Good to see you again!"
+    # No recap is written into it any more (#495).
+    assert "Good to see you again!" not in text
 
 
 def test_the_break_is_measured_from_the_newest_log(user_client, app_module,
@@ -186,10 +193,11 @@ def test_anonymous_visitors_restart_without_a_recap(client, app_module,
     assert data["restart"] is True and data["recap"] is None
 
 
-def test_away_hours_is_only_sent_to_agents_that_accept_it(user_client, app_module,
-                                                          monkeypatch, chat_logs):
-    """Feature detection (the repos deploy in any order): an older ai_agent
-    whose recap() has no away_hours must still be callable."""
+def test_an_older_agent_is_not_called_on_restart_either(user_client, app_module,
+                                                        monkeypatch, chat_logs):
+    """This used to pin feature detection of `away_hours` for the restart's
+    recap. That recap is gone (#495), so what it pins now is that no agent
+    version -- old or new -- is asked anything when a chat restarts."""
     seen = {}
 
     def old_recap(past_conversations, user_name=None, hidden_languages=None):
@@ -201,7 +209,8 @@ def test_away_hours_is_only_sent_to_agents_that_accept_it(user_client, app_modul
                         lambda: types.SimpleNamespace(recap=old_recap))
     _user_log(chat_logs)
     data = _check(user_client)
-    assert seen.get("called") and data["recap"] == "recap from an older agent"
+    assert data["restart"] is True
+    assert not seen and data["recap"] is None
 
 
 # --- the Settings control ---------------------------------------------------
