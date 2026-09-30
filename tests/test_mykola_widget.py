@@ -72,3 +72,57 @@ def test_new_chat_no_recap_for_anonymous(client, app_module, monkeypatch):
     new_chat = body.split("function newChat()")[1].split("\n            function ")[0]
     assert "requestRecap" not in new_chat, \
         "anonymous visitors have no recap, so New Chat must not call it"
+
+
+def _function(body, name):
+    return body.split("function %s(" % name)[1].split("\n            function ")[0]
+
+
+def test_the_recap_button_goes_once_pressed(user_client, app_module, monkeypatch):
+    """One recap per conversation: pressing hides the button (the user's
+    report on #495 -- it stayed, inviting a second paid recap of the same
+    chats). Hidden before the request, so a double press cannot send two, and
+    saved with the thread so the next page does not bring it back."""
+    body = _widget(user_client, app_module, monkeypatch)
+    recap = _function(body, "requestRecap")
+    before_fetch = recap.split("fetch(")[0]
+    assert "recapAsked = true" in before_fetch
+    assert "syncRecapButton()" in before_fetch
+    assert "saveWidgetState()" in before_fetch
+    sync = _function(body, "syncRecapButton")
+    assert "tools.hidden = recapAsked" in sync
+
+    save = _function(body, "saveWidgetState")
+    assert "recapAsked: recapAsked" in save
+    assert "recapAsked = !!state.recapAsked" in body
+    restore = body.split("recapAsked = !!state.recapAsked")[1][:200]
+    assert "syncRecapButton()" in restore
+
+
+def test_a_failed_recap_brings_the_button_back(user_client, app_module, monkeypatch):
+    """The request never got an answer, and Mykola says to try again -- so
+    the button has to be there to try with."""
+    body = _widget(user_client, app_module, monkeypatch)
+    failed = _function(body, "requestRecap").split(".catch(")[1].split(".then(")[0]
+    assert "recapAsked = false" in failed
+    assert "syncRecapButton()" in failed
+
+
+def test_a_new_conversation_brings_the_button_back(user_client, app_module,
+                                                   monkeypatch):
+    """New chat and the restart after a break both go through
+    startFreshChat(), and a new conversation may have its own recap."""
+    body = _widget(user_client, app_module, monkeypatch)
+    fresh = _function(body, "startFreshChat")
+    assert "recapAsked = false" in fresh
+    assert "syncRecapButton()" in fresh
+    assert "startFreshChat(" in _function(body, "newChat")
+
+
+def test_the_hidden_recap_row_is_really_hidden():
+    """.mykola-tools is display:flex, which beats the browser's own [hidden]
+    rule -- without this the button stays on screen with hidden set."""
+    import re
+    from pathlib import Path
+    css = (Path(chat.__file__).parent / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"\.mykola-tools\[hidden\]\s*\{\s*display:\s*none;", css)
