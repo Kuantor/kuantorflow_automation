@@ -58,7 +58,9 @@ def test_the_recap_button_is_what_asks_for_a_recap(user_client, app_module,
     assert 'recapButton.addEventListener("click", requestRecap)' in body
     recap = body.split("function requestRecap()")[1].split("\n            function ")[0]
     assert "requested: true" in recap
-    assert "data.notice" in recap, "a recap that can't be given must say so"
+    assert "showRecap(data)" in recap
+    shown = _function(body, "showRecap")
+    assert "data.notice" in shown, "a recap that can't be given must say so"
 
 
 def test_no_recap_button_for_anonymous(client, app_module, monkeypatch):
@@ -103,9 +105,13 @@ def test_a_failed_recap_brings_the_button_back(user_client, app_module, monkeypa
     """The request never got an answer, and Mykola says to try again -- so
     the button has to be there to try with."""
     body = _widget(user_client, app_module, monkeypatch)
-    failed = _function(body, "requestRecap").split(".catch(")[1].split(".then(")[0]
-    assert "recapAsked = false" in failed
-    assert "syncRecapButton()" in failed
+    failed = _function(body, "requestRecap").split(".catch(")[1].split("}).then(")[0]
+    assert "retry: true" in failed and "showRecap(" in failed
+    # ...and the server's own failure says `retry` too (test_recap_streams.py),
+    # so both reach the one place that turns it into the button coming back.
+    shown = _function(body, "showRecap")
+    assert "if (data.retry) recapAsked = false" in shown
+    assert "syncRecapButton()" in shown
 
 
 def test_a_new_conversation_brings_the_button_back(user_client, app_module,
@@ -126,3 +132,19 @@ def test_the_hidden_recap_row_is_really_hidden():
     from pathlib import Path
     css = (Path(chat.__file__).parent / "static" / "css" / "style.css").read_text(encoding="utf-8")
     assert re.search(r"\.mykola-tools\[hidden\]\s*\{\s*display:\s*none;", css)
+
+
+def test_the_recap_is_typed_out_like_an_answer(user_client, app_module,
+                                               monkeypatch):
+    """The user's report on #495: the recap landed in one piece, the one
+    message of Mykola's the typewriter never touched. It asks for a stream and
+    hands it to the chat's own readReply(), with showRecap() as the finisher
+    -- one typewriter, so the setting and reduced motion apply to both."""
+    body = _widget(user_client, app_module, monkeypatch)
+    recap = _function(body, "requestRecap")
+    assert "stream: canStream" in recap
+    assert 'type.indexOf("text/event-stream") === 0' in recap
+    assert "readReply(resp, typing, showRecap)" in recap
+    reply = _function(body, "readReply")
+    assert "(finish || finishAnswer)(closing)" in reply, \
+        "readReply() must hand the closing event to the recap's finisher"
