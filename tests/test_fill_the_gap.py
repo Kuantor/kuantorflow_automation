@@ -193,6 +193,75 @@ def test_an_impossible_setting_falls_back(user_client, stub_deck, asked):
     assert len(sentences(body)) == settings_store.DEFAULTS["gapped_deck_size"]
 
 
+# --- the picker's Words box (kuantorflow#499) --------------------------------
+#
+# The round used to deal *Cards per round* from Settings whatever the picker's
+# box said: set 3, press Start, get 10. The box now decides when the URL
+# carries it; the setting stays the size for the ways in that have no box --
+# a topic's flashcards page and a review, which link with no `words`.
+
+FORTY = [card(f"word{i}", [f"A word{i} in a sentence."]) for i in range(40)]
+
+
+def replay_href(body):
+    (href,) = re.findall(r'data-replay href="([^"]*)"', body)
+    return href.replace("&amp;", "&")
+
+
+@pytest.mark.parametrize("asked", [3, 12])
+def test_the_pickers_box_beats_the_setting(user_client, stub_deck, asked):
+    """Below the setting and above it, so neither `min` nor `max` passes."""
+    stub_deck(cards=FORTY)
+    user_client.post("/settings", json={"gapped_deck_size": 6})
+    body = user_client.get(f"{PLAY}?words={asked}").get_data(as_text=True)
+    assert len(sentences(body)) == asked
+
+
+def test_no_box_means_the_setting(user_client, stub_deck):
+    """The flashcards page's direct link carries no `words` -- nor does
+    `activity_play_url()`, which is what builds it."""
+    import rounds
+    import app as app_module
+    stub_deck(cards=FORTY)
+    user_client.post("/settings", json={"gapped_deck_size": 6})
+    with app_module.app.test_request_context():
+        direct = rounds.activity_play_url(games.ACTIVITIES["fill_the_gap"], "Work")
+    assert "words=" not in direct
+    body = user_client.get(PLAY).get_data(as_text=True)
+    assert len(sentences(body)) == 6
+
+
+@pytest.mark.parametrize("raw", ["", "abc"])
+def test_an_unreadable_box_falls_back_to_the_setting(user_client, stub_deck, raw):
+    """Not to the box's own default: this game's fallback is its setting."""
+    stub_deck(cards=FORTY)
+    user_client.post("/settings", json={"gapped_deck_size": 6})
+    body = user_client.get(f"{PLAY}?words={raw}").get_data(as_text=True)
+    assert len(sentences(body)) == 6
+
+
+def test_a_picked_size_short_of_cards_plays_what_it_has(client, stub_deck):
+    stub_deck(cards=PLAYABLE)
+    body = client.get(f"{PLAY}?words=5").get_data(as_text=True)
+    assert len(sentences(body)) == 3
+    assert "all we could make" in body
+
+
+def test_play_again_keeps_a_picked_size(client, stub_deck):
+    """Without it a round of 3 would replay at the setting's 10."""
+    stub_deck(cards=FORTY)
+    body = client.get(f"{PLAY}?words=3&topic=Work").get_data(as_text=True)
+    assert "words=3" in replay_href(body)
+
+
+def test_play_again_from_a_direct_link_stays_on_the_setting(client, stub_deck):
+    """A round that came in without a size replays without one, so it keeps
+    following *Cards per round* rather than whatever the picker last held."""
+    stub_deck(cards=FORTY)
+    body = client.get(f"{PLAY}?topic=Work").get_data(as_text=True)
+    assert "words=" not in replay_href(body)
+
+
 # --- scoring, and what is not written down ----------------------------------
 
 def test_the_round_is_self_marked_and_finishable_at_any_point(client, stub_deck):
