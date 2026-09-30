@@ -75,3 +75,46 @@ def test_a_hint_still_looks_like_a_hint(client):
     body text is the failure. It must stay visibly lighter than `--ink`."""
     root = _root_vars(client)
     assert _contrast(_hex(root["--muted"]), _hex(root["--ink"])) >= 1.5
+
+
+# --- "n cards here are not usable" on its own line -----------------------------
+
+def test_the_shortfall_sentence_has_its_own_line(client):
+    """#266's sentence ran on after each game's instruction as one run-on
+    sentence ("Choose the English word ... (3 questions): 24 cards here are
+    not usable ..."); two messages, so two lines (#502)."""
+    css = client.get("/static/css/style.css").get_data(as_text=True)
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    rule = re.search(r"\.hint\.shortfall\s*\{([^}]*)\}", css)
+    assert rule and re.search(r"display\s*:\s*block", rule.group(1)), \
+        "the shortfall hint is inline again"
+
+
+def test_every_round_marks_its_shortfall(client, stub_deck):
+    """The class is what the line break hangs on, so the shared partial must
+    carry it -- a game that grew its own copy of the sentence would not."""
+    words = ["salary", "overtime", "deadline", "promotion", "colleague", "employer"]
+    usable = [{"id": i, "word": w, "pos": "noun", "topic": "Work",
+               "translation_ukr": f"переклад{i}", "translation_rus": f"перевод{i}",
+               "explanation_en": f"meaning {i}", "examples_en": []}
+              for i, w in enumerate(words, 1)]
+    unusable = {"id": 99, "word": "bonus", "pos": "noun", "topic": "Work",
+                "translation_ukr": None, "translation_rus": None,
+                "explanation_en": None, "examples_en": []}
+    stub_deck(cards=usable + [unusable])
+    body = client.get("/games/multiple_choice/play?topic=Work").get_data(as_text=True)
+    assert 'class="hint shortfall"' in body
+
+
+@pytest.mark.parametrize("template, opening", [
+    ("game_fill_the_gap.html", "Only {{ cards|length }}"),
+    ("game_multiple_choice.html", "{{ unbuildable }}"),
+    ("game_odd_one_out.html", "These topics could only make"),
+])
+def test_the_rounds_own_shortfall_notes_have_their_own_line(template, opening):
+    """Three rounds say "fewer than you asked for" in a sentence of their own,
+    in the same spot as #266's; they break the same way."""
+    from pathlib import Path
+    import chat
+    source = (Path(chat.__file__).parent / "templates" / template).read_text(encoding="utf-8")
+    assert f'<span class="hint shortfall">{opening}' in source, template
