@@ -118,3 +118,15 @@ def test_the_rounds_own_shortfall_notes_have_their_own_line(template, opening):
     import chat
     source = (Path(chat.__file__).parent / "templates" / template).read_text(encoding="utf-8")
     assert f'<span class="hint shortfall">{opening}' in source, template
+
+
+def test_no_instruction_ends_in_a_colon():
+    """With the shortfall note on the next line, "(3 questions):" read as
+    introducing that note rather than the questions. Every round's count
+    closes a sentence now (#502)."""
+    from pathlib import Path
+    import chat
+    templates = Path(chat.__file__).parent / "templates"
+    offenders = [p.name for p in sorted(templates.glob("game_*.html")) + [templates / "quiz.html"]
+                 if re.search(r"else 's' \}\}\)\s*:", p.read_text(encoding="utf-8"))]
+    assert not offenders, offenders
