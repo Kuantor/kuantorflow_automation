@@ -42,7 +42,8 @@ def test_submit_buttons_have_loading_feedback(client):
 def test_about_modal_markup(client):
     body = client.get("/").get_data(as_text=True)
     assert 'id="about-link"' in body
-    assert "img/main_image.jpg" in body
+    # WebP, fetched only when About is pressed (kuantorflow#517).
+    assert re.search(r'<img data-src="[^"]*img/main_image\.webp', body)
     assert 'id="about-modal"' in body and "modal-close" in body
 
 

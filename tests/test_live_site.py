@@ -16,6 +16,7 @@ redirect**, which is what a gate creeping back would look like from outside.
 """
 
 import os
+import re
 
 import pytest
 import requests
@@ -74,9 +75,16 @@ def test_robots_txt_is_served():
 
 def test_static_assets_served():
     for path in ("/static/css/style.css", "/static/img/icon.jpg",
-                 "/static/img/preview.jpg", "/static/img/background.jpg"):
+                 "/static/img/preview.jpg"):
         r = requests.get(SITE_URL + path, timeout=TIMEOUT)
         assert r.status_code == 200, f"{path} -> {r.status_code}"
+    # The page background by whatever name the live stylesheet gives it --
+    # .jpg before kuantorflow#517 deployed, .webp after -- so this passes on
+    # either side of the deploy and fails only if the picture is missing.
+    css = requests.get(SITE_URL + "/static/css/style.css", timeout=TIMEOUT).text
+    name = re.search(r'url\("\.\./img/(background\.\w+)"\)', css).group(1)
+    r = requests.get(SITE_URL + "/static/img/" + name, timeout=TIMEOUT)
+    assert r.status_code == 200, f"{name} -> {r.status_code}"
 
 
 def test_link_preview_tags_on_the_front_page():
