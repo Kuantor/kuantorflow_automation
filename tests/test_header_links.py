@@ -58,3 +58,12 @@ def test_the_four_links_are_all_there(client):
     nav = re.search(r'<header class="site-header">.*?<nav>(.*?)</nav>', body, re.S).group(1)
     assert [re.sub(r"\s+", " ", t).strip() for t in re.findall(r">([^<]+)</a>", nav)] == \
         ["Home", "Settings", "About", "Help"]
+
+
+def test_the_links_share_the_wordmarks_baseline(client):
+    """The wordmark is 1.35rem and the links 0.95rem. Centring their boxes
+    left the links' letters 2.7px above the wordmark's on a phone (#502,
+    item 5); on one baseline they read as one row. Measured after: 0.0px off
+    at 320, 375, 700 and 1280px, the header still 58px."""
+    header = _declarations(_css(client), ".site-header")
+    assert header.get("align-items") == "baseline", header
