@@ -35,7 +35,9 @@ def test_site_is_up_and_open():
     r = requests.get(SITE_URL + "/", timeout=TIMEOUT)
 
     assert r.status_code == 200
-    assert "Welcome to KuantorFlow" in r.text
+    # The wordmark, which the header has carried before and after #502
+    # turned "Welcome to KuantorFlow" into it.
+    assert "Kuantor<span>Flow</span>" in r.text
 
 
 def test_the_front_page_does_not_redirect():

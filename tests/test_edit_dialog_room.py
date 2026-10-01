@@ -71,7 +71,9 @@ def test_the_english_fields_have_room_for_what_arrives_in_them(client, field):
 # --- #208 -----------------------------------------------------------------
 
 def test_the_greeting_is_in_the_header(client):
-    assert "Welcome to Kuantor" in client.get("/").get_data(as_text=True)
+    """Since #502 (item 5) the header says the name, not a greeting: the
+    one caption #208 put at the top is the wordmark."""
+    assert 'class="brand"' in client.get("/").get_data(as_text=True)
 
 
 def test_the_greeting_is_not_also_a_caption_above_the_first_panel(client):
@@ -84,4 +86,4 @@ def test_the_greeting_is_not_also_a_caption_above_the_first_panel(client):
     """
     body = client.get("/").get_data(as_text=True)
     assert 'class="page-title"' not in body
-    assert body.index("Welcome to Kuantor") < body.index("Browse flashcards")
+    assert body.index('class="brand"') < body.index("Browse flashcards")
