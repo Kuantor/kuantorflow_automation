@@ -110,3 +110,13 @@ def test_the_saved_timestamp_is_read_before_anything_can_save(client, app_module
                      restore.index("messages.scrollTop = state.scrollTop"))
     assert read_stamp < first_save and read_recap < first_save, \
         "the saved state is read back after it has already been overwritten"
+
+
+def test_the_box_then_its_meaning_then_the_way_to_switch_it_off(client):
+    """Anton's order: the checkbox sat between the box and the hint that
+    explains the box, so the hint read as if it explained the checkbox."""
+    block = _fieldset(_body(client), "Restart Mykola")
+    box = block.index('name="restart_chat_interval"')
+    hint = block.index('id="restart-interval-hint"')
+    never = block.index('name="restart_never"')
+    assert box < hint < never, "the box, its hint, then Never -- in that order"
