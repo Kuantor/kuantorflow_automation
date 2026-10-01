@@ -58,3 +58,25 @@ def test_code_is_not_sized_from_the_13px_monospace_default():
     family = re.search(r"font-family\s*:\s*([^;]+)", families[-1]).group(1)
     first = family.split(",")[0].strip().strip('"')
     assert first != "monospace", family
+
+
+def test_the_badge_and_speaker_sit_level_with_the_headword():
+    """Beside a bold headword the part-of-speech pill sat 2.1px and the
+    speaker 3.1px below the word's visual middle (half its cap height) -- the
+    slightly larger badge made it visible (#502). Both are lifted with a
+    relative nudge, which moves them without moving the line; measured within
+    0.1px afterwards. The values themselves are browser geometry and live in
+    the PR; this keeps the nudges from being lost."""
+    css = (APP / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+    def lifted(selector):
+        for selectors, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+            if selector in [s.strip() for s in selectors.split(",")] \
+                    and re.search(r"position\s*:\s*relative", body) \
+                    and re.search(r"top\s*:\s*-[\d.]+em", body):
+                return True
+        return False
+
+    assert lifted(".pos"), "the part-of-speech pill is no longer lifted"
+    assert lifted(".word > .say"), "the headword's speaker is no longer lifted"
