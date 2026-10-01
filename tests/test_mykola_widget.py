@@ -97,7 +97,9 @@ def test_the_recap_button_goes_once_pressed(user_client, app_module, monkeypatch
     save = _function(body, "saveWidgetState")
     assert "recapAsked: recapAsked" in save
     assert "recapAsked = !!state.recapAsked" in body
-    restore = body.split("recapAsked = !!state.recapAsked")[1][:200]
+    # Read back early since kuantorflow#464, before anything in the restore
+    # can save; the button is synced once the panel is drawn.
+    restore = body.split("recapAsked = !!state.recapAsked")[1].split("})();")[0]
     assert "syncRecapButton()" in restore
 
 

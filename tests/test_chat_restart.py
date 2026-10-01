@@ -215,14 +215,17 @@ def test_an_older_agent_is_not_called_on_restart_either(user_client, app_module,
 
 # --- the Settings control ---------------------------------------------------
 
-def test_settings_popup_has_the_slider_and_never_checkbox(client):
+def test_settings_popup_has_the_number_box_and_never_checkbox(client):
+    """A number box with steppers since kuantorflow#463, not a slider."""
     body = client.get("/").get_data(as_text=True)
-    assert 'type="range"' in body and 'name="restart_chat_interval"' in body
-    assert 'min="1"' in body and 'max="24"' in body
+    box = body.split('name="restart_chat_interval"')[1].split(">")[0]
+    before = body.split('name="restart_chat_interval"')[0][-80:]
+    assert 'type="number"' in before, "the restart interval is not a number box"
+    assert 'min="1"' in box and 'max="24"' in box
     assert "Never restart chat automatically" in body
     assert 'name="restart_never"' in body
     assert "function updateRestartState()" in body
-    assert "restartSlider.disabled = restartNever.checked" in body
+    assert "restartBox.disabled = restartNever.checked" in body
 
 
 def test_never_checkbox_is_checked_and_slider_disabled_at_zero(user_client,
@@ -238,14 +241,13 @@ def test_never_checkbox_is_checked_and_slider_disabled_at_zero(user_client,
     assert "checked" in never
 
 
-def test_slider_shows_the_stored_hours(user_client, app_module, monkeypatch):
+def test_the_box_shows_the_stored_hours(user_client, app_module, monkeypatch):
     monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS,
                                      restart_chat_interval=9))
     body = user_client.get("/").get_data(as_text=True)
-    slider = body.split('name="restart_chat_interval"')[1].split(">")[0]
-    assert 'value="9"' in slider and "disabled" not in slider
-    assert "9 h</output>" in body
+    box = body.split('name="restart_chat_interval"')[1].split(">")[0]
+    assert 'value="9"' in box and "disabled" not in box
 
 
 def test_widget_asks_the_server_on_load(client, app_module, monkeypatch):
