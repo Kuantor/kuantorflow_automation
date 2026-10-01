@@ -76,7 +76,8 @@ def test_the_replaced_artwork_is_in_place():
     wrong — a rename that leaves `background_new.jpg` behind, or an image
     deleted with nothing put in its place.
     """
-    for name in ("background.jpg",):
+    # WebP since kuantorflow#517; the JPEG is in git history, not here.
+    for name in ("background.webp",):
         assert (IMG / name).is_file()
         assert (IMG / name).stat().st_size > 1024
 
