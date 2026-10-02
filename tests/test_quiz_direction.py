@@ -58,7 +58,8 @@ def test_the_default_is_the_quiz_as_it_was(client, deck):
     text = _text(client.get("/quiz/Work?lang=ukr"))
 
     assert "Type the Ukrainian translation for each English word" in text
-    assert '<span>English → Ukrainian</span>' in text
+    assert re.search(r'class="quiz-pair".*?<span class="quiz-side">English</span>'
+                     r'.*?class="quiz-swap".*?<details class="quiz-lang">', text),         "English on the left: you see English, you type Ukrainian"
     assert 'lang="uk">' in text
 
 
@@ -66,7 +67,8 @@ def test_to_english_shows_the_translation_with_a_hint(client, deck):
     text = _text(client.get("/quiz/Work?lang=ukr&dir=to-en"))
 
     assert "Type the English word for each Ukrainian translation" in text
-    assert '<span>Ukrainian → English</span>' in text
+    assert re.search(r'class="quiz-pair".*?<details class="quiz-lang">.*?'
+                     r'class="quiz-swap".*?<span class="quiz-side">English</span>', text),         "the language on the left: you see Ukrainian, you type English"
     assert "відставка, звільнення</span>" in text
     assert '<span class="quiz-hint">(noun, r&hellip;)</span>' in text
     assert re.search(r'name="answer_1"[^>]*lang="en"', text)
@@ -144,12 +146,28 @@ def test_the_direction_rides_on_every_link_and_the_form(client, deck):
         "the language switch keeps the direction"
 
 
-def test_both_switches_ask_before_dealing_again(client, deck):
+def test_the_swap_and_the_language_menu_ask_before_dealing_again(client, deck):
+    """One row (Anton, 2 Oct): what you see, a swap, what you type. Both
+    controls re-deal the round, so both go through the confirmation."""
     text = _text(client.get("/quiz/Work?lang=ukr"))
 
+    assert re.search(r'class="quiz-swap"[^>]*aria-label="Swap: Ukrainian → English"', text)
     assert 'data-confirm="Do you want to switch to Ukrainian → English?' in text
     assert 'data-confirm="Do you want to switch to Russian translations?' in text
-    assert 'querySelectorAll(".lang-switch a[data-confirm]")' in text
+    assert 'querySelectorAll(".quiz-pair a[data-confirm]")' in text
+    assert "lang-switch\">" not in text, "the two rows of pills are gone"
+
+
+def test_one_visible_language_is_a_plain_box(client, deck, monkeypatch):
+    """With Russian hidden in Settings there is nothing to choose, so no menu."""
+    import web
+    real = web.current_settings
+    monkeypatch.setattr(web, "current_settings",
+                        lambda: dict(real(), show_russian=False))
+    text = _text(client.get("/quiz/Work?lang=ukr"))
+
+    assert '<span class="quiz-side">Ukrainian</span>' in text
+    assert 'class="quiz-lang"' not in text
 
 
 def test_the_direction_is_remembered_for_the_visit(client, deck):
