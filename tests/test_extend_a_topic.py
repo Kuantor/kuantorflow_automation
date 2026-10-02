@@ -310,7 +310,8 @@ def test_the_fill_files_into_this_topic_and_logs_topic_extended(
     monkeypatch.setattr(applog, "LOGS_DIR", tmp_path)
     monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
     monkeypatch.setattr("parsers.lookup_word",
-                        lambda w, t, d: [{"word": w, "pos": "noun"}])
+                        lambda w, topic=None, translator=None, explanatory_dictionary=None:
+                        [{"word": w, "pos": "noun"}])
     saved = []
     monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: saved.append(entry) or True)
@@ -339,7 +340,8 @@ def test_a_new_topic_still_logs_topic_generated(user_client, extendable,
     monkeypatch.setattr(applog, "LOGS_DIR", tmp_path)
     monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
     monkeypatch.setattr("parsers.lookup_word",
-                        lambda w, t, d: [{"word": w, "pos": "noun"}])
+                        lambda w, topic=None, translator=None, explanatory_dictionary=None:
+                        [{"word": w, "pos": "noun"}])
     monkeypatch.setattr("cards._save_and_log", lambda entry, source, **kw: True)
     user_client.post("/topics/generate/start",
                      data={"title": "Renting", "word": ["deposit"]})
