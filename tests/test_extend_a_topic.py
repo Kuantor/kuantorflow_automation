@@ -308,7 +308,6 @@ def _events(client):
 def test_the_fill_files_into_this_topic_and_logs_topic_extended(
         user_client, extendable, monkeypatch, tmp_path):
     monkeypatch.setattr(applog, "LOGS_DIR", tmp_path)
-    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
     monkeypatch.setattr("parsers.lookup_word",
                         lambda w, topic=None, translator=None, explanatory_dictionary=None:
                         [{"word": w, "pos": "noun"}])
@@ -338,7 +337,6 @@ def test_a_new_topic_still_logs_topic_generated(user_client, extendable,
                                                monkeypatch, tmp_path):
     """The shared stream must not turn #406's line into #524's."""
     monkeypatch.setattr(applog, "LOGS_DIR", tmp_path)
-    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
     monkeypatch.setattr("parsers.lookup_word",
                         lambda w, topic=None, translator=None, explanatory_dictionary=None:
                         [{"word": w, "pos": "noun"}])
