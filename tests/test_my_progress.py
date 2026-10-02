@@ -432,3 +432,12 @@ def test_the_range_is_logged(user_client, learner, action_logs):
                 if "PROGRESS" in l)
 
     assert "since=2026-09-01" in line and "until=2026-09-30" in line
+
+
+def test_the_filter_is_open_with_nothing_chosen(user_client, learner):
+    """Closed, nothing on the page said a date range was there to use
+    (Anton's report, 2 Oct). Open from the start; its summary folds it."""
+    text = _text(user_client.get("/progress"))
+
+    assert '<details open>' in text
+    assert 'name="from"' in text and 'name="to"' in text
