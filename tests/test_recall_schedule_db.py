@@ -371,3 +371,48 @@ def test_the_script_refuses_an_unknown_learner(learner):
 
     assert result.returncode == 1
     assert "no account" in result.stderr
+
+
+# --- today's review list (kuantorflow#529) -----------------------------------
+
+@requires_local_db
+def test_answered_since_returns_the_whole_history_of_todays_words(learner):
+    """The start-of-day date is the replay of everything *before* today, so
+    the read has to bring a word's whole history, not just today's rows -- and
+    only for the words answered today, and only this learner's."""
+    import recall
+    import utils
+
+    _history(learner)                                   # all in early September
+    _log(learner, "acquit", "verb", "spell_it", True, datetime(2026, 9, 30, 7))
+    other, _ = utils.upsert_user("sub-review-529", "other529@example.com")
+    _log(other, "verdict", "noun", "quiz", True, datetime(2026, 9, 30, 8))
+
+    found = utils.histories_answered_since(learner, datetime(2026, 9, 30, 1))
+
+    assert set(found) == {("acquit", "verb")}
+    assert len(found[("acquit", "verb")]) == 4
+    dates, answered = recall.start_of_day_dates(found, datetime(2026, 9, 30).date())
+    assert answered == {("acquit", "verb")}
+    # Replayed from 1, 2 and 8 September alone: due on the 23rd, as the
+    # refresh test above says the full September history gives.
+    assert dates == {("acquit", "verb"): datetime(2026, 9, 23).date()}
+    assert utils.histories_answered_since(None, datetime(2026, 9, 30, 1)) == {}
+
+
+@requires_local_db
+def test_answered_since_brings_every_part_of_speech_of_the_word(learner):
+    """Matched on the word, like `refresh_schedule()`: `bail` the verb was
+    answered today, so `bail` the noun's history comes too -- and
+    `start_of_day_dates()` is what leaves the noun out of today."""
+    import recall
+    import utils
+
+    _history(learner)
+    _log(learner, "bail", "verb", "quiz", True, datetime(2026, 9, 30, 7))
+
+    found = utils.histories_answered_since(learner, datetime(2026, 9, 30, 1))
+    _dates, answered = recall.start_of_day_dates(found, datetime(2026, 9, 30).date())
+
+    assert set(found) == {("bail", "noun"), ("bail", "verb")}
+    assert answered == {("bail", "verb")}
