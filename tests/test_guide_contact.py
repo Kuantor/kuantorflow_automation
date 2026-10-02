@@ -14,6 +14,7 @@ import web
 
 EMAIL = "anton.kuznietsov@gmail.com"
 SITE = "https://kuantor.github.io/"
+REPO = "https://github.com/Kuantor/kuantorflow"
 HEADING = "### Who made it, and how to get in touch"
 
 
@@ -27,6 +28,8 @@ def test_the_guide_ends_with_who_made_it_and_how_to_reach_him():
 
     assert f"[{EMAIL}](mailto:{EMAIL})" in section
     assert f"]({SITE})" in section
+    assert "made by **Anton Kuznietsov** using [Claude Code](" in section
+    assert f"[github.com/Kuantor/kuantorflow]({REPO})" in section,         "the source is public, and the visible text is the address for the PDF"
     assert "## " not in section[len(HEADING):].replace("### ", ""), \
         "the contact is the guide's last section"
 
@@ -44,6 +47,8 @@ def test_the_help_page_renders_both_links_and_the_anchor(client):
 
     assert f'<a href="mailto:{EMAIL}">{EMAIL}</a>' in body
     assert f'<a href="{SITE}">kuantor.github.io</a>' in body
+    assert f'<a href="{REPO}">github.com/Kuantor/kuantorflow</a>' in body
+    assert '<a href="https://claude.com/claude-code">Claude Code</a>' in body
     assert 'id="who-made-it-and-how-to-get-in-touch"' in body
     assert re.search(r'href="#who-made-it-and-how-to-get-in-touch"', body), \
         "the privacy section links to it"
