@@ -382,6 +382,11 @@ def app_module(monkeypatch):
     # schedule to weight the draw. No schedule by default, which is the
     # uniform draw every test was written against.
     monkeypatch.setattr("utils.due_dates", lambda user_id: {}, raising=False)
+    # kuantorflow#529: a review, and the front page's badge, read the words
+    # answered today to put them back to their start-of-day dates. Nothing
+    # answered today by default -- the review as it was before #529.
+    monkeypatch.setattr("utils.histories_answered_since",
+                        lambda user_id, since: {}, raising=False)
     return app_mod
 
 
