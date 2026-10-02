@@ -263,9 +263,9 @@ def _events(client):
 
 def test_the_fill_reports_every_word_and_then_finishes(user_client, proposes,
                                                        app_module, monkeypatch):
-    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
     monkeypatch.setattr("parsers.lookup_word",
-                        lambda w, t, d: [{"word": w, "pos": "noun"}])
+                        lambda w, topic=None, translator=None, explanatory_dictionary=None:
+                        [{"word": w, "pos": "noun"}])
     monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: True)
     user_client.post("/topics/generate/start",
@@ -279,15 +279,64 @@ def test_the_fill_reports_every_word_and_then_finishes(user_client, proposes,
     assert events[-1]["type"] == "done" and events[-1]["saved"] == 2
 
 
+def test_the_fill_uses_the_learners_translator_and_dictionary(user_client,
+                                                            proposes,
+                                                            app_module,
+                                                            monkeypatch):
+    """`lookup_word()`'s second parameter is `topic`. The stream passed the
+    settings positionally, so the translator landed in `topic`, the dictionary
+    in `translator`, and the dictionary itself was always the default: a
+    learner who chose Wiktionary got Oxford (found while timing #524)."""
+    import web
+    monkeypatch.setattr("cards._save_and_log", lambda entry, source, **kw: True)
+    monkeypatch.setattr(web, "current_settings",
+                        lambda: {"translator": "deepl",
+                                 "explanatory_dictionary": "wiktionary"})
+    calls = []
+
+    def lookup(word, topic=None, translator=None, explanatory_dictionary=None):
+        calls.append((topic, translator, explanatory_dictionary))
+        return [{"word": word, "pos": "noun"}]
+
+    monkeypatch.setattr("parsers.lookup_word", lookup)
+    user_client.post("/topics/generate/start",
+                     data={"title": "T", "word": ["tenancy"]})
+    _events(user_client)
+
+    assert calls == [(None, "deepl", "wiktionary")]
+
+
+def test_the_fill_does_not_pause_between_words(user_client, proposes,
+                                                app_module, monkeypatch):
+    """#524 took the pause out: it was `seed_topics.PAUSE`'s second, copied for
+    a 360-word script, and a lookup already takes about four seconds -- so it
+    only added a quarter to a learner's wait. A failed word included."""
+    import cards
+    slept = []
+    monkeypatch.setattr(cards.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr("cards._save_and_log", lambda entry, source, **kw: True)
+
+    def lookup(word, topic=None, translator=None, explanatory_dictionary=None):
+        if word == "deposit":
+            raise ValueError("nothing came back")
+        return [{"word": word, "pos": "noun"}]
+
+    monkeypatch.setattr("parsers.lookup_word", lookup)
+    user_client.post("/topics/generate/start",
+                     data={"title": "T", "word": ["tenancy", "deposit"]})
+    _events(user_client)
+
+    assert slept == []
+
+
 def test_a_failed_lookup_is_a_skipped_word_not_a_dead_run(user_client, proposes,
                                                           app_module,
                                                           monkeypatch):
     """`seed_topics.py`'s rule, and it matters more here: Reverso and
     Merriam-Webster are blocked from PythonAnywhere, so one word failing is
     ordinary. Losing the other nineteen to it would not be."""
-    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
 
-    def flaky(word, translator, dictionary):
+    def flaky(word, topic=None, translator=None, explanatory_dictionary=None):
         if word == "deposit":
             raise ValueError("nothing came back")
         return [{"word": word, "pos": "noun"}]
@@ -314,9 +363,9 @@ def test_every_card_still_goes_through_the_single_write_path(user_client,
     """CLAUDE.md's rule for a new save path: it goes through `_save_and_log()`,
     which is where #125, #89 and the card log all live. A generator that wrote
     cards its own way would be a second place to get permissions wrong."""
-    monkeypatch.setattr("cards.TOPIC_FILL_PAUSE", 0)
     monkeypatch.setattr("parsers.lookup_word",
-                        lambda w, t, d: [{"word": w, "pos": "noun"}])
+                        lambda w, topic=None, translator=None, explanatory_dictionary=None:
+                        [{"word": w, "pos": "noun"}])
     through = []
     monkeypatch.setattr("cards._save_and_log",
                         lambda entry, source, **kw: through.append(
