@@ -209,3 +209,47 @@ def test_the_round_line_says_which_way(client, deck, action_logs):
                 .splitlines() if "ROUND" in l)
 
     assert "game=quiz" in line and "direction=to-en" in line
+
+
+# --- choosing it before the words are drawn (Anton, 2 Oct) -------------------------
+
+def test_the_quiz_picker_offers_the_direction(client, deck):
+    """The picker is the Quiz's start screen: chosen there, nothing needs
+    confirming, because no words have been drawn yet."""
+    text = _text(client.get("/quiz"))
+
+    assert "Which way:" in text
+    assert 'name="dir" value="from-en" checked' in text
+    assert 'name="dir" value="to-en"' in text
+    assert "Language:" in text and "Translation to:" not in text
+
+
+def test_the_picker_opens_on_the_direction_last_played(client, deck):
+    client.get("/quiz/Work?lang=ukr&dir=to-en")
+    text = _text(client.get("/quiz"))
+
+    assert 'name="dir" value="to-en" checked' in text
+
+
+def test_multiple_choice_keeps_its_picker_as_it_was(client, deck):
+    text = _text(client.get("/games/multiple_choice"))
+
+    assert "Which way:" not in text
+    assert "Translation to:" in text
+
+
+def test_the_picker_starts_the_quiz_the_chosen_way(client, deck):
+    text = _text(client.get("/quiz?topic=Work&lang=ukr&dir=to-en&words=10"))
+
+    assert "Type the English word for each Ukrainian translation" in text
+
+
+def test_switching_asks_only_once_something_is_typed(client, deck):
+    """Nothing typed means nothing to lose, so the link is simply followed;
+    with an answer in a box, the confirmation still asks."""
+    text = _text(client.get("/quiz/Work?lang=ukr"))
+    script = text[text.index("function anythingTyped()"):]
+
+    assert "input[name^=\"answer_\"]" in script or "input[name^='answer_']" in script
+    assert "if (!anythingTyped()) return;" in script
+    assert script.index("if (!anythingTyped()) return;") < script.index("event.preventDefault();")
