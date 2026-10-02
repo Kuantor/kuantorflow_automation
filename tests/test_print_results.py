@@ -71,8 +71,18 @@ def test_right_and_wrong_survive_black_and_white(client):
 
 
 def test_the_heading_is_hidden_on_screen(client):
+    """Outside every print block. Each block is cut out by its braces, as
+    `_print_css()` finds them: cutting from the first `@media print` to the
+    end assumed it was the last thing in the file, and #493 added one before
+    #521's, taking the rule this looks for with it."""
     css = client.get("/static/css/style.css").get_data(as_text=True)
-    outside = re.sub(r"@media\s+print\s*\{.*", "", css, flags=re.S)
+    outside = css
+    while (match := re.search(r"@media\s+print\s*\{", outside)):
+        depth, i = 1, match.end()
+        while depth:
+            depth += {"{": 1, "}": -1}.get(outside[i], 0)
+            i += 1
+        outside = outside[:match.start()] + outside[i:]
     assert re.search(r"\.print-only\s*\{\s*display:\s*none", outside)
 
 

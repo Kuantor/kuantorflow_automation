@@ -387,6 +387,10 @@ def app_module(monkeypatch):
     # answered today by default -- the review as it was before #529.
     monkeypatch.setattr("utils.histories_answered_since",
                         lambda user_id, since: {}, raising=False)
+    # kuantorflow#493: *My progress* reads the learner's whole schedule and log.
+    # Nothing recorded by default; the tests that care install rows.
+    monkeypatch.setattr("utils.schedule_rows", lambda user_id: [], raising=False)
+    monkeypatch.setattr("utils.answer_rows", lambda user_id: [], raising=False)
     return app_mod
 
 

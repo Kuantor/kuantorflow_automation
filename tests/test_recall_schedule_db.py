@@ -416,3 +416,46 @@ def test_answered_since_brings_every_part_of_speech_of_the_word(learner):
 
     assert set(found) == {("bail", "noun"), ("bail", "verb")}
     assert answered == {("bail", "verb")}
+
+
+# --- My progress (kuantorflow#493) ---------------------------------------------
+
+@requires_local_db
+def test_progress_reads_only_the_learners_own_schedule_and_log(learner):
+    """The page shows a learner their own words and nobody else's, and the
+    `user_id` clause in these two reads is the whole of that guarantee."""
+    import utils
+
+    other, _ = utils.upsert_user("sub-progress-493", "other493@example.com")
+    _history(learner)
+    _log(other, "zeal", "noun", "quiz", True, datetime(2026, 9, 1, 9))
+    _log(other, "acquit", "verb", "quiz", False, datetime(2026, 9, 3, 9))
+    utils.rebuild_schedules()
+
+    schedule = utils.schedule_rows(learner)
+    answers = utils.answer_rows(learner)
+
+    assert {(r["word"], r["pos"]) for r in schedule} == {
+        ("acquit", "verb"), ("verdict", "noun"), ("bail", "noun")}
+    assert len(answers) == 8 and "zeal" not in {a["word"] for a in answers}
+    assert all(a["correct"] for a in answers if a["word"] == "acquit")
+    assert {(r["word"], r["pos"]) for r in utils.schedule_rows(other)} == {
+        ("zeal", "noun"), ("acquit", "verb")}
+    assert utils.schedule_rows(None) == [] and utils.answer_rows(None) == []
+
+
+@requires_local_db
+def test_progress_rows_have_the_shape_the_report_reads(learner):
+    """`progress.build()` reads these keys; the dictionary cursor names them."""
+    import progress
+    import recall
+    import utils
+
+    _history(learner)
+    utils.rebuild_schedules()
+    report = progress.build(utils.schedule_rows(learner), utils.answer_rows(learner),
+                            {}, datetime(2026, 9, 10).date())
+
+    assert report["summary"]["words"] == 3
+    assert report["first_day"] == recall.learner_day(datetime(2026, 9, 1, 9))
+    assert sum(row["answers"] for row in report["games"]) == 8
