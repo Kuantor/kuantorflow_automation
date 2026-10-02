@@ -280,7 +280,9 @@ def test_the_picker_offers_the_translation_language(client, deck):
     """Chosen before the draw rather than inside the round, where switching
     re-draws the words — which is also why this one needs no confirmation."""
     body = client.get("/quiz").get_data(as_text=True)
-    assert "Translation to:" in body
+    # "Language:" on the quiz since kuantorflow#540: played the other way
+    # round, "Translation to" would name the wrong side.
+    assert "Language:" in body
     assert 'name="lang" value="ukr"' in body
     assert 'name="lang" value="rus"' in body
 
@@ -307,13 +309,13 @@ def test_the_language_row_appears_once_not_on_both_panels(client, deck):
     could not show the same choice — checking one would clear the other. The
     word box is duplicated precisely because it can be."""
     body = client.get("/quiz").get_data(as_text=True)
-    assert body.count("Translation to:") == 1
+    assert body.count("Language:") == 1
     assert body.count('class="picker-words-box"') == 2
 
 
 def test_the_row_is_on_the_upper_panel(client, deck):
     body = client.get("/quiz").get_data(as_text=True)
-    assert body.index("Translation to:") < body.index('class="picker-topic-box"')
+    assert body.index("Language:") < body.index('class="picker-topic-box"')
 
 
 def test_one_visible_language_offers_no_choice(client, app_module,
@@ -324,7 +326,7 @@ def test_one_visible_language_offers_no_choice(client, app_module,
     monkeypatch.setattr("web.current_settings",
                         lambda: dict(settings_store.DEFAULTS, show_russian=False))
     body = client.get("/quiz").get_data(as_text=True)
-    assert "Translation to:" not in body
+    assert "Language:" not in body and "Translation to:" not in body
     assert 'name="lang"' not in body
 
 
