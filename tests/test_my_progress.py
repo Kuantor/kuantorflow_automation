@@ -315,3 +315,129 @@ def test_opening_it_is_logged(user_client, learner, action_logs):
 
     line = next(l for l in log.splitlines() if "PROGRESS" in l)
     assert "words=2" in line and "topics=Law" in line
+
+
+# --- the date range (follow-up to #493) -------------------------------------------
+#
+# The answers outside the range are dropped first, so the words are the ones
+# practised in it, counted by that period's answers; a word's state is still
+# today's, because the schedule holds nothing else. The activity table covers
+# the range, and the PDF heading names it.
+
+SEPT_1 = date(2026, 9, 1)
+
+
+def test_a_range_keeps_only_the_words_practised_in_it():
+    report = progress.build(SCHEDULE, ANSWERS, _topics(), TODAY,
+                            since=SEPT_1, until=SEPT_1)
+
+    assert [w["word"] for w in report["words"]] == ["delegate"]
+    delegate = report["words"][0]
+    assert (delegate["times"], delegate["right"]) == (1, 1), "that period's answers"
+    assert delegate["status"] == "known", "its state is today's"
+    assert report["summary"]["words"] == 1
+    assert [topic for topic, _ in report["by_topic"]] == ["Work"]
+    assert report["dated"] is True and report["first_day"] == SEPT_1
+
+
+def test_a_range_narrows_activity_and_games_to_its_answers():
+    report = progress.build(SCHEDULE, ANSWERS, _topics(), TODAY,
+                            since=SEPT_1, until=SEPT_1)
+    activity = report["activity"]
+
+    assert (activity["first"], activity["last"], activity["days"]) == (SEPT_1, SEPT_1, 1)
+    assert activity["rows"] == [{"day": SEPT_1, "rounds": 1, "answers": 1, "right": 1}]
+    assert [(g["game"], g["answers"]) for g in report["games"]] == [("spell_it", 1)]
+
+
+def test_an_open_ended_range_runs_to_today():
+    """From 1 October: today's four answered words, delegate counted once (its
+    September answer is outside), and a two-day activity window."""
+    report = progress.build(SCHEDULE, ANSWERS, _topics(), TODAY,
+                            since=date(2026, 10, 1))
+
+    assert sorted(w["word"] for w in report["words"]) == ["acquit", "delegate",
+                                                          "resign", "verdict"]
+    assert next(w for w in report["words"] if w["word"] == "delegate")["times"] == 1
+    assert (report["activity"]["first"], report["activity"]["last"]) == (date(2026, 10, 1), TODAY)
+    assert report["activity"]["days"] == 2
+
+
+def test_a_range_with_only_an_end_starts_at_the_first_answer():
+    report = progress.build(SCHEDULE, ANSWERS, _topics(), TODAY, until=TODAY)
+
+    assert report["activity"]["first"] == SEPT_1
+    assert report["summary"]["words"] == 4, "ghost was never answered"
+
+
+def test_without_a_range_nothing_changes():
+    report = _report()
+
+    assert report["dated"] is False
+    assert report["summary"]["words"] == 5
+    assert report["activity"]["days"] == progress.ACTIVITY_DAYS
+
+
+def test_topics_and_dates_narrow_together():
+    report = progress.build(SCHEDULE, ANSWERS, _topics(), TODAY,
+                            topics=["Law"], since=TODAY)
+
+    assert sorted(w["word"] for w in report["words"]) == ["acquit", "verdict"]
+    assert sum(g["answers"] for g in report["games"]) == 2
+
+
+@pytest.mark.parametrize("raw_from, raw_to, expected", [
+    ("2026-09-01", "2026-09-30", (SEPT_1, date(2026, 9, 30))),
+    ("2026-09-30", "2026-09-01", (SEPT_1, date(2026, 9, 30))),
+    ("", "", (None, None)),
+    ("yesterday", "2026-13-40", (None, None)),
+    ("2026-09-01", "2027-01-01", (SEPT_1, TODAY)),
+    ("2027-01-01", None, (TODAY, None)),
+], ids=["range", "backwards", "empty", "not-dates", "future-end", "future-start"])
+def test_the_date_boxes_are_read_forgivingly(raw_from, raw_to, expected):
+    """A hand-edited URL gets the page without that end, never an error; a
+    future end is today; a backwards range is turned round."""
+    import rounds
+    assert rounds._date_range(raw_from, raw_to, TODAY) == expected
+
+
+def test_the_page_shows_a_range(user_client, learner):
+    text = _text(user_client.get("/progress?from=2026-09-01&to=2026-09-01"))
+
+    assert 'review-word">delegate<' in text and 'review-word">acquit<' not in text
+    assert "Dates: 1 September 2026" in text
+    assert "Activity, 1 September 2026" in text
+    assert "practised 1 September 2026, each shown as you know it today" in text
+    assert 'name="from" max="2026-10-02" value="2026-09-01"' in text
+    assert "Answered then" in text
+
+
+def test_the_pdf_heading_names_the_range(user_client, learner):
+    text = _text(user_client.get("/progress?from=2026-09-01&to=2026-10-02"))
+    head = text[text.index('progress-print-head'):][:600]
+
+    assert "Answers 1 September 2026 &ndash; 2 October 2026" in head
+
+
+def test_bad_dates_in_the_url_leave_the_page_whole(user_client, learner):
+    response = user_client.get("/progress?from=soon&to=later")
+
+    assert response.status_code == 200
+    assert "Dates: all time" in _text(response)
+
+
+def test_the_range_is_logged(user_client, learner, action_logs):
+    user_client.get("/progress?from=2026-09-01&to=2026-09-30")
+    line = next(l for l in (action_logs / "cards.log").read_text(encoding="utf-8").splitlines()
+                if "PROGRESS" in l)
+
+    assert "since=2026-09-01" in line and "until=2026-09-30" in line
+
+
+def test_the_filter_is_open_with_nothing_chosen(user_client, learner):
+    """Closed, nothing on the page said a date range was there to use
+    (Anton's report, 2 Oct). Open from the start; its summary folds it."""
+    text = _text(user_client.get("/progress"))
+
+    assert '<details open>' in text
+    assert 'name="from"' in text and 'name="to"' in text
