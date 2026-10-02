@@ -70,7 +70,8 @@ def test_to_english_shows_the_translation_with_a_hint(client, deck):
     assert re.search(r'class="quiz-pair".*?<details class="quiz-lang">.*?'
                      r'class="quiz-swap".*?<span class="quiz-side">English</span>', text),         "the language on the left: you see Ukrainian, you type English"
     assert "відставка, звільнення</span>" in text
-    assert '<span class="quiz-hint">(noun, r&hellip;)</span>' in text
+    # Spelled out (Anton, 2 Oct): "(noun, r…)" did not say what it hinted at.
+    assert '<span class="quiz-hint">noun &middot; starts with &ldquo;r&rdquo;</span>' in text
     assert re.search(r'name="answer_1"[^>]*lang="en"', text)
     assert "resignation" not in re.sub(r"<script.*?</script>", "", text, flags=re.S) \
         .split("Type the English word")[1].split("Check answers")[0], \
@@ -253,3 +254,14 @@ def test_switching_asks_only_once_something_is_typed(client, deck):
     assert "input[name^=\"answer_\"]" in script or "input[name^='answer_']" in script
     assert "if (!anythingTyped()) return;" in script
     assert script.index("if (!anythingTyped()) return;") < script.index("event.preventDefault();")
+
+
+def test_the_hint_letter_is_lower_case_and_a_card_without_a_part_of_speech_still_gets_one(
+        client, stub_deck):
+    """The answer is typed in lower case, so the letter is shown that way; a
+    card with no part of speech gets the letter alone."""
+    stub_deck(cards=[{"id": 7, "word": "Brexit", "pos": None, "topic": "Work",
+                      "translation_ukr": "брексит", "translation_rus": "брексит"}])
+    text = _text(client.get("/quiz/Work?lang=ukr&dir=to-en"))
+
+    assert '<span class="quiz-hint">starts with &ldquo;b&rdquo;</span>' in text
