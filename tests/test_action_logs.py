@@ -284,7 +284,8 @@ def test_the_five_log_files_are_written_where_the_issues_ask(client, saved,
     """Exact, not a subset -- the guard that noticed #448's two new files is
     worth keeping as a guard. `games.log` and `gen_texts.log` joined the three
     #30 asked for; `mykola.log` is not in the list because nothing here writes
-    to it, which is the point of asserting exactly."""
+    to it, which is the point of asserting exactly. `requests.log` (#555) is
+    there because the POST is a request, and every request writes its line."""
     client.post("/cards/add", data=_card_form())
     applog.lookup_started("resilient", "google", "oxford")
     applog.file_parsed("notes.txt", 10, 1)
@@ -292,7 +293,7 @@ def test_the_five_log_files_are_written_where_the_issues_ask(client, saved,
     applog.text_generated(model="m", supplied=3, used=3, length=100)
     assert sorted(p.name for p in action_logs.iterdir()) == [
         "cards.log", "dict.log", "games.log", "gen_texts.log",
-        "parsed_files.log"]
+        "parsed_files.log", "requests.log"]
 
 
 def test_logs_rotate_monthly_and_keep_a_year():
