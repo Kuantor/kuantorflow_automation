@@ -73,14 +73,22 @@ def test_nothing_reads_a_keyword_any_more(app_module):
     assert not hasattr(web, "ACCESS_KEYWORD")
 
 
-def test_the_only_before_request_is_the_session_repair(app_module):
-    """There is exactly one, and it is #148's. Asserted by name because this
-    is where a gate would return -- `before_request` is the hook that blocks
-    every page at once, and a new one is a one-line change.
-    """
+def test_the_only_before_requests_are_the_request_log_and_the_session_repair(
+        app_module):
+    """Exactly two, by name, because this is where a gate would return --
+    `before_request` is the hook that blocks every page at once, and a new
+    one is a one-line change. #148's session repair, and #555's request log,
+    which only starts a clock and an id. It can never answer the request
+    itself: it returns None, and a hook that returned a response would be a
+    gate."""
+    import web
+
     hooks = [f.__name__ for f in app_module.app.before_request_funcs[None]]
 
-    assert hooks == ["drop_identity_from_before_the_users_table"], hooks
+    assert hooks == ["_start_request_log",
+                     "drop_identity_from_before_the_users_table"], hooks
+    with app_module.app.test_request_context("/"):
+        assert web._start_request_log() is None
 
 
 # --- what the keyword was actually protecting -------------------------------
