@@ -13,7 +13,7 @@ import parsers
 
 # --- lookup_word dispatch (#20) -----------------------------------------------
 
-CLAUDE = {"noun": ["дім"]}
+CLAUDE = {"noun": ["хата"]}   # valid in both alphabets: the stub answers both languages (kuantorflow#544)
 MICROSOFT = {"noun": ["будинок"]}
 
 
@@ -74,7 +74,7 @@ def backends(monkeypatch):
 def test_default_lookup_uses_claude(backends):
     calls = backends()
     cards = parsers.lookup_word("house")
-    assert cards[0]["translation_ukr"] == "дім"
+    assert cards[0]["translation_ukr"] == "хата"
     assert "claude" in calls and "microsoft" not in calls
 
 
@@ -88,13 +88,13 @@ def test_microsoft_translator_is_used_when_selected(backends):
 def test_failing_bing_falls_back_to_google(backends):
     backends(microsoft=requests.ConnectionError("blocked"))
     cards = parsers.lookup_word("house", translator="microsoft")
-    assert cards[0]["translation_ukr"] == "дім"
+    assert cards[0]["translation_ukr"] == "хата"
 
 
 def test_empty_bing_falls_back_to_google(backends):
     backends(microsoft={})
     cards = parsers.lookup_word("house", translator="microsoft")
-    assert cards[0]["translation_ukr"] == "дім"
+    assert cards[0]["translation_ukr"] == "хата"
 
 
 def test_selected_dictionary_provides_definitions(backends):
@@ -115,7 +115,7 @@ def test_definition_failures_never_break_the_lookup(backends):
     backends(oxford=requests.ConnectionError("down"),
              reverso=requests.ConnectionError("down"))
     cards = parsers.lookup_word("house")
-    assert cards[0]["translation_ukr"] == "дім"
+    assert cards[0]["translation_ukr"] == "хата"
     assert "explanation_en" not in cards[0]
 
 
@@ -565,7 +565,7 @@ def test_a_dictionary_that_fails_costs_the_examples_and_nothing_else(backends):
              reverso=requests.ConnectionError("down"))
 
     card = parsers.lookup_word("house")[0]
-    assert card["translation_ukr"] == "дім"
+    assert card["translation_ukr"] == "хата"
     assert "explanation_en" not in card and "examples_en" not in card
 
 
