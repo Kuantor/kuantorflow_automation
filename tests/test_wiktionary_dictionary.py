@@ -337,7 +337,7 @@ def test_a_card_with_no_explanation_is_credited_to_nobody(action_logs,
     dictionary could not explain keeps its translations and claims nothing."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-never-used")
     monkeypatch.setattr(parsers, "_claude_dictionary",
-                        lambda word, code: {"noun": ["zastava"]})
+                        lambda word, code: {"noun": ["застава"]})  # Cyrillic (#544)
     monkeypatch.setattr(parsers, "_wiktionary_entry", lambda word: ({}, {}))
 
     cards = parsers.lookup_word("bailment",

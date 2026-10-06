@@ -35,6 +35,7 @@ APP_MODULES = {"utils", "applog", "settings_store", "parsers", "games",
                "web", "seed_words"}
 
 RUNNABLE = ["apply_schema.py", "claim_flashcards.py", "claim_topics.py",
+            "find_bad_translations.py",
             "rebuild_schedule.py", "retopic.py", "seed_topics.py"]
 
 
