@@ -28,6 +28,12 @@ venv/Scripts/pytest -m "not live"   # offline app tests (fast, no DB/network)
 venv/Scripts/pytest tests/test_live_site.py   # smoke-test the deployed site
 ```
 
+**Which tests to run for an app change** — targeted by default, the full
+offline suite for shared code, the real-MySQL tier (`RUN_DB_ROUNDTRIP=1`, with
+`-rs`, since without it every `*_db.py` test skips silently) when the change is
+SQL — is in kuantorflow's `CLAUDE.md`, *Verifying your work* (kuantorflow#550).
+`tests/test_claude_md_core.py` keeps that core short and its pointers true.
+
 **The live check is named by path, not by `-m live`, and is run from here
 rather than on PythonAnywhere.** The marker deselects *after* collection, so
 `-m live` imports all 58 app-level modules and dies on a machine without the
