@@ -96,6 +96,11 @@ def test_the_verifying_block_comes_first_and_names_what_exists():
     assert "../automation/kuantorflow_automation" in block
     for name in re.findall(r"`(test_[a-z_]+\.py)`", block):
         assert (TESTS / name).is_file(), f"the block names {name}, which is gone"
+    # ...and the tool it sends a session to (kuantorflow#569).
+    tools = re.findall(r"(tools/[a-z_]+\.py)", block)
+    assert tools, "the block no longer names the break-and-restore tool"
+    for tool in tools:
+        assert (TESTS.parent / tool).is_file(), f"the block names {tool}, which is gone"
 
 
 def test_the_database_switch_is_the_one_the_tier_reads():
