@@ -17,6 +17,7 @@ imports the KuantorFlow Flask app from a sibling checkout.
 | `conftest.py` | Fixtures: `client` (a plain anonymous client — it used to enter the keyword, and since kuantorflow#199 it is the same object as `fresh_client`; both are kept because several hundred tests name one or the other), `user_client` (also signed in), `saved` (captures `save_flashcard`), autouse `settings_dir` (per-test temp), `app_module`. Shared helpers too: `in_other()` and `browse_panel()` — **cut the index page's deck out with the latter**, never by slicing to a landmark, because the games panel reuses `.topic-tile` and an unscoped search counts five activities as topics. |
 | `backup/` | `backup_db.py` (gzip `mysqldump`, retention) + `restore_db.py`. |
 | `maintenance/` | `dedup_flashcards.py` (remove pre-existing duplicate cards), `block_user.py`, `delete_account.py`, `backfill_examples.py` (fill `examples_en` on cards saved before kuantorflow#225). Repairs for data that predates a fix: each calls the app's own functions rather than writing SQL, and each is a dry run until `--apply`. |
+| `tools/` | `prove_fails.py` (kuantorflow#569): breaks each piece of a change from a spec file, runs the tests and **restores from the saved bytes, never git**; flags a break nothing catches; `--markdown` prints the PR table. |
 | `test_reports/` | Per-PR verification reports (`.md` + `.pdf`). |
 | `docs/` | The test catalog. |
 | `presentation/` | Reusable python-pptx deck tooling. |
