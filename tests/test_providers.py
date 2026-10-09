@@ -104,11 +104,13 @@ def test_selected_dictionary_provides_definitions(backends):
     assert "reverso" not in calls, "no fallback when the choice delivered"
 
 
-def test_empty_dictionary_falls_back_to_reverso(backends):
+def test_empty_dictionary_leaves_no_explanation(backends):
+    """It used to fall back to Reverso's dictionary, which answered only off
+    PythonAnywhere (kuantorflow#526, see test_no_reverso_fallback.py)."""
     calls = backends(oxford={}, reverso={"noun": ["reverso definition"]})
     cards = parsers.lookup_word("house", explanatory_dictionary="oxford")
-    assert cards[0]["explanation_en"] == "reverso definition"
-    assert calls.count("oxford") == 1
+    assert "explanation_en" not in cards[0]
+    assert calls.count("oxford") == 1 and "reverso" not in calls
 
 
 def test_definition_failures_never_break_the_lookup(backends):
@@ -538,16 +540,6 @@ def test_examples_reach_the_card_as_a_list(backends):
 
     card = parsers.lookup_word("house")[0]
     assert card["examples_en"] == ["One.", "Two."]
-
-
-def test_the_reverso_fallback_supplies_no_examples(backends):
-    """It answers with definitions only, and Reverso Context — where examples
-    would come from — is IP-blocked from PythonAnywhere anyway."""
-    backends(oxford={}, reverso={"noun": ["reverso definition"]})
-
-    card = parsers.lookup_word("house", explanatory_dictionary="oxford")[0]
-    assert card["explanation_en"] == "reverso definition"
-    assert "examples_en" not in card
 
 
 def test_merriam_webster_supplies_no_examples(backends):

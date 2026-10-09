@@ -314,8 +314,8 @@ def silent_translators(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_reverso(monkeypatch):
-    """Reverso answers when the chosen dictionary has nothing, and it is a real
-    request. Silenced by default; the test that cares about it says so."""
+    """Reverso's dictionary is a real request. `lookup_word()` no longer asks
+    it (kuantorflow#526), so this only keeps a regression from going online."""
     monkeypatch.setattr(parsers, "_fetch_definitions", lambda word: {})
 
 
@@ -344,22 +344,6 @@ def test_a_card_with_no_explanation_is_credited_to_nobody(action_logs,
                                 explanatory_dictionary="wiktionary")
 
     assert cards[0].get("explanation_source") is None
-
-
-def test_the_credit_names_the_provider_that_answered(action_logs,
-                                                     silent_translators,
-                                                     monkeypatch):
-    """Not the one that was asked. Reverso still answers when the chosen
-    dictionary has nothing, and a card credited to a provider that returned
-    nothing is a wrong credit rather than a missing one."""
-    monkeypatch.setattr(parsers, "_wiktionary_entry", lambda word: ({}, {}))
-    monkeypatch.setattr(parsers, "_fetch_definitions",
-                        lambda word: {"noun": ["a handing over"]})
-
-    cards = parsers.lookup_word("bailment",
-                                explanatory_dictionary="wiktionary")
-
-    assert cards[0]["explanation_source"] == "reverso"
 
 
 # --- what the database does with it -----------------------------------------
