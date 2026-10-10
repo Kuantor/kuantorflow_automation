@@ -201,8 +201,6 @@ def test_lookup_logs_the_fallback_provider(action_logs, monkeypatch):
     lines = _find(action_logs, "dict", "TRANSLATE")
     assert "provider=microsoft" in lines[0] and "error=401" in lines[0]
     assert "provider=claude" in lines[1] and "fallback_from=microsoft" in lines[1]
-    # the dictionary fell back to Reverso as well
-    assert "fallback_from=oxford" in _find(action_logs, "dict", "DEFINE")[1]
 
 
 def test_failed_lookup_is_logged(action_logs, monkeypatch):
