@@ -195,6 +195,23 @@ def test_a_plain_script_is_judged_by_its_exit_code(project):
     assert code == 1
 
 
+def test_a_script_s_assertion_is_named_by_its_message_not_its_source_line():
+    """ai_agent's check() helper fails with `assert condition, f"FAILED:
+    {label}"`, and a traceback echoes that source line *before* the message.
+    The first line holding "FAILED" was the echo, so every ai_agent table said
+    the same `assert condition, ...` (found on ai_agent#90)."""
+    traceback = LF.join([
+        "  ok  normal answers are unchanged",
+        "Traceback (most recent call last):",
+        '  File "test_tool_rounds.py", line 42, in check',
+        '    assert condition, f"FAILED: {label}"',
+        "           ^^^^^^^^^",
+        "AssertionError: FAILED: the cap being reached is logged",
+    ])
+
+    assert _tool()._failures(traceback, False, 1) ==         ["FAILED: the cap being reached is logged"]
+
+
 def test_the_markdown_report_is_a_table(project, tmp_path_factory):
     spec_file = tmp_path_factory.mktemp("spec") / "spec.py"
     spec_file.write_text(LF.join([
