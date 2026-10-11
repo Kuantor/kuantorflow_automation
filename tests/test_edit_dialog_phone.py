@@ -7,7 +7,7 @@ The dialog's three buttons shared one row, `.modal-actions` (flex,
 tall) and *Save changes* spilled 17px past the dialog's left margin -- the
 flex-end spill #238 met in Settings. On a phone they are now a two-column grid:
 *Look up & update* across the top, *Save changes* | *Cancel* below, every label
-on one line.
+on one line. At every width the row has 1rem above it, where it had none.
 
 The textareas (explanation, examples) had no style in this dialog at all, so
 they rendered in the browser's default monospace at 13px beside rounded 16px
@@ -68,6 +68,13 @@ def test_a_computer_keeps_the_one_row(css, button):
     assert css_winning(css, ROW, "display", phone=False) == "flex"
     assert css_winning(css, button, "grid-row", phone=False) is None
     assert css_winning(css, button, "white-space", phone=False) is None
+
+
+@pytest.mark.parametrize("phone", [False, True], ids=["computer", "phone"])
+def test_the_row_has_room_above_it(css, phone):
+    """It sat directly on the scrolling fields' bottom edge -- measured 0px at
+    1280px, Anton's report on the PR -- so the buttons looked glued to it."""
+    assert css_winning(css, ROW, "margin-top", phone=phone) == "1rem"
 
 
 # --- the textareas ----------------------------------------------------------
