@@ -77,6 +77,33 @@ def test_the_row_has_room_above_it(css, phone):
     assert css_winning(css, ROW, "margin-top", phone=phone) == "1rem"
 
 
+@pytest.mark.parametrize("phone", [False, True], ids=["computer", "phone"])
+def test_a_hairline_marks_where_the_scrolling_stops(css, phone):
+    """A field cut off mid-line above the buttons read as a glitch rather than
+    as "more below" (Anton, on kuantorflow#581). One thin solid line."""
+    line = css_winning(css, ROW, "border-top", phone=phone)
+    assert line and line.split()[:2] == ["1px", "solid"]
+    assert css_winning(css, ROW, "padding-top", phone=phone)
+
+
+def test_the_hairline_is_seeable_but_quieter_than_a_field(css):
+    """Darker than the site's usual divider, which is barely there over a white
+    dialog, and lighter than a field's border, so it does not compete with the
+    fields. Both bounds are read from the stylesheet, not restated here."""
+    import re
+    from collections import Counter
+
+    def brightness(hex_colour):
+        return sum(int(hex_colour[i:i + 2], 16) for i in (1, 3, 5))
+
+    line = css_winning(css, ROW, "border-top", phone=False).split()[2]
+    dividers = Counter(re.findall(r"border-top:\s*1px solid (#[0-9a-fA-F]{6})", css))
+    usual_divider = dividers.most_common(1)[0][0]
+    field = _rules_for(css, 'input[type="text"]')["border"].split()[2]
+
+    assert brightness(field) < brightness(line) < brightness(usual_divider)
+
+
 # --- the textareas ----------------------------------------------------------
 
 def test_the_textareas_inherit_the_site_font(css):
