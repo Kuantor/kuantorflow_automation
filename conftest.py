@@ -635,3 +635,72 @@ def user_client(client):
         sess["user"] = {"id": TEST_USER_ID, "name": "Test User",
                         "email": TEST_USER_EMAIL}
     return client
+
+
+# --- a stylesheet's cascade, resolved (kuantorflow#576, #578) ----------------
+# The suite cannot lay a page out, so a layout bug that is really a cascade bug
+# (a later rule of equal specificity winning) is checked by resolving the
+# cascade for one element the way a browser would: matching selectors, then
+# specificity, then source order, with the phone media query applied or not.
+# Class-only selectors; an element is its chain of class sets from an ancestor
+# down. Only what those tests need: plain rules and one level of @media.
+
+PHONE_QUERY = "(max-width: 640px)"
+# Media that hold on every screen. Anything else but the phone query is
+# skipped, which is right for print and wider breakpoints and is why these two
+# are named: a rule under `@media all` must not vanish from the resolution.
+ALWAYS_MEDIA = {None, "all", "screen"}
+
+
+def css_rules(css):
+    """`(media, selector, declarations)` in source order; media is None at top
+    level."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    out, i = [], 0
+    while True:
+        brace = css.find("{", i)
+        if brace < 0:
+            return out
+        head = css[i:brace].strip()
+        if head.startswith("@media"):
+            depth, j = 1, brace + 1
+            while depth:
+                depth += {"{": 1, "}": -1}.get(css[j], 0)
+                j += 1
+            media = " ".join(head[len("@media"):].split())
+            out += [(media, s, d) for _, s, d in css_rules(css[brace + 1:j - 1])]
+            i = j
+        else:
+            end = css.index("}", brace)
+            out.append((None, head, css[brace + 1:end]))
+            i = end + 1
+
+
+def _css_matches(selector, chain):
+    """A descendant selector of class-only compounds against a class chain."""
+    parts = selector.split()
+    if not all(re.fullmatch(r"(\.[\w-]+)+", p) for p in parts):
+        return False
+    compounds = [set(p.split(".")[1:]) for p in parts]
+    if not compounds[-1] <= chain[-1]:
+        return False
+    ancestors = iter(chain[:-1])
+    return all(any(c <= a for a in ancestors) for c in compounds[:-1])
+
+
+def css_winning(css, chain, prop, phone):
+    """The value of `prop` that wins on the element, or None."""
+    best = None
+    for order, (media, selectors, decls) in enumerate(css_rules(css)):
+        if media not in ALWAYS_MEDIA and not (phone and media == PHONE_QUERY):
+            continue
+        values = dict((k.strip(), v.strip()) for k, v in
+                      (d.split(":", 1) for d in decls.split(";") if ":" in d))
+        if prop not in values:
+            continue
+        for selector in (s.strip() for s in selectors.split(",")):
+            if _css_matches(selector, chain):
+                rank = (selector.count("."), order)
+                if best is None or rank > best[0]:
+                    best = (rank, values[prop])
+    return best and best[1]
