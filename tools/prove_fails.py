@@ -98,7 +98,12 @@ def apply_break(text, change):
 
 
 def _failures(output, pytest_mode, returncode):
-    """What failed: pytest's test ids, or the script's first FAILED line."""
+    """What failed: pytest's test ids, or the script's own message.
+
+    For a script, an `AssertionError` with a message wins: a traceback echoes
+    the failing source line -- ai_agent's `assert condition, f"FAILED:
+    {label}"` -- before the message, so the first line holding "FAILED" named
+    the helper rather than the check. Otherwise, the first FAILED line."""
     if pytest_mode:
         found = []
         for line in output.splitlines():
@@ -110,8 +115,13 @@ def _failures(output, pytest_mode, returncode):
         return found
     if not returncode:
         return []
-    lines = [l.strip() for l in output.splitlines() if "FAILED" in l]
-    return [lines[0] if lines else f"exit {returncode}"]
+    lines = [l.strip() for l in output.splitlines()]
+    for line in lines:
+        message = line[len("AssertionError:"):].strip()
+        if line.startswith("AssertionError:") and message:
+            return [message]
+    failed = [l for l in lines if "FAILED" in l]
+    return [failed[0] if failed else f"exit {returncode}"]
 
 
 def run_tests(command, cwd, pytest_mode, timeout):
