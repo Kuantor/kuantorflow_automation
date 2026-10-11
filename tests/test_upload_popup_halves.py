@@ -14,71 +14,15 @@ the phone media query applied or not -- and check what wins. The widths were
 measured in a real browser for the PR.
 """
 
-import re
-
 import pytest
+
+from conftest import css_winning as _winning
 
 # The popup's elements, each as its chain of class sets from the dialog down.
 DIALOG = {"modal", "modal-dialog", "proposal-dialog", "proposal-dialog--source"}
 BODY = [DIALOG, {"proposal-body"}]
 SOURCE = BODY + [{"proposal-source"}]
 CARDS = BODY + [{"modal-scroll", "proposal-cards-pane"}]
-
-PHONE_QUERY = "(max-width: 640px)"
-
-
-def _rules(css):
-    """`(media, selector, declarations)` in source order; media is None at top
-    level. Only what this file needs: plain rules and one level of @media."""
-    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
-    out, i = [], 0
-    while True:
-        brace = css.find("{", i)
-        if brace < 0:
-            return out
-        head = css[i:brace].strip()
-        if head.startswith("@media"):
-            depth, j = 1, brace + 1
-            while depth:
-                depth += {"{": 1, "}": -1}.get(css[j], 0)
-                j += 1
-            media = " ".join(head[len("@media"):].split())
-            out += [(media, s, d) for _, s, d in _rules(css[brace + 1:j - 1])]
-            i = j
-        else:
-            end = css.index("}", brace)
-            out.append((None, head, css[brace + 1:end]))
-            i = end + 1
-
-
-def _matches(selector, chain):
-    """A descendant selector of class-only compounds against a class chain."""
-    parts = selector.split()
-    if not all(re.fullmatch(r"(\.[\w-]+)+", p) for p in parts):
-        return False
-    compounds = [set(p.split(".")[1:]) for p in parts]
-    if not compounds[-1] <= chain[-1]:
-        return False
-    ancestors = iter(chain[:-1])
-    return all(any(c <= a for a in ancestors) for c in compounds[:-1])
-
-
-def _winning(css, chain, prop, phone):
-    """The value of `prop` that wins on the element, or None."""
-    best = None
-    for order, (media, selectors, decls) in enumerate(_rules(css)):
-        if media is not None and not (phone and media == PHONE_QUERY):
-            continue
-        values = dict((k.strip(), v.strip()) for k, v in
-                      (d.split(":", 1) for d in decls.split(";") if ":" in d))
-        if prop not in values:
-            continue
-        for selector in (s.strip() for s in selectors.split(",")):
-            if _matches(selector, chain):
-                rank = (selector.count("."), order)
-                if best is None or rank > best[0]:
-                    best = (rank, values[prop])
-    return best and best[1]
 
 
 @pytest.fixture()
