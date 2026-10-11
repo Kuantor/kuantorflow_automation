@@ -104,6 +104,34 @@ def test_the_hairline_is_seeable_but_quieter_than_a_field(css):
     assert brightness(field) < brightness(line) < brightness(usual_divider)
 
 
+def test_on_a_computer_look_up_stands_apart_at_the_left_edge(css):
+    """It fills the fields and keeps the dialog open, where Save and Cancel
+    close it, so it sits apart from that pair (Anton, on kuantorflow#581)."""
+    assert css_winning(css, LOOKUP, "margin-right", phone=False) == "auto"
+
+
+def test_on_a_phone_look_up_still_fills_its_row(css):
+    """`auto` in a grid cell would shrink the button to its text and pin it
+    left; the phone rule takes it back."""
+    assert css_winning(css, LOOKUP, "margin-right", phone=True) == "0"
+
+
+def test_look_up_comes_first_in_the_page_so_tab_reaches_it_first(
+        user_client, stub_deck):
+    """Placed first by order rather than by CSS `order`, which would leave the
+    keyboard visiting the buttons in a different order from the eye. Enter in
+    a field still saves: Save is the form's only submit button (checked in a
+    browser, the submit event's submitter is #edit-save)."""
+    stub_deck(cards=[{"id": 1, "word": "abstract", "pos": "noun",
+                      "topic": "Work", "user_id": 1}])
+    body = user_client.get("/flashcards/Work").get_data(as_text=True)
+
+    positions = [body.index(f'id="{b}"') for b in
+                 ("edit-lookup", "edit-save", "edit-cancel")]
+    assert positions == sorted(positions)
+    assert body.count('form="edit-form"') == 1
+
+
 # --- the textareas ----------------------------------------------------------
 
 def test_the_textareas_inherit_the_site_font(css):
