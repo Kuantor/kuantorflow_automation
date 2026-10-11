@@ -642,8 +642,8 @@ def user_client(client):
 # (a later rule of equal specificity winning) is checked by resolving the
 # cascade for one element the way a browser would: matching selectors, then
 # specificity, then source order, with the phone media query applied or not.
-# Class-only selectors; an element is its chain of class sets from an ancestor
-# down. Only what those tests need: plain rules and one level of @media.
+# Class and id selectors; an element is its chain of sets from an ancestor
+# down, an id written `#id` among the classes. Only what those tests need: plain rules and one level of @media.
 
 PHONE_QUERY = "(max-width: 640px)"
 # Media that hold on every screen. Anything else but the phone query is
@@ -676,12 +676,18 @@ def css_rules(css):
             i = end + 1
 
 
+def _css_tokens(compound):
+    """`.a.b#c` -> {"a", "b", "#c"}: a class by its name, an id with its `#`."""
+    return {t[1:] if t[0] == "." else t for t in re.findall(r"[.#][\w-]+", compound)}
+
+
 def _css_matches(selector, chain):
-    """A descendant selector of class-only compounds against a class chain."""
+    """A descendant selector of class and id compounds against a chain of
+    sets, where an element's id is written `#id` among its classes (#580)."""
     parts = selector.split()
-    if not all(re.fullmatch(r"(\.[\w-]+)+", p) for p in parts):
+    if not all(re.fullmatch(r"([.#][\w-]+)+", p) for p in parts):
         return False
-    compounds = [set(p.split(".")[1:]) for p in parts]
+    compounds = [_css_tokens(p) for p in parts]
     if not compounds[-1] <= chain[-1]:
         return False
     ancestors = iter(chain[:-1])
@@ -700,7 +706,7 @@ def css_winning(css, chain, prop, phone):
             continue
         for selector in (s.strip() for s in selectors.split(",")):
             if _css_matches(selector, chain):
-                rank = (selector.count("."), order)
+                rank = (selector.count("#"), selector.count("."), order)
                 if best is None or rank > best[0]:
                     best = (rank, values[prop])
     return best and best[1]
