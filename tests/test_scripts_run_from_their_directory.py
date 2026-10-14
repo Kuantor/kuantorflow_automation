@@ -32,12 +32,13 @@ SCRIPTS = Path(KUANTORFLOW_PATH) / "scripts"
 # `seed_topics` imports it, and it is deliberately *not* one of the runnable
 # scripts below: it holds the word list and imports nothing at all.
 APP_MODULES = {"utils", "applog", "settings_store", "parsers", "games",
-               "web", "seed_words"}
+               "web", "seed_words", "notify"}
 
 RUNNABLE = ["apply_schema.py", "claim_flashcards.py", "claim_topics.py",
             "find_bad_translations.py",
             "model_usage_report.py",
-            "rebuild_schedule.py", "retopic.py", "seed_topics.py"]
+            "rebuild_schedule.py", "retopic.py", "seed_topics.py",
+            "send_test_email.py"]
 
 
 def _tree(name):

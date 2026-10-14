@@ -176,6 +176,20 @@ def action_logs(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_admin_mail(monkeypatch):
+    """No test sends a real email (kuantorflow#591).
+
+    The app loads its own `.env` on import, so a developer whose checkout is
+    configured to mail the admin would otherwise have the suite send one for
+    every notice it exercises. With these unset the mailer is off and only
+    logs; a test that wants it on sets them and stubs `smtplib`.
+    """
+    for name in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD",
+                 "NOTIFY_EMAIL", "NOTIFY_DRY_RUN"):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def chat_logs(tmp_path, monkeypatch, request):
     """Redirect Mykola's chat logs to a per-test temp directory.
 
