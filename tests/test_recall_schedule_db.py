@@ -100,7 +100,7 @@ def scratch_db(monkeypatch):
 @pytest.fixture()
 def learner(scratch_db):
     import utils
-    user_id, _ = utils.upsert_user("sub-schedule-479", "learner@example.com")
+    user_id, _, _ = utils.upsert_user("sub-schedule-479", "learner@example.com")
     return user_id
 
 
@@ -245,7 +245,7 @@ def test_due_dates_are_keyed_the_way_a_card_is(learner):
 def test_due_dates_are_one_learners_own(learner):
     import utils
 
-    other, _ = utils.upsert_user("sub-draw-other", "other@example.com")
+    other, _, _ = utils.upsert_user("sub-draw-other", "other@example.com")
     _history(learner)
     _log(other, "zeal", "noun", "quiz", True, datetime(2026, 9, 1, 9))
     utils.rebuild_schedules()
@@ -316,7 +316,7 @@ def test_the_rebuild_corrects_a_wrong_row_and_removes_an_orphan(learner):
 def test_one_learners_rebuild_leaves_the_others_alone(learner):
     import utils
 
-    other, _ = utils.upsert_user("sub-schedule-other", "other@example.com")
+    other, _, _ = utils.upsert_user("sub-schedule-other", "other@example.com")
     _history(learner)
     _log(other, "acquit", "verb", "quiz", True, datetime(2026, 9, 1, 9))
 
@@ -385,7 +385,7 @@ def test_answered_since_returns_the_whole_history_of_todays_words(learner):
 
     _history(learner)                                   # all in early September
     _log(learner, "acquit", "verb", "spell_it", True, datetime(2026, 9, 30, 7))
-    other, _ = utils.upsert_user("sub-review-529", "other529@example.com")
+    other, _, _ = utils.upsert_user("sub-review-529", "other529@example.com")
     _log(other, "verdict", "noun", "quiz", True, datetime(2026, 9, 30, 8))
 
     found = utils.histories_answered_since(learner, datetime(2026, 9, 30, 1))
@@ -426,7 +426,7 @@ def test_progress_reads_only_the_learners_own_schedule_and_log(learner):
     `user_id` clause in these two reads is the whole of that guarantee."""
     import utils
 
-    other, _ = utils.upsert_user("sub-progress-493", "other493@example.com")
+    other, _, _ = utils.upsert_user("sub-progress-493", "other493@example.com")
     _history(learner)
     _log(other, "zeal", "noun", "quiz", True, datetime(2026, 9, 1, 9))
     _log(other, "acquit", "verb", "quiz", False, datetime(2026, 9, 3, 9))

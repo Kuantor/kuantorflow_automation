@@ -97,7 +97,7 @@ def scratch_db(monkeypatch):
 @pytest.fixture()
 def learner(scratch_db):
     import utils
-    user_id, _ = utils.upsert_user("sub-recall-338", "learner@example.com")
+    user_id, _, _ = utils.upsert_user("sub-recall-338", "learner@example.com")
     return user_id
 
 
@@ -180,7 +180,7 @@ def test_deleting_the_account_erases_its_answers(learner, cards):
     the user guide promises it. Another learner's rows are untouched."""
     import utils
 
-    other, _ = utils.upsert_user("sub-recall-other", "other@example.com")
+    other, _, _ = utils.upsert_user("sub-recall-other", "other@example.com")
     utils.record_answers(learner, "quiz", [(cards[0], True)])
     utils.record_answers(other, "quiz", [(cards[0], False)])
 
