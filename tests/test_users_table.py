@@ -40,7 +40,7 @@ def test_sign_in_records_the_user(client, app_module, monkeypatch):
 
     def fake_upsert(google_sub, email, **claims):
         recorded.update(sub=google_sub, email=email, **claims)
-        return 7, None
+        return 7, None, False
 
     _google(app_module, monkeypatch, CLAIMS)
     monkeypatch.setattr("utils.upsert_user", fake_upsert)
@@ -80,7 +80,7 @@ def test_placeholder_name_is_never_stored(client, app_module, monkeypatch):
     recorded = {}
     _google(app_module, monkeypatch, {"sub": "s", "email": "nameless@example.com"})
     monkeypatch.setattr("utils.upsert_user",
-                        lambda sub, email, **c: recorded.update(c) or (1, None))
+                        lambda sub, email, **c: recorded.update(c) or (1, None, False))
 
     client.get("/auth/google/callback")
     assert recorded == {"display_name": None, "given_name": None,
@@ -95,7 +95,7 @@ def test_blank_claims_become_null(client, app_module, monkeypatch):
             {"sub": "s", "email": "x@example.com", "name": "  ",
              "given_name": "", "family_name": "   "})
     monkeypatch.setattr("utils.upsert_user",
-                        lambda sub, email, **c: recorded.update(c) or (1, None))
+                        lambda sub, email, **c: recorded.update(c) or (1, None, False))
 
     client.get("/auth/google/callback")
     assert set(recorded.values()) == {None}
@@ -107,7 +107,7 @@ def test_sign_in_without_a_subject_is_not_recorded(client, app_module, monkeypat
     called = []
     _google(app_module, monkeypatch, {"email": "x@example.com", "name": "X"})
     monkeypatch.setattr("utils.upsert_user",
-                        lambda *a, **k: called.append(1) or (1, None))
+                        lambda *a, **k: called.append(1) or (1, None, False))
 
     resp = client.get("/auth/google/callback")
     assert resp.status_code == 302 and called == []
@@ -143,6 +143,7 @@ class _Cursor:
     def __init__(self):
         self.statements = []
         self.lastrowid = 42
+        self.rowcount = 2      # an update; see test_new_account_email.py
 
     def execute(self, sql, params=None):
         self.statements.append((" ".join(sql.split()), params))
@@ -162,7 +163,7 @@ def test_upsert_never_overwrites_the_preferred_name(monkeypatch):
                                  close=lambda: None)
     monkeypatch.setattr(utils, "get_db_connection", lambda: conn)
 
-    user_id, preferred = utils.upsert_user("sub-1", "a@example.com", "A B", "A", "B")
+    user_id, preferred, _ = utils.upsert_user("sub-1", "a@example.com", "A B", "A", "B")
 
     assert (user_id, preferred) == (42, "Ann")
     upsert = cursor.statements[0][0]

@@ -140,7 +140,7 @@ def test_the_sign_in_stores_the_claim(client, app_module, monkeypatch, claim,
 
     monkeypatch.setattr("web.GOOGLE_AUTH_AVAILABLE", True)
     monkeypatch.setattr("utils.upsert_user",
-                        lambda *a, **k: (1, None))
+                        lambda *a, **k: (1, None, False))
     info = {"sub": "s1", "email": ADMIN, "name": "Admin",
             "email_verified": claim}
     monkeypatch.setattr("web.oauth", types.SimpleNamespace(
