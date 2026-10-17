@@ -105,11 +105,13 @@ def test_the_stored_setting_is_left_alone(user_client, no_key):
 
     assert stored["settings"]["explanatory_dictionary"] == "merriam-webster"
 
-    # And still stored on the next page, where the panel shows it chosen —
-    # greyed, checked, and waiting for a key rather than quietly moved.
+    # And on the next page the panel ticks the dictionary that **answers**,
+    # Oxford, since Merriam-Webster is hidden (#459). The store still asks
+    # for Merriam-Webster, waiting for a key rather than quietly moved.
     block = _dictionary_block(user_client.get("/").get_data(as_text=True))
-    merriam = block.split('value="merriam-webster"')[1].split(">")[0]
-    assert "checked" in merriam and "disabled" in merriam
+    oxford = block.split('value="oxford"')[1].split(">")[0]
+    assert "checked" in oxford
+    assert 'value="merriam-webster"' not in block
 
 
 def test_a_lookup_falls_back_rather_than_losing_the_explanation(
@@ -141,13 +143,15 @@ def _dictionary_block(body):
     return body.split("Explanatory dictionary")[1].split("</fieldset>")[0]
 
 
-def test_the_panel_greys_it_and_names_the_variable(user_client, no_key):
+def test_the_panel_hides_it_and_names_no_variable(user_client, no_key):
+    """#459: hidden, not greyed; Oxford and Wiktionary stay choosable."""
     block = _dictionary_block(user_client.get("/").get_data(as_text=True))
 
-    assert "Merriam-Webster" in block, "listed, not hidden (#261)"
-    assert "MERRIAM_WEBSTER_API_KEY" in block
-    assert "settings-option-off" in block
-    assert block.count("disabled") == 1, "Oxford stays choosable"
+    assert "Merriam-Webster" not in block
+    assert "MERRIAM_WEBSTER_API_KEY" not in block
+    assert "settings-option-off" not in block
+    assert "Oxford" in block and "Wiktionary" in block
+    assert "disabled" not in block
 
 
 def test_the_panel_offers_it_once_the_key_is_there(user_client, with_key):
@@ -166,7 +170,13 @@ def test_the_panel_is_rendered_from_the_registry(user_client, with_key,
                                "_fetch_oxford_entry", "CAMBRIDGE_API_KEY")
     monkeypatch.setattr(parsers, "DICTIONARIES", parsers.DICTIONARIES + (third,))
 
+    # Without its key a new entry is hidden like any other (#459)...
+    monkeypatch.delenv("CAMBRIDGE_API_KEY", raising=False)
     block = _dictionary_block(user_client.get("/").get_data(as_text=True))
+    assert "Cambridge Dictionary" not in block
 
+    # ...and one line in `.env` brings it onto the panel.
+    monkeypatch.setenv("CAMBRIDGE_API_KEY", "test-key")
+    block = _dictionary_block(user_client.get("/").get_data(as_text=True))
     assert "Cambridge Dictionary" in block
-    assert "CAMBRIDGE_API_KEY" in block
+    assert "CAMBRIDGE_API_KEY" not in block
