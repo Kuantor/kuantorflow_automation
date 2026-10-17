@@ -176,13 +176,14 @@ def test_settings_popup_editable_for_signed_in(user_client, monkeypatch):
 
 def test_settings_popup_markup(client, monkeypatch):
     # Two providers configured, because the panel lists only what a deployment
-    # has a key for (kuantorflow#353).
+    # has a key for (kuantorflow#353), and since #459 hides the rest: so the
+    # dictionaries checked are the two keyless ones, not Merriam-Webster.
     monkeypatch.setenv("MS_TRANSLATOR_KEY", "test-key-never-used")
     body = client.get("/").get_data(as_text=True)
     assert 'id="settings-link"' in body            # header menu item
     assert 'id="settings-modal"' in body
     assert 'name="cards_automatically"' in body    # #13 checkbox
-    for value in ("claude", "microsoft", "oxford", "merriam-webster"):
+    for value in ("claude", "microsoft", "oxford", "wiktionary"):
         assert f'value="{value}"' in body          # #20 radio families
 
 

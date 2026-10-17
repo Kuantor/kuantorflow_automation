@@ -257,48 +257,76 @@ def _radio(body, slug):
     return found.group(0) if found else ""
 
 
-def test_every_provider_is_listed(client, keys):
-    """Including the ones this deployment cannot use. #261's call for an
-    unfinished game tile: absent reads as *this app cannot do that*, greyed
-    reads as *this copy is not set up for it*."""
+def test_only_the_usable_providers_are_listed(client, keys):
+    """kuantorflow#459 reversed #353's greying: a provider this deployment has
+    no key for is **hidden**, not shown disabled. The person who can set a key
+    reads `.env.example`, not this panel; a learner saw four things the site
+    refuses to do, labelled with names they have no use for."""
     keys("claude")
     body = client.get("/").get_data(as_text=True)
-    for option in parsers.TRANSLATORS:
-        assert _radio(body, option.slug), f"{option.slug} is not on the panel"
+
+    assert _radio(body, "claude")
+    for slug in ("microsoft", "deepl", "google_cloud"):
+        assert not _radio(body, slug), f"{slug} has no key here and must be hidden"
 
 
-def test_a_provider_without_its_key_is_disabled(user_client, keys):
+def test_a_usable_provider_is_choosable(user_client, keys):
     """Signed in, because #102 makes *every* setting read-only for an
-    anonymous visitor — against `client` this test passes whatever the code
-    does, which is how it was written the first time."""
-    keys("claude")
+    anonymous visitor. Hiding replaced disabling, so nothing on the panel is
+    disabled for want of a key."""
+    keys("claude", "deepl")
     body = user_client.get("/").get_data(as_text=True)
+
     assert "disabled" not in _radio(body, "claude")
-    assert "disabled" in _radio(body, "deepl")
-    assert "disabled" in _radio(body, "microsoft")
+    assert "disabled" not in _radio(body, "deepl")
+    assert not _radio(body, "microsoft")
 
 
-def test_a_disabled_provider_names_the_key_it_needs(user_client, keys):
-    """The person reading the panel is the one who can set it."""
+def test_no_environment_variable_reaches_the_panel(user_client, keys):
+    """The names were for whoever deploys the site, in a panel a learner reads."""
     keys("claude")
     body = " ".join(user_client.get("/").get_data(as_text=True).split())
-    assert "needs <code>DEEPL_API_KEY</code>" in body
-    assert "needs <code>MS_TRANSLATOR_KEY</code>" in body
+
+    for option in parsers.TRANSLATORS + parsers.DICTIONARIES:
+        if option.key_env:
+            assert option.key_env not in body
+    assert "settings-option-off" not in body
+
+
+def test_hiding_deletes_nothing_from_the_registry():
+    """Hidden, not removed (Anton, 18 Oct): each provider is still declared,
+    so a key in `.env` is all it takes to bring one back."""
+    assert {t.slug for t in parsers.TRANSLATORS} == {
+        "claude", "microsoft", "deepl", "google_cloud"}
+    assert {d.slug for d in parsers.DICTIONARIES} == {
+        "oxford", "merriam-webster", "wiktionary"}
 
 
 def test_the_panel_explains_an_unconfigured_deployment(user_client, keys):
-    """Every option greyed, and a line saying what that means for the cards —
-    the panel should not leave the learner to infer it from four dead radios.
-
-    Signed in for the same reason as the test above: anonymous disables
-    everything anyway (#102), so the assertion would hold vacuously.
-    """
+    """No translator at all is a real state (#349). The group then holds no
+    radio, and a line says what that means for the cards, without naming a
+    key a learner cannot set."""
     keys()
     body = user_client.get("/").get_data(as_text=True)
-    assert "None of these is configured" in body
+
+    assert "No translator is set up on this site" in body
     assert "explanation and examples" in body
     for option in parsers.TRANSLATORS:
-        assert "disabled" in _radio(body, option.slug)
+        assert not _radio(body, option.slug)
+
+
+def test_the_checked_translator_is_the_one_that_answers(user_client, keys):
+    """A stored choice whose key has gone is hidden, so the panel ticks the
+    translator that will actually answer (`lookup_providers`, #384) rather
+    than leaving the group with nothing chosen. The stored slug is untouched."""
+    keys("claude")
+    stored = user_client.post("/settings", json={"translator": "deepl"}).get_json()
+    assert stored["settings"]["translator"] == "deepl"
+
+    body = user_client.get("/").get_data(as_text=True)
+
+    assert "checked" in _radio(body, "claude")
+    assert not _radio(body, "deepl")
 
 
 def test_a_provider_that_cannot_group_says_so_in_the_panel(user_client, keys):
