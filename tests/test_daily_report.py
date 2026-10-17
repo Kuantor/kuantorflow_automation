@@ -42,6 +42,7 @@ def _db(**over):
         "accounts": {13: {"email": LEARNER, "created_at": datetime(2026, 10, 3)},
                      1: {"email": ADMIN, "created_at": datetime(2026, 7, 1)}},
         "new": set(), "cards": {}, "answers": {}, "usage": {},
+        "visits": [], "visit_totals": [],
         "emails": {LEARNER: 13, ADMIN: 1},
     }
     base.update(over)
@@ -310,3 +311,115 @@ def test_the_privacy_section_says_so():
 
     assert "once a day" in privacy and "summary" in privacy
     assert "nothing is sent on a day with no activity" in privacy
+
+
+
+# --- visitors (kuantorflow#600) ----------------------------------------------
+#
+# #598 records one row per visit; the daily email now counts them for the day.
+# Anton's own accounts are left out of every count, like the rest of the
+# report, and shown on one line of their own; a day of only his visits still
+# sends nothing. A signed-in learner counts once by account, on any device;
+# an anonymous visitor is a browser session's random number.
+
+def _visit(visitor, user_id, hour, minute=0, seconds=60, pages=1):
+    """A visit started on DAY at `hour`:`minute` **UTC**."""
+    from datetime import datetime
+    return (visitor, user_id, datetime(2026, 10, 14, hour, minute), seconds, pages)
+
+
+def _visitors(**db):
+    return _report(_db(**db))["visitors"]
+
+
+def test_visitors_are_counted_by_person():
+    visitors = _visitors(visits=[
+        _visit("a" * 16, None, 6), _visit("a" * 16, None, 9),     # one browser, twice
+        _visit("b" * 16, None, 7),
+        _visit("c" * 16, 13, 8), _visit("d" * 16, 13, 16),        # one learner, two devices
+    ])
+
+    assert visitors["people"] == 3
+    assert visitors["anonymous"] == 2 and visitors["signed_in"] == 1
+    assert visitors["visits"] == 5
+    assert visitors["active_minutes"] == 5 and visitors["pages"] == 5
+
+
+def test_the_admins_visits_are_counted_apart():
+    visitors = _visitors(visits=[_visit("a" * 16, 1, 8, seconds=600),
+                                 _visit("b" * 16, None, 9)])
+
+    assert visitors["people"] == 1 and visitors["visits"] == 1
+    assert visitors["active_minutes"] == 1
+    assert visitors["yours"] == 1
+
+
+def test_a_day_of_only_the_admins_visits_sends_nothing():
+    report = _report(_db(visits=[_visit("a" * 16, 1, 8)]))
+
+    assert not daily_report.has_activity(report)
+
+
+def test_a_day_with_only_anonymous_visitors_is_activity():
+    report = _report(_db(visits=[_visit("b" * 16, None, 9)]))
+
+    assert daily_report.has_activity(report)
+
+
+def test_the_busiest_hour_is_kyiv_time():
+    """14 Oct is summer time, UTC+3: 16:00 UTC is 19:00 in Kyiv."""
+    visitors = _visitors(visits=[_visit("a" * 16, None, 16, 5), _visit("b" * 16, None, 16, 40),
+                                 _visit("c" * 16, None, 7)])
+
+    assert visitors["busiest"] == (19, 2)
+
+
+def test_the_totals_since_counting_began_leave_the_admin_out():
+    visitors = _visitors(visit_totals=[(None, 40, 25), (13, 6, 2), (14, 3, 1), (1, 50, 3)],
+                         accounts={13: {"email": LEARNER, "created_at": None},
+                                   14: {"email": "b@x.test", "created_at": None},
+                                   1: {"email": ADMIN, "created_at": None}},
+                         emails={LEARNER: 13, "b@x.test": 14, ADMIN: 1})
+
+    assert visitors["total_people"] == 27 and visitors["total_visits"] == 49
+
+
+def test_the_email_says_how_many_visited():
+    report = _report(_db(visits=[_visit("a" * 16, None, 16), _visit("b" * 16, None, 16),
+                                 _visit("c" * 16, 13, 8, seconds=1200, pages=6),
+                                 _visit("z" * 16, 1, 9)],
+                         visit_totals=[(None, 10, 8), (13, 2, 1)]))
+    subject, body = daily_report.render(report, DAY)
+
+    assert subject == "KuantorFlow: activity on 14 Oct (3 visitors)"
+    assert "Visitors: 3 (2 anonymous, 1 signed in), 3 visits, 22 active minutes, 8 pages" in body
+    assert "Busiest hour: 19:00 to 20:00, 2 visits" in body
+    assert "Your own: 1 visit" in body
+    assert "Since counting began: 9 visitors, 12 visits" in body
+    assert "random" in body.lower()
+
+
+def test_learners_and_visitors_share_the_subject():
+    report = _report(_db(cards={13: 2}, visits=[_visit("a" * 16, None, 9)]))
+
+    assert daily_report.render(report, DAY)[0] == \
+        "KuantorFlow: activity on 14 Oct (1 learner, 1 visitor)"
+
+
+def test_no_visits_no_visitor_lines():
+    _, body = daily_report.render(_report(_db(cards={13: 2})), DAY)
+
+    assert "Visitors:" not in body and "Busiest hour" not in body
+    assert "Since counting began" not in body
+
+
+def test_the_privacy_section_says_visits_are_summed_up():
+    from pathlib import Path
+
+    from conftest import KUANTORFLOW_PATH
+
+    guide = (Path(KUANTORFLOW_PATH) / "docs" / "user-guide.md").read_text(encoding="utf-8")
+    start = guide.index("## Privacy: what the site keeps")
+    privacy = guide[start:guide.index("\n## ", start + 3)].lower()
+
+    assert "how many people visited" in privacy

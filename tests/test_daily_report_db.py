@@ -151,4 +151,31 @@ def test_an_empty_day_reads_nothing(scratch_db):
     db = daily_report.gather_db(date(2020, 1, 1), start, end)
 
     assert db == {"accounts": {}, "new": set(), "cards": {}, "answers": {},
-                  "usage": {}, "emails": {}}
+                  "usage": {}, "visits": [], "visit_totals": [], "emails": {}}
+
+
+def test_the_days_visits_and_the_totals(scratch_db):
+    """#600: visits are DATETIMEs in UTC, so the window needs no zone; a visit
+    a second before the day and one at its end are left out."""
+    from datetime import timedelta
+
+    import daily_report
+    import recall
+    import utils
+
+    learner, _, _ = utils.upsert_user("sub-600", "learner@example.com")
+    day = recall.today()
+    start, end = daily_report.day_window(day)
+    second = timedelta(seconds=1)
+    for visitor, user_id, when in (("a" * 16, None, start - second), ("a" * 16, None, start),
+                                   ("b" * 16, learner, end - second), ("c" * 16, None, end)):
+        _run("INSERT INTO visits (visitor, user_id, started_at, last_seen_at, "
+             "active_seconds, pages) VALUES (%s, %s, %s, %s, 60, 1)",
+             (visitor, user_id, when, when))
+
+    db = daily_report.gather_db(_curdate(), start, end)
+
+    assert sorted((v[0], v[1]) for v in db["visits"]) == [("a" * 16, None), ("b" * 16, learner)]
+    assert sorted(db["visit_totals"], key=lambda r: (r[0] is not None, r[0] or 0)) == \
+        [(None, 3, 2), (learner, 1, 1)]
+    assert db["accounts"][learner]["email"] == "learner@example.com"
