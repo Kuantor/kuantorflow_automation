@@ -51,6 +51,12 @@ CEILINGS = {
     ("Everyone together, per day", "Talking to Mykola"): "CHAT_ALL_DAILY",
     ("Everyone together, per day", "A recap"): "RECAP_ALL_DAILY",
     ("Everyone together, per day", "Importing notes"): "UPLOAD_ALL_DAILY",
+
+    # kuantorflow#612: checking quiz answers that match no translation.
+    ("Signed out, per day, shared by everyone signed out",
+     "Checking quiz answers"): "CHECK_ANON_DAILY",
+    ("Your account, per day", "Checking quiz answers"): "CHECK_USER_DAILY",
+    ("Everyone together, per day", "Checking quiz answers"): "CHECK_ALL_DAILY",
 }
 
 
