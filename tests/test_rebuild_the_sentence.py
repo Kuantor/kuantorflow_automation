@@ -84,6 +84,73 @@ def test_the_bounds_themselves_are_accepted():
     assert games.sentence_tokens(" ".join(["w"] * games.SENTENCE_MAX))
 
 
+# --- what in a dictionary example is not prose (kuantorflow#614) ----------
+#
+# Oxford's examples carry glosses, "(= gave a verdict)", and alternations,
+# "film/an art/a music". Split on spaces, they dealt chips like `(=`,
+# `drugs)` and `for/take` -- seen on the live site, 18 Oct. A gloss comes out
+# and leaves the dictionary's own sentence; anything still not prose is
+# skipped, since picking one side of an alternation would invent a sentence
+# the dictionary never wrote.
+
+@pytest.mark.parametrize("sentence, expected", [
+    ("The jury returned a verdict (= gave a verdict) of guilty.",
+     "The jury returned a verdict of guilty"),
+    ("Her work is a masterpiece of (= an excellent example of) simplicity.",
+     "Her work is a masterpiece of simplicity"),
+    # The gloss ends the sentence, with its own full stop inside.
+    ("Many of the houses lacked even basic amenities (= baths, showers, hot water, etc.).",
+     "Many of the houses lacked even basic amenities"),
+])
+def test_a_gloss_is_removed_and_the_sentence_kept(sentence, expected):
+    assert games.sentence_tokens(sentence) == expected.split()
+
+
+def test_the_length_is_counted_without_the_gloss():
+    # Seventeen tokens as stored, eight once the gloss is out: it fits.
+    sentence = ("She bought the house with a mortgage (= a loan from a bank "
+                "to buy property) last year.")
+    assert len(sentence.split()) > games.SENTENCE_MAX
+    assert games.sentence_tokens(sentence) == \
+        "She bought the house with a mortgage last year".split()
+
+
+def test_a_sentence_too_short_without_its_gloss_is_refused():
+    # Six tokens with the gloss, three without: below the minimum.
+    assert games.sentence_tokens("low mortgage rates (= the interest charged)") is None
+
+
+@pytest.mark.parametrize("sentence", [
+    "a film/an art/a music critic",                    # an alternation
+    "to apply for/take out/pay off a mortgage",
+    "You have to pay $100 (as a) deposit now.",        # an optional word
+    "They called it [sic] the best year ever.",        # an editorial bracket
+    "The answer is x = 2 in this case.",               # a stray equals sign
+])
+def test_what_is_still_not_prose_is_refused(sentence):
+    assert games.sentence_tokens(sentence) is None
+
+
+def test_a_comma_still_travels_with_its_word():
+    # The fix removes glosses and refuses brackets; it must not start
+    # stripping punctuation, which #271 keeps on purpose.
+    assert "persist," in games.sentence_tokens(
+        "If the symptoms persist, you should see a doctor.")
+
+
+def test_a_refused_example_falls_through_to_a_clean_one():
+    examples = ["a film/an art/a music critic", SENTENCE]
+    seen = {games.rebuildable(examples, _rng(s))[0] for s in range(20)}
+    assert seen == {"The jury acquitted him of murder"}
+
+
+def test_a_glossed_example_deals_no_bracket_chip():
+    sentence, chips = games.rebuildable(
+        ["The jury returned a verdict (= gave a verdict) of guilty."], _rng(1))
+    assert sentence == "The jury returned a verdict of guilty"
+    assert not [c for c in chips if set(c) & set("()[]=/")]
+
+
 # --- shuffling ------------------------------------------------------------
 
 
