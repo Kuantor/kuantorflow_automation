@@ -406,6 +406,9 @@ def app_module(monkeypatch):
     monkeypatch.setattr("utils.aspect_forms_checked", lambda lang, forms: set(), raising=False)
     monkeypatch.setattr("utils.save_aspect_pairs", lambda lang, found: 0, raising=False)
     monkeypatch.setattr("aspects.fetch_partners", lambda forms, lang, **kw: {}, raising=False)
+    # kuantorflow#612: stored verdicts for quiz answers; nothing stored by default.
+    monkeypatch.setattr("utils.answer_verdicts", lambda lang, keys: {}, raising=False)
+    monkeypatch.setattr("utils.save_answer_verdicts", lambda lang, rows: 0, raising=False)
     # kuantorflow#529: a review, and the front page's badge, read the words
     # answered today to put them back to their start-of-day dates. Nothing
     # answered today by default -- the review as it was before #529.

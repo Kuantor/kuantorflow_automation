@@ -135,8 +135,10 @@ def test_the_topic_builder_logs_what_it_used(fake_anthropic, action_logs):
     assert _fields(line)["model"] == topicgen.TOPIC_MODEL
 
 
-def test_the_features_are_the_declared_four():
-    assert set(applog.USAGE_FEATURES) == {"translate", "generate", "topic", "split"}
+def test_the_features_are_the_declared_five():
+    """The four of #562, and #612's check of quiz answers close in meaning."""
+    assert set(applog.USAGE_FEATURES) == {"translate", "generate", "topic", "split",
+                                          "check"}
 
 
 # --- never in the way -----------------------------------------------------
