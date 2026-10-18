@@ -266,17 +266,20 @@ def test_schema_sql_is_its_tables_in_dependency_order(schema_sql):
     # `flashcards`, since it holds a foreign key to each. recall_schedule
     # (#479) is its cache and sits beside it; it needs only `users`.
     #
-    # visits (kuantorflow#598) needs only `users`, and comes last.
+    # visits (kuantorflow#598) needs only `users`. aspect_pairs (#100) needs
+    # nothing, and comes last.
     assert [s.name for s in steps] == [
         "anonymous_usage", "text_generation_usage", "word_lookup_usage",
         "action_usage", "confirmed_words", "users", "topic_sections",
-        "topics", "flashcards", "recall_answers", "recall_schedule", "visits"]
+        "topics", "flashcards", "recall_answers", "recall_schedule", "visits",
+        "aspect_pairs"]
     assert [s.target for s in steps] == [
         Table("anonymous_usage"), Table("text_generation_usage"),
         Table("word_lookup_usage"), Table("action_usage"),
         Table("confirmed_words"), Table("users"),
         Table("topic_sections"), Table("topics"), Table("flashcards"),
-        Table("recall_answers"), Table("recall_schedule"), Table("visits")]
+        Table("recall_answers"), Table("recall_schedule"), Table("visits"),
+        Table("aspect_pairs")]
 
 
 def test_every_foreign_key_target_is_created_before_the_table_needing_it(

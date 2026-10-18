@@ -399,6 +399,13 @@ def app_module(monkeypatch):
     # kuantorflow#598: the browser's check-in writes a `visits` row; nothing
     # recorded by default, test_visits.py records the calls.
     monkeypatch.setattr("utils.record_visit", lambda *a, **k: None, raising=False)
+    # kuantorflow#100: the aspect-pairs table and the Wiktionary lookup that
+    # fills it. Nothing stored and nothing asked by default; test_aspect_pairs
+    # sets its own.
+    monkeypatch.setattr("utils.aspect_partners", lambda lang, forms: {}, raising=False)
+    monkeypatch.setattr("utils.aspect_forms_checked", lambda lang, forms: set(), raising=False)
+    monkeypatch.setattr("utils.save_aspect_pairs", lambda lang, found: 0, raising=False)
+    monkeypatch.setattr("aspects.fetch_partners", lambda forms, lang, **kw: {}, raising=False)
     # kuantorflow#529: a review, and the front page's badge, read the words
     # answered today to put them back to their start-of-day dates. Nothing
     # answered today by default -- the review as it was before #529.
