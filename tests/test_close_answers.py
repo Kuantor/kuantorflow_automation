@@ -164,6 +164,23 @@ def test_red_is_wrong_with_the_models_note(quiz):
     assert "Wrong" in text and "a witness" in text
 
 
+def test_a_note_ending_in_a_full_stop_prints_no_double_stop(quiz, monkeypatch):
+    # kuantorflow#634: the model often ends its note with a stop, and the
+    # yellow line adds ". The card says" after it -- "someone.. The card".
+    notes = {"пригнічений": ("green", "A synonym."), "традиція": ("yellow", "Narrower."),
+             "свідок": ("red", "A witness, not a verdict.")}
+
+    def judge(language, items):
+        return {n: notes[i["answer"]] for n, i in enumerate(items) if i["answer"] in notes}
+    monkeypatch.setattr(answercheck, "judge", judge)
+
+    body = _post(quiz, a1="пригнічений", a2="традиція", a3="свідок")
+
+    for word in ("despondent", "heritage", "verdict"):
+        assert ".." not in _panel(body, word)[1], word
+    assert "Narrower. The card says" in _panel(body, "heritage")[1]
+
+
 def test_recall_counts_green_as_right_and_yellow_as_wrong(quiz):
     _post(quiz, a1="пригнічений", a2="традиція")
 
