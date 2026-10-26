@@ -39,7 +39,8 @@ RUNNABLE = ["apply_schema.py", "claim_flashcards.py", "claim_topics.py",
             "model_usage_report.py",
             "rebuild_schedule.py", "retopic.py", "seed_topics.py",
             "send_test_email.py", "daily_report.py",
-            "weekly_numbers.py", "fill_aspect_pairs.py"]
+            "weekly_numbers.py", "fill_aspect_pairs.py",
+            "check_topic_column.py"]
 
 
 def _tree(name):
