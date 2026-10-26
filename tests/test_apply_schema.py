@@ -15,7 +15,7 @@ import re
 import pytest
 
 import apply_schema
-from apply_schema import Column, Constraint, Index, Pending, Table
+from apply_schema import Column, Constraint, Index, Pending, Removed, Table
 
 CREATE_TABLE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)", re.I)
 # The table an ALTER names, then every clause it adds. Read as two steps rather
@@ -48,6 +48,8 @@ UNIQUE_KEY = re.compile(r"UNIQUE\s+KEY\s+(\w+)\s*\(", re.I)
 
 # Dropping an index: creates nothing, and takes one away.
 DROP_INDEX = re.compile(r"ALTER\s+TABLE\s+(\w+)\s+DROP\s+INDEX\s+(\w+)", re.I)
+# Dropping a column (kuantorflow#210): the same, one level up.
+DROP_COLUMN = re.compile(r"ALTER\s+TABLE\s+(\w+)\s+DROP\s+COLUMN\s+(\w+)", re.I)
 
 # Which table a probe reads, and the columns it names. Enough to tell a probe
 # that cannot run yet from one that simply finds nothing left to do.
@@ -96,7 +98,7 @@ def objects_created_by(sql):
             return added
     if MOVES_DATA.match(sql):
         return set()
-    if DROP_INDEX.match(sql):
+    if DROP_INDEX.match(sql) or DROP_COLUMN.match(sql):
         return set()
     raise AssertionError(f"the fake database does not understand: {sql}")
 
@@ -110,7 +112,10 @@ def objects_removed_by(sql):
     the drop as a creation.
     """
     match = DROP_INDEX.match(sql)
-    return {Index(match.group(1), match.group(2))} if match else set()
+    if match:
+        return {Index(match.group(1), match.group(2))}
+    match = DROP_COLUMN.match(sql)
+    return {Column(match.group(1), match.group(2))} if match else set()
 
 
 class FakeDatabase:
@@ -365,6 +370,14 @@ def test_every_migration_names_the_object_its_sql_creates():
     for step in apply_schema.MIGRATIONS:
         if isinstance(step.target, Pending):
             continue        # nothing to name — see the data-step tests below
+        if isinstance(step.target, Removed):
+            # kuantorflow#210: a removal names what its SQL takes away.
+            removed = set()
+            for statement in step.statements:
+                removed |= objects_removed_by(statement)
+            assert step.target.target in removed, \
+                f"{step.name} does not remove {step.target.target}"
+            continue
         created = set()
         for statement in step.statements:
             created |= objects_created_by(statement)
@@ -506,7 +519,9 @@ def test_the_backfill_is_skipped_once_the_rows_are_linked(schema_sql, capsys):
     db = FakeDatabase(_migrated_objects(), unmigrated=False)
     apply_schema.run(list(apply_schema.MIGRATIONS), apply_schema.Schema(db), db)
     assert "= flashcards.topic_id backfill" in capsys.readouterr().out
-    assert db.executed == []
+    # Linked, but still holding the string: since kuantorflow#210 dropping it
+    # is the one thing left to do, and the backfill itself does nothing.
+    assert db.executed == ["ALTER TABLE flashcards DROP COLUMN topic"]
 
 
 # --- running ------------------------------------------------------------
@@ -603,8 +618,10 @@ def test_an_interrupted_backfill_is_finished_by_the_next_run():
     db = FakeDatabase(_migrated_objects(), unmigrated=True)
     applied, _ = apply_schema.run(
         apply_schema.MIGRATIONS, apply_schema.Schema(db), db)
-    assert applied == len(_data_steps()), \
-        "every object existed, so only the data steps were outstanding"
+    # Plus kuantorflow#210's drop: the string still existed, and once the
+    # backfill had linked every card the guard let it go.
+    assert applied == len(_data_steps()) + 1, \
+        "every object existed, so only the data steps and the drop were outstanding"
     assert db.executed, "and they actually ran"
     assert not _outstanding(db)
 
@@ -677,6 +694,111 @@ def test_main_dry_run_leaves_the_database_alone(monkeypatch, capsys):
     assert apply_schema.main(["--dry-run"]) == 0
     assert "pending" in capsys.readouterr().out
     assert db.executed == []
+
+
+# --- removals (kuantorflow#210) ----------------------------------------
+#
+# Dropping `flashcards.topic` is the first step whose job is to take something
+# away, and the existence check every other step uses is exactly backwards for
+# it: "the column is there" must mean *do it*, not *skip*. `Removed(...)`
+# inverts the question. And a drop cannot be undone by redeploying old code,
+# so it carries a guard: it refuses while any card's string is its only topic.
+
+
+def _removal():
+    return _step("flashcards.topic drop")
+
+
+def test_the_topic_string_is_dropped_by_the_last_step():
+    step = apply_schema.MIGRATIONS[-1]
+    assert step is _removal()
+    assert isinstance(step.target, Removed)
+    assert step.target.target == Column("flashcards", "topic")
+    assert step.statements == ("ALTER TABLE flashcards DROP COLUMN topic",)
+
+
+def test_a_removal_runs_while_the_object_is_there_and_never_again(capsys):
+    db = FakeDatabase(_migrated_objects())
+
+    assert apply_schema.run([_removal()], apply_schema.Schema(db), db) == (1, 0)
+    assert Column("flashcards", "topic") not in db.objects
+    assert db.executed == ["ALTER TABLE flashcards DROP COLUMN topic"]
+
+    assert apply_schema.run([_removal()], apply_schema.Schema(db), db) == (0, 1)
+    assert db.executed == ["ALTER TABLE flashcards DROP COLUMN topic"]
+    assert "= flashcards.topic drop" in capsys.readouterr().out
+
+
+def test_a_removal_is_refused_while_a_card_would_lose_its_topic():
+    # `unmigrated`: cards still have a topic string and no topic_id.
+    db = FakeDatabase(_migrated_objects(), unmigrated=True)
+
+    with pytest.raises(apply_schema.StepFailed) as refused:
+        apply_schema.run([_removal()], apply_schema.Schema(db), db)
+
+    assert "lose" in str(refused.value)
+    assert Column("flashcards", "topic") in db.objects
+    assert db.executed == []
+
+
+def test_the_guard_asks_about_cards_whose_string_is_their_only_topic():
+    guard = _removal().target.guard
+    assert "topic_id IS NULL" in guard and "topic <> ''" in guard
+
+
+def test_a_dry_run_reports_the_drop_and_keeps_the_column(capsys):
+    db = FakeDatabase(_migrated_objects())
+
+    apply_schema.run([_removal()], apply_schema.Schema(db), db, dry_run=True)
+
+    assert "~ flashcards.topic drop" in capsys.readouterr().out
+    assert Column("flashcards", "topic") in db.objects and db.executed == []
+
+
+def test_a_dry_run_says_when_the_drop_would_be_refused(capsys):
+    db = FakeDatabase(_migrated_objects(), unmigrated=True)
+
+    apply_schema.run([_removal()], apply_schema.Schema(db), db, dry_run=True)
+
+    assert "refused" in capsys.readouterr().out
+    assert db.executed == []
+
+
+def test_the_backfill_is_done_once_its_source_column_is_gone():
+    # After the drop the backfill's probe names a column that no longer
+    # exists. A failing probe reads as *pending* (see Pending) -- so without
+    # this, every run after #210 would try the backfill and fail on it, and so
+    # would every fresh database built from schema.sql.
+    db = FakeDatabase(_migrated_objects() - {Column("flashcards", "topic")},
+                      unmigrated=True)
+
+    assert apply_schema.Schema(db).exists(_backfill().target)
+    assert apply_schema.run([_backfill()], apply_schema.Schema(db), db) == (0, 1)
+    assert db.executed == []
+
+
+def test_schema_sql_no_longer_creates_the_string_or_its_index(schema_sql):
+    created = set()
+    for statement in apply_schema.parse_statements(schema_sql):
+        created |= objects_created_by(statement)
+
+    assert Column("flashcards", "topic") not in created
+    assert Index("flashcards", "idx_topic") not in created
+    assert Column("flashcards", "topic_id") in created
+
+
+def test_an_old_database_is_backfilled_before_the_string_is_dropped(capsys):
+    # Pre-#207: the string is every card's only topic. One run must link them
+    # all and only then drop the string -- the order is the whole safety.
+    db = FakeDatabase(_pre_207_objects(), unmigrated=True)
+
+    apply_schema.run(list(apply_schema.MIGRATIONS), apply_schema.Schema(db), db)
+
+    executed = db.executed
+    backfill = next(i for i, s in enumerate(executed) if s.startswith("UPDATE flashcards"))
+    drop = executed.index("ALTER TABLE flashcards DROP COLUMN topic")
+    assert backfill < drop
+    assert Column("flashcards", "topic") not in db.objects
 
 
 # --- helpers ------------------------------------------------------------

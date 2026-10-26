@@ -60,22 +60,27 @@ def test_only_the_cases_that_lose_data_block_the_drop(check):
 
 
 class _Cursor:
-    def __init__(self, rows):
-        self.rows, self.sql = rows, []
+    def __init__(self, rows, has_column=True):
+        self.rows, self.sql, self.has_column = rows, [], has_column
+        self._answer = []
 
     def execute(self, sql, params=()):
         self.sql.append(sql)
+        if "information_schema" in sql:
+            self._answer = [(1,)] if self.has_column else []
+        else:
+            self._answer = list(self.rows)
 
     def fetchall(self):
-        return list(self.rows)
+        return list(self._answer)
 
     def close(self):
         pass
 
 
 class _Conn:
-    def __init__(self, rows):
-        self.cur = _Cursor(rows)
+    def __init__(self, rows, has_column=True):
+        self.cur = _Cursor(rows, has_column)
 
     def cursor(self):
         return self.cur
@@ -84,8 +89,8 @@ class _Conn:
         pass
 
 
-def _run(check, monkeypatch, capsys, rows, *argv):
-    conn = _Conn(rows)
+def _run(check, monkeypatch, capsys, rows, *argv, has_column=True):
+    conn = _Conn(rows, has_column)
     monkeypatch.setattr(check, "get_db_connection", lambda: conn)
     code = check.main(list(argv))
     return code, capsys.readouterr().out, conn.cur.sql
@@ -126,3 +131,13 @@ def test_it_prints_only_ascii(check, monkeypatch, capsys):
     _code, out, _sql = _run(check, monkeypatch, capsys, rows)
 
     assert out.isascii()
+
+
+def test_after_the_drop_it_says_so_instead_of_failing(check, monkeypatch, capsys):
+    # kuantorflow#210 drops the column; the check is then simply done, and
+    # must not crash on a column that no longer exists.
+    code, out, sql = _run(check, monkeypatch, capsys, ROWS, has_column=False)
+
+    assert code == 0
+    assert "already gone" in out
+    assert not any("flashcards f LEFT JOIN" in s for s in sql), "it asked about the column first"

@@ -49,7 +49,8 @@ def get_db_connection():
 def find_duplicates(cursor):
     """[(kept_row, [duplicate_rows...])] — rows are (id, word, pos, topic)."""
     cursor.execute(
-        "SELECT id, word, pos, topic FROM flashcards ORDER BY id"
+        "SELECT f.id, f.word, f.pos, t.name FROM flashcards f "
+        "LEFT JOIN topics t ON t.id = f.topic_id ORDER BY f.id"
     )
     groups = {}  # (word.lower(), pos) -> [rows in id order]
     for row in cursor.fetchall():

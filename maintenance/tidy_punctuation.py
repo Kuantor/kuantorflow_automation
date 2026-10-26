@@ -85,8 +85,11 @@ def cards(topic=None, section=None):
     """Every card's readable text, narrowed by topic or section if asked."""
     from utils import get_db_connection
 
-    columns = ", ".join("f." + name for name in
-                        ("id", "word", "pos", "topic") + TEXT_FIELDS + LIST_FIELDS)
+    # The topic's name comes through topic_id (kuantorflow#210 dropped the
+    # string), under the same key the rest of this script reads.
+    columns = ", ".join(["f." + name for name in
+                         ("id", "word", "pos") + TEXT_FIELDS + LIST_FIELDS]
+                        + ["t.name AS topic"])
     sql = ["SELECT " + columns + " FROM flashcards f"
            " LEFT JOIN topics t ON t.id = f.topic_id"
            " LEFT JOIN topic_sections s ON s.id = t.section_id"]
@@ -94,7 +97,7 @@ def cards(topic=None, section=None):
     if topic or section:
         sql.append("WHERE 1 = 1")
     if topic:
-        sql.append("AND f.topic = %s")
+        sql.append("AND t.name = %s")
         params.append(topic)
     if section:
         sql.append("AND s.name = %s")

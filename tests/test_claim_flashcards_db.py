@@ -144,11 +144,11 @@ def deck(monkeypatch):
         "SELECT 12, 'Work and careers', 1, 1, 0, id FROM topic_sections "
         "WHERE name <> 'Other' LIMIT 1",
         # Nobody's, Anton's, Olena's, and one in the other section.
-        "INSERT INTO flashcards (word, topic, topic_id, added_by_user_id) VALUES "
-        "('orphan', 'general', 10, NULL),"
-        "('mine', 'general', 10, 1),"
-        "('hers', 'Travel', 11, 2),"
-        "('elsewhere', 'Work and careers', 12, NULL)",
+        "INSERT INTO flashcards (word, topic_id, added_by_user_id) VALUES "
+        "('orphan', 10, NULL),"
+        "('mine', 10, 1),"
+        "('hers', 11, 2),"
+        "('elsewhere', 12, NULL)",
     ])
 
     sys.path.insert(0, str(KUANTORFLOW_PATH))

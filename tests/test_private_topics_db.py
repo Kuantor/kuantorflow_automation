@@ -130,11 +130,11 @@ def deck(monkeypatch):
         "INSERT INTO topics (id, name, created_by_user_id, is_public, namespace,"
         "                    section_id) "
         "SELECT 13, 'Travel', 2, 1, 0, id FROM topic_sections WHERE name='Other'",
-        "INSERT INTO flashcards (word, topic, topic_id, added_by_user_id) VALUES "
-        "('shared', 'Work', 10, 1),"
-        "('secret', 'Work', 11, 1),"
-        "('journal', 'Diary', 12, 1),"
-        "('abroad', 'Travel', 13, 2)",
+        "INSERT INTO flashcards (word, topic_id, added_by_user_id) VALUES "
+        "('shared', 10, 1),"
+        "('secret', 11, 1),"
+        "('journal', 12, 1),"
+        "('abroad', 13, 2)",
     ])
 
     sys.path.insert(0, str(KUANTORFLOW_PATH))
@@ -313,8 +313,8 @@ def test_making_a_topic_private_writes_both_columns(deck):
 
 @requires_local_db
 def test_it_is_refused_when_the_topic_holds_other_peoples_cards(deck):
-    _execute(["INSERT INTO flashcards (word, topic, topic_id, added_by_user_id)"
-              " VALUES ('borrowed', 'Travel', 13, 1)"])
+    _execute(["INSERT INTO flashcards (word, topic_id, added_by_user_id)"
+              " VALUES ('borrowed', 13, 1)"])
 
     assert deck.set_topic_visibility(13, False, viewer_id=OLENA) == "shared"
     assert deck.resolve_topic("Travel", viewer_id=OLENA)["is_public"] is True
@@ -323,8 +323,8 @@ def test_it_is_refused_when_the_topic_holds_other_peoples_cards(deck):
 @requires_local_db
 def test_an_unowned_card_counts_as_somebody_elses(deck):
     """The seeded deck (#203) is unowned and shared by construction."""
-    _execute(["INSERT INTO flashcards (word, topic, topic_id) "
-              "VALUES ('seeded', 'Travel', 13)"])
+    _execute(["INSERT INTO flashcards (word, topic_id) "
+              "VALUES ('seeded', 13)"])
 
     assert deck.set_topic_visibility(13, False, viewer_id=OLENA) == "shared"
 

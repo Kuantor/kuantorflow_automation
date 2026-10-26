@@ -110,22 +110,25 @@ def _topics():
 
 
 def _cards():
-    """`{card id: (topic_id, topic string)}` -- both columns, which is the point.
+    """`{card id: (topic_id, topic name)}`, the name read through the id --
+    the only copy since kuantorflow#210 dropped the string.
 
     Keyed by **id**, not by the word: the fixture holds `plum` as a noun in two
     different topics on purpose, because that is the collision case, so any key
     built from the card's content silently drops one of them.
     """
     return {cid: (tid, name) for cid, tid, name
-            in _rows("SELECT id, topic_id, topic FROM flashcards")}
+            in _rows("SELECT f.id, f.topic_id, t.name FROM flashcards f "
+                     "LEFT JOIN topics t ON t.id = f.topic_id")}
 
 
 def _in_topic(topic_id):
-    """`{(word, pos): topic string}` for one topic, which is unique within it —
+    """`{(word, pos): topic name}` for one topic, which is unique within it —
     #101's whole rule."""
     return {(w, pos): name for w, pos, name in _rows(
-        "SELECT word, pos, topic FROM flashcards "
-        f"WHERE topic_id = {topic_id}")}
+        "SELECT f.word, f.pos, t.name FROM flashcards f "
+        "JOIN topics t ON t.id = f.topic_id "
+        f"WHERE f.topic_id = {topic_id}")}
 
 
 @pytest.fixture()
@@ -158,18 +161,18 @@ def deck(monkeypatch, tmp_path):
     ])
     ids = _topics()
     _execute([
-        "INSERT INTO flashcards (word, pos, topic, topic_id, added_by_user_id) "
+        "INSERT INTO flashcards (word, pos, topic_id, added_by_user_id) "
         "VALUES "
-        f"('apple', 'noun', 'alpha', {ids['alpha']}, 1),"
-        f"('pear',  'noun', 'alpha', {ids['alpha']}, 1),"
-        f"('plum',  'noun', 'Beta',  {ids['Beta']},  1),"
-        f"('plum',  'verb', 'gamma', {ids['gamma']}, 1),"
-        f"('quince','noun', 'delta', {ids['delta']}, 1)",
+        f"('apple', 'noun', {ids['alpha']}, 1),"
+        f"('pear',  'noun', {ids['alpha']}, 1),"
+        f"('plum',  'noun', {ids['Beta']},  1),"
+        f"('plum',  'verb', {ids['gamma']}, 1),"
+        f"('quince','noun', {ids['delta']}, 1)",
     ])
     # gamma's second card is the collision: same word AND part of speech.
     _execute([
-        "INSERT INTO flashcards (word, pos, topic, topic_id, added_by_user_id) "
-        f"VALUES ('plum', 'noun', 'gamma', {ids['gamma']}, 1)",
+        "INSERT INTO flashcards (word, pos, topic_id, added_by_user_id) "
+        f"VALUES ('plum', 'noun', {ids['gamma']}, 1)",
     ])
 
     sys.path.insert(0, str(KUANTORFLOW_PATH))
@@ -189,13 +192,11 @@ def _quiet(_line):
 # --- the merge --------------------------------------------------------------
 
 @requires_local_db
-def test_a_merge_moves_both_columns(deck):
-    """The half that is easy to leave out, and invisible if you do (#207).
-
-    Every page renders from `topic_id`, so a merge that moved only the id looks
-    perfect in the browser -- and ai_agent's `cards_db` reads `flashcards.topic`,
-    so Mykola would go on naming a topic that no longer exists.
-    """
+def test_a_merge_moves_every_card_to_the_destination(deck):
+    """Until kuantorflow#210 a merge also had to rewrite the `flashcards.topic`
+    string beside the id, the half that was easy to leave out. The string is
+    gone, so the id is the whole of the move, and the name read through it is
+    the destination's."""
     before = _topics()
 
     deck.run([deck.Merge("alpha", "Beta")], out=_quiet)
@@ -216,14 +217,16 @@ def test_the_emptied_source_row_is_deleted(deck):
 
 
 @requires_local_db
-def test_a_rename_rewrites_the_string_on_every_card(deck):
+def test_a_rename_reaches_every_card_through_the_one_row(deck):
+    """One UPDATE of `topics` since kuantorflow#210: every card reads the new
+    name through its id, and a same-named card elsewhere is untouched."""
     beta = _topics()["Beta"]
 
     deck.run([deck.Rename("Beta", "Beta and friends")], out=_quiet)
 
     assert set(_in_topic(beta).values()) == {"Beta and friends"}
     assert "Beta and friends" in _topics()
-    # gamma holds `plum` as a noun too, and its string must not have moved.
+    # gamma holds `plum` as a noun too, and its topic must not have moved.
     assert set(_in_topic(_topics()["gamma"]).values()) == {"gamma"}
 
 

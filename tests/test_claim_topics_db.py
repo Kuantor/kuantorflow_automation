@@ -221,8 +221,8 @@ def test_a_claimed_topic_can_then_be_hidden(deck):
     cards is refused for a different reason (`shared`), and this test is about
     the creator rather than the cards.
     """
-    _execute(["INSERT INTO flashcards (word, topic, topic_id, added_by_user_id) "
-              "SELECT 'resilient', 'general', id, 1 FROM topics "
+    _execute(["INSERT INTO flashcards (word, topic_id, added_by_user_id) "
+              "SELECT 'resilient', id, 1 FROM topics "
               "WHERE name = 'general'"])
     conn = _connect(SCRATCH_DB)
     cursor = conn.cursor()

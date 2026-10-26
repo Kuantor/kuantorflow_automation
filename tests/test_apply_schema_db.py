@@ -98,23 +98,31 @@ def _connect(database=None):
 
 
 def _execute(statements, database=None):
+    # Closed in `finally` (kuantorflow#210): a statement that failed left this
+    # connection open, holding its lock on the table it touched, and pytest kept
+    # it alive in the saved traceback -- so the fixture's DROP DATABASE waited
+    # on it for ever and the whole tier hung instead of reporting the failure.
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 def _query(sql, params=(), database=SCRATCH_DB):
     conn = _connect(database)
-    cursor = conn.cursor()
-    cursor.execute(sql, params)
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return rows
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
+    finally:
+        conn.close()
 
 
 def _apply(*args):
@@ -151,10 +159,32 @@ def _rewind_to_pre_207():
     TABLE here: a stale copy would drift from the app's real history and quietly
     stop testing the migration that matters. Dropping the column takes its index
     with it.
+
+    And the `topic` string comes **back** (kuantorflow#210): schema.sql no
+    longer has it, but a database from before #207 held every card's topic in
+    it and nowhere else.
     """
     _execute(["ALTER TABLE flashcards DROP FOREIGN KEY fk_flashcards_topic",
               "ALTER TABLE flashcards DROP COLUMN topic_id",
+              "ALTER TABLE flashcards ADD COLUMN topic VARCHAR(255) "
+              "AFTER examples_rus, ADD INDEX idx_topic (topic)",
               "DROP TABLE topics"], SCRATCH_DB)
+
+
+def _rewind_to_pre_210():
+    """A database after #207 and before #210: linked, still holding the string.
+
+    The state production was in on the day #210 was deployed: every card has a
+    topic_id, and the string beside it holds the same name.
+    """
+    _execute(["ALTER TABLE flashcards ADD COLUMN topic VARCHAR(255) "
+              "AFTER examples_rus, ADD INDEX idx_topic (topic)"], SCRATCH_DB)
+
+
+def _topics_by_word():
+    """{word: its topic's name, or None}, read through topic_id."""
+    return dict(_query("SELECT f.word, t.name FROM flashcards f "
+                       "LEFT JOIN topics t ON t.id = f.topic_id"))
 
 
 def _rewind_to_pre_215():
@@ -327,8 +357,12 @@ def test_the_backfill_creates_one_topic_per_name_and_links_every_card(scratch_db
 
     assert sorted(r[0] for r in _query("SELECT name FROM topics")) == \
         ["emotions", "vocab"]
-    assert _query("SELECT COUNT(*) FROM flashcards WHERE topic IS NOT NULL "
-                  "AND topic <> '' AND topic_id IS NULL") == [(0,)]
+    # Every card that had a topic points at it -- read through the id, since
+    # the same run then drops the string (kuantorflow#210).
+    assert _topics_by_word() == {"brittle": "vocab", "resilient": "vocab",
+                                 "nosy": "emotions", "orphan": None,
+                                 "stray": None}
+    assert "topic" not in _columns()
     assert _query("SELECT COUNT(*) FROM topics WHERE name = ''") == [(0,)]
     assert sorted(_query(
         "SELECT word, topic_id FROM flashcards WHERE topic_id IS NULL")) == \
@@ -402,11 +436,11 @@ def test_case_variant_topics_become_one_row_and_one_spelling(scratch_db):
 
     assert _query("SELECT COUNT(*) FROM topics") == [(1,)]
     assert _query("SELECT COUNT(DISTINCT topic_id) FROM flashcards") == [(1,)]
-    # Every card spells it exactly as the row does — the invariant that keeps
-    # ai_agent, which still reads the string, agreeing with the app.
-    assert _query("SELECT COUNT(*) FROM flashcards f JOIN topics t "
-                  "ON f.topic_id = t.id "
-                  "WHERE f.topic <> t.name COLLATE utf8mb4_bin") == [(0,)]
+    # One spelling, held once: since kuantorflow#210 the row's name is the only
+    # copy, so every card shows it exactly as the row does.
+    assert set(_topics_by_word().values()) == {
+        _query("SELECT name FROM topics")[0][0]}
+    assert "topic" not in _columns()
 
 
 @requires_local_db
@@ -417,14 +451,19 @@ def test_an_interrupted_backfill_is_finished_by_the_next_run(scratch_db):
     died halfway is to run it again.
     """
     _apply()
-    _rewind_to_pre_207()
-    _execute(["INSERT INTO flashcards (word, topic) VALUES ('brittle', 'vocab')"],
-             SCRATCH_DB)
-    assert _apply().returncode == 0
-
-    # A card arriving as if the run had stopped before reaching it.
-    _execute(["INSERT INTO flashcards (word, topic, topic_id) "
-              "VALUES ('afterwards', 'vocab', NULL)"], SCRATCH_DB)
+    # A run that stopped halfway: 'vocab' exists and its first card is linked,
+    # and one card was never reached. Built by hand on a #210-era database
+    # rather than by a first run, because a whole run now ends by dropping the
+    # string (kuantorflow#210) and would leave nothing to interrupt.
+    _rewind_to_pre_210()
+    _execute([
+        "INSERT INTO topics (name, section_id) "
+        "SELECT 'vocab', id FROM topic_sections WHERE name = 'Other'",
+        "INSERT INTO flashcards (word, topic, topic_id) "
+        "SELECT 'brittle', 'vocab', id FROM topics WHERE name = 'vocab'",
+        "INSERT INTO flashcards (word, topic, topic_id) "
+        "VALUES ('afterwards', 'vocab', NULL)",
+    ], SCRATCH_DB)
 
     result = _apply()
     assert result.returncode == 0, result.stderr
@@ -627,3 +666,71 @@ def test_a_broken_migration_exits_non_zero(scratch_db):
     result = _apply()
     assert result.returncode == 1
     assert "fk_flashcards_user failed" in result.stderr
+
+
+# --- #210: the topic string is dropped -----------------------------------
+
+
+def _flashcards_indexes():
+    return {r[0] for r in _query(
+        "SELECT INDEX_NAME FROM information_schema.STATISTICS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'flashcards'")}
+
+
+@requires_local_db
+def test_a_dry_run_reports_the_drop_and_keeps_the_column(scratch_db):
+    _apply()
+    _rewind_to_pre_210()
+
+    result = _apply("--dry-run")
+
+    assert result.returncode == 0, result.stderr
+    assert "~ flashcards.topic drop" in result.stdout
+    assert "topic" in _columns(), "--dry-run changed the database"
+
+
+@requires_local_db
+def test_the_string_and_its_index_go_and_a_second_run_has_nothing_to_do(scratch_db):
+    _apply()
+    fresh_columns = _columns()
+    _rewind_to_pre_210()
+    _execute([
+        "INSERT INTO topics (name, section_id) "
+        "SELECT 'vocab', id FROM topic_sections WHERE name = 'Other'",
+        "INSERT INTO flashcards (word, topic, topic_id) "
+        "SELECT 'brittle', 'vocab', id FROM topics WHERE name = 'vocab'",
+    ], SCRATCH_DB)
+
+    result = _apply()
+
+    assert result.returncode == 0, result.stderr
+    assert "+ flashcards.topic drop" in result.stdout
+    assert _columns() == fresh_columns, \
+        "a migrated database has exactly the columns of a fresh one"
+    assert "idx_topic" not in _flashcards_indexes()
+    assert "idx_topic_id" in _flashcards_indexes()
+    assert _topics_by_word() == {"brittle": "vocab"}, "the card kept its topic"
+
+    again = _apply()
+    assert again.returncode == 0 and "nothing to do" in again.stdout
+
+
+@requires_local_db
+def test_the_guard_finds_a_card_whose_string_is_its_only_topic(scratch_db):
+    """In a full run the backfill links such a card first, so the guard is the
+    second line; asked directly, its SQL must see one on real MySQL."""
+    import apply_schema
+
+    _apply()
+    _rewind_to_pre_210()
+    step = apply_schema.MIGRATIONS[-1]
+    conn = _connect(SCRATCH_DB)
+    try:
+        assert apply_schema.Schema(conn).blocked(step.target) is None
+        conn.commit()
+        _execute(["INSERT INTO flashcards (word, topic) VALUES ('orphan', 'lost')"],
+                 SCRATCH_DB)
+        assert apply_schema.Schema(conn).blocked(step.target)
+    finally:
+        conn.rollback()
+        conn.close()

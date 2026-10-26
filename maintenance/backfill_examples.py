@@ -64,14 +64,14 @@ def cards_missing_examples(topic=None, section=None):
     """
     from utils import get_db_connection
 
-    sql = ["""SELECT f.id, f.word, f.pos, f.topic
+    sql = ["""SELECT f.id, f.word, f.pos, t.name AS topic
                 FROM flashcards f
                 LEFT JOIN topics t ON t.id = f.topic_id
                 LEFT JOIN topic_sections s ON s.id = t.section_id
                WHERE (f.examples_en IS NULL OR f.examples_en IN ('', '[]'))"""]
     params = []
     if topic:
-        sql.append("AND f.topic = %s")
+        sql.append("AND t.name = %s")
         params.append(topic)
     if section:
         sql.append("AND s.name = %s")
