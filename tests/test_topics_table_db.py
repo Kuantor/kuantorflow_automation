@@ -147,8 +147,9 @@ def test_a_second_save_reuses_the_row_and_leaves_its_creator_alone(topics_db):
 
 @requires_local_db
 def test_the_card_stores_the_rows_spelling_not_the_one_submitted(topics_db):
-    """`flashcards.topic` is still read by ai_agent, so it must not drift from
-    the row `topic_id` points at."""
+    """A submitted spelling never becomes a second spelling: both cards point
+    at the one row, and since kuantorflow#210 that row's name is the only copy
+    of it there is."""
     import utils
 
     utils.save_flashcard({"word": "sustainable", "topic": "Environment"},
@@ -156,11 +157,10 @@ def test_the_card_stores_the_rows_spelling_not_the_one_submitted(topics_db):
     utils.save_flashcard({"word": "offset", "topic": "eNvIrOnMeNt"},
                          added_by_user_id=7)
 
-    assert sorted(_query("SELECT topic FROM flashcards")) == \
+    assert sorted(_query("SELECT t.name FROM flashcards f JOIN topics t "
+                         "ON f.topic_id = t.id")) == \
         [("Environment",), ("Environment",)]
-    assert _query("SELECT COUNT(*) FROM flashcards f JOIN topics t "
-                  "ON f.topic_id = t.id "
-                  "WHERE f.topic <> t.name COLLATE utf8mb4_bin") == [(0,)]
+    assert _query("SELECT COUNT(*) FROM topics") == [(1,)]
 
 
 @requires_local_db
@@ -384,3 +384,41 @@ def test_selecting_nothing_returns_nothing_from_a_full_database(topics_db):
                          added_by_user_id=7)
 
     assert utils.get_flashcards_by_topics([]) == []
+
+
+# --- #210: readers of a card's topic, with no string column ----------------
+#
+# These read a card's topic *name*. Until kuantorflow#210 they read the
+# `flashcards.topic` string; now they join topics. The offline fakes agree with
+# any clause, so only a database that really lacks the column can tell.
+
+
+@requires_local_db
+def test_the_duplicate_names_the_topic_the_blocking_card_is_in(topics_db):
+    import utils
+
+    utils.save_flashcard({"word": "sustainable", "pos": "adjective",
+                          "topic": "Environment"}, added_by_user_id=7)
+
+    assert "topic" not in [r[0] for r in _query(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'flashcards'")]
+    assert utils.duplicate_topic("sustainable", "adjective") == "Environment"
+    assert utils.duplicate_topic("nowhere", "noun") is None
+
+
+@requires_local_db
+def test_the_wrong_alphabet_report_names_each_cards_topic(topics_db, capsys):
+    import utils
+    import find_bad_translations
+
+    # A Latin "e" hidden in a Ukrainian word: what #544's report exists to find.
+    utils.save_flashcard({"word": "exuberant", "pos": "adjective",
+                          "topic": "Character",
+                          "translation_ukr": "\u0435\u043a\u0437\u0443\u0431e\u0440\u0430\u043d\u0442\u043d\u0438\u0439"},
+                         added_by_user_id=7)
+
+    find_bad_translations.main([])
+
+    out = capsys.readouterr().out
+    assert "exuberant" in out and "Character" in out

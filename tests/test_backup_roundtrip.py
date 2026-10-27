@@ -102,7 +102,9 @@ def test_deleted_card_reappears_after_restore():
         conn = _connect()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO flashcards (word, pos, topic) VALUES (%s, 'noun', 'roundtrip-test')",
+            # No topic: kuantorflow#210 dropped the string column, and the
+            # sentinel needs none to be deleted and restored.
+            "INSERT INTO flashcards (word, pos) VALUES (%s, 'noun')",
             (SENTINEL,),
         )
         conn.commit()

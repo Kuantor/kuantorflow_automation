@@ -82,11 +82,12 @@ def misfiled_cards():
     try:
         cursor = conn.cursor(dictionary=True)
         cursor.execute(
-            """SELECT id, word, pos, topic, explanation_en,
-                      translation_ukr, translation_rus
-                 FROM flashcards
-                WHERE explanation_en REGEXP '[Ѐ-ӿ]'
-                ORDER BY id""")
+            """SELECT f.id, f.word, f.pos, t.name AS topic, f.explanation_en,
+                      f.translation_ukr, f.translation_rus
+                 FROM flashcards f
+                 LEFT JOIN topics t ON t.id = f.topic_id
+                WHERE f.explanation_en REGEXP '[Ѐ-ӿ]'
+                ORDER BY f.id""")
         rows = cursor.fetchall()
         cursor.close()
         return rows

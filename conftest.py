@@ -487,7 +487,9 @@ class FakeCardCursor:
         # as a section id.
         if "FROM topic_sections WHERE name" in self._last:
             return (self.section_id,) if self.section_id is not None else None
-        if "FROM flashcards WHERE id" in self._last:
+        # The card's own row. Since kuantorflow#210 the move reads it joined to
+        # topics, for the topic's name (`... WHERE f.id = %s`).
+        if "FROM flashcards WHERE id" in self._last or "WHERE f.id =" in self._last:
             return self.card
         return self.duplicate       # the word+pos duplicate check
 

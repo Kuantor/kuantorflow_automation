@@ -52,16 +52,15 @@ def test_the_card_is_moved_and_its_old_topic_reported(monkeypatch):
     assert conn.committed
 
 
-def test_both_topic_columns_are_written(monkeypatch):
-    """Nothing else about the card changes — but the name travels alongside the
-    id for as long as `flashcards.topic` is still read (kuantorflow#207)."""
+def test_only_the_topic_id_is_written(monkeypatch):
+    """Nothing else about the card changes. Until kuantorflow#210 the name was
+    written beside the id, for as long as `flashcards.topic` was read; the
+    string is gone, so the move writes the id and nothing else."""
     cursor, _ = _db(monkeypatch)
     utils.move_flashcard(5, "character", owner_id=TEST_USER_ID)
     query, params = _update(cursor)
-    assert query.split("WHERE")[0].strip() == \
-        "UPDATE flashcards SET topic = %s, topic_id = %s"
-    assert params[0] == "character"
-    assert params[1] == cursor.topic_id
+    assert query.split("WHERE")[0].strip() == "UPDATE flashcards SET topic_id = %s"
+    assert params[0] == cursor.topic_id
 
 
 def test_the_destination_topic_is_created_when_it_is_new(monkeypatch):
@@ -79,16 +78,19 @@ def test_an_existing_topic_is_reused_not_recreated(monkeypatch):
     utils.move_flashcard(5, "character", owner_id=TEST_USER_ID)
     assert not any(q.startswith("INSERT INTO topics") for q, _ in cursor.queries)
     _, params = _update(cursor)
-    assert params[1] == 9
+    assert params[0] == 9
 
 
-def test_the_stored_name_is_the_topics_row_not_what_was_typed(monkeypatch):
-    """Names match case-insensitively, so the row's spelling wins — otherwise
-    `topic` and `topic_id` would disagree, and `topic` is what ai_agent reads."""
+def test_a_differently_spelt_name_reuses_the_existing_row(monkeypatch):
+    """Names match case-insensitively, so 'cHaRaCtEr' lands in 'Character'
+    rather than becoming a second topic. Until kuantorflow#210 this also
+    checked the stored string took the row's spelling; the row is now the only
+    place the name is stored."""
     cursor, _ = _db(monkeypatch, topic=(9, "Character"))
     utils.move_flashcard(5, "cHaRaCtEr", owner_id=TEST_USER_ID)
     _, params = _update(cursor)
-    assert params[0] == "Character"
+    assert params[0] == 9
+    assert not any(q.startswith("INSERT INTO topics") for q, _ in cursor.queries)
 
 
 def test_no_duplicate_check_is_made(monkeypatch):
@@ -141,7 +143,10 @@ def test_someone_elses_card_is_refused_before_a_topic_is_created(monkeypatch):
     """A move nobody is allowed to make must not leave a topic behind."""
     cursor, conn = _db(monkeypatch, topic=None)
     assert utils.move_flashcard(5, "character", owner_id=99) == ("denied", None)
-    assert not any("topics" in q for q, _ in cursor.queries)
+    # The card's own read joins topics for its name (kuantorflow#210); what
+    # must not happen is a topic being looked up or made for the move.
+    assert not any("topics" in q for q, _ in cursor.queries
+                   if "FROM flashcards f LEFT JOIN topics" not in q)
     assert not conn.committed
 
 
@@ -151,7 +156,10 @@ def test_an_anonymous_caller_is_refused(monkeypatch):
     cursor, conn = _db(monkeypatch, card=("resilient", "vocab", 1, None),
                        topic=None)
     assert utils.move_flashcard(5, "character", owner_id=None) == ("denied", None)
-    assert not any("topics" in q for q, _ in cursor.queries)
+    # The card's own read joins topics for its name (kuantorflow#210); what
+    # must not happen is a topic being looked up or made for the move.
+    assert not any("topics" in q for q, _ in cursor.queries
+                   if "FROM flashcards f LEFT JOIN topics" not in q)
     assert not conn.committed
 
 
