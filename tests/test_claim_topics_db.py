@@ -83,22 +83,26 @@ def _connect(database=None):
 
 def _execute(statements, database=SCRATCH_DB):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 def _creators():
     """`{topic name: created_by_user_id}` as the database now holds it."""
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, created_by_user_id FROM topics ORDER BY name")
-    rows = dict(cursor.fetchall())
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, created_by_user_id FROM topics ORDER BY name")
+        rows = dict(cursor.fetchall())
+        cursor.close()
+    finally:
+        conn.close()
     return rows
 
 
@@ -225,11 +229,13 @@ def test_a_claimed_topic_can_then_be_hidden(deck):
               "SELECT 'resilient', id, 1 FROM topics "
               "WHERE name = 'general'"])
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM topics WHERE name = 'general'")
-    topic_id = cursor.fetchone()[0]
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM topics WHERE name = 'general'")
+        topic_id = cursor.fetchone()[0]
+        cursor.close()
+    finally:
+        conn.close()
 
     assert deck.set_topic_visibility(topic_id, False, viewer_id=ANTON) \
         == "denied"

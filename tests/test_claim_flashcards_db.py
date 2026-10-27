@@ -83,32 +83,38 @@ def _connect(database=None):
 
 def _execute(statements, database=SCRATCH_DB):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 def _authors():
     """`{word: added_by_user_id}` as the database now holds it."""
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT word, added_by_user_id FROM flashcards ORDER BY word")
-    rows = dict(cursor.fetchall())
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT word, added_by_user_id FROM flashcards ORDER BY word")
+        rows = dict(cursor.fetchall())
+        cursor.close()
+    finally:
+        conn.close()
     return rows
 
 
 def _topic_id(name):
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM topics WHERE name = %s", (name,))
-    found = cursor.fetchone()[0]
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM topics WHERE name = %s", (name,))
+        found = cursor.fetchone()[0]
+        cursor.close()
+    finally:
+        conn.close()
     return found
 
 

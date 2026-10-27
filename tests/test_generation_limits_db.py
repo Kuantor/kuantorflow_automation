@@ -83,12 +83,14 @@ def _connect(database=None):
 
 def _execute(statements, database=None):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @pytest.fixture()
@@ -108,16 +110,18 @@ def scratch_db(monkeypatch):
 
 def _rows():
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    # `action_usage` since kuantorflow#447 -- see the note in
-    # test_word_lookup_cap_db.py. Both generation actions read together,
-    # projected back to `(user_id, used)`.
-    cursor.execute("SELECT user_id, used FROM action_usage "
-                   "WHERE day = CURDATE() AND action IN ('generate', 'generate:all') "
-                   "ORDER BY user_id")
-    found = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        # `action_usage` since kuantorflow#447 -- see the note in
+        # test_word_lookup_cap_db.py. Both generation actions read together,
+        # projected back to `(user_id, used)`.
+        cursor.execute("SELECT user_id, used FROM action_usage "
+                       "WHERE day = CURDATE() AND action IN ('generate', 'generate:all') "
+                       "ORDER BY user_id")
+        found = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
     return found
 
 

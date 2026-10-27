@@ -43,12 +43,14 @@ def _execute(statements):
     conn = mysql.connector.connect(
         user=os.environ.get("DB_USER", "kuantorflow"),
         password=os.environ["DB_PASSWORD"], host=os.environ["DB_HOST"])
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @pytest.fixture()
@@ -73,19 +75,21 @@ def test_visits_per_day_and_the_accounts(scratch_db):
 
     learner, _, _ = utils.upsert_user("sub-607", "learner@example.com")
     conn = utils.get_db_connection()
-    cursor = conn.cursor()
-    rows = [("a" * 16, None, "2026-10-12 08:00:00", 60, 2),
-            ("a" * 16, None, "2026-10-12 15:00:00", 30, 1),
-            ("b" * 16, learner, "2026-10-12 23:59:59", 90, 3),
-            ("c" * 16, None, "2026-10-13 00:00:00", 10, 1),
-            ("d" * 16, None, "2026-10-09 23:00:00", 999, 9)]
-    for visitor, user_id, started, seconds, pages in rows:
-        cursor.execute("INSERT INTO visits (visitor, user_id, started_at, last_seen_at, "
-                       "active_seconds, pages) VALUES (%s, %s, %s, %s, %s, %s)",
-                       (visitor, user_id, started, started, seconds, pages))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        rows = [("a" * 16, None, "2026-10-12 08:00:00", 60, 2),
+                ("a" * 16, None, "2026-10-12 15:00:00", 30, 1),
+                ("b" * 16, learner, "2026-10-12 23:59:59", 90, 3),
+                ("c" * 16, None, "2026-10-13 00:00:00", 10, 1),
+                ("d" * 16, None, "2026-10-09 23:00:00", 999, 9)]
+        for visitor, user_id, started, seconds, pages in rows:
+            cursor.execute("INSERT INTO visits (visitor, user_id, started_at, last_seen_at, "
+                           "active_seconds, pages) VALUES (%s, %s, %s, %s, %s, %s)",
+                           (visitor, user_id, started, started, seconds, pages))
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
     numbers = weekly_numbers.db_numbers("2026-10-10")
 

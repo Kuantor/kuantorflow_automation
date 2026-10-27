@@ -87,12 +87,14 @@ def _connect(database=None):
 
 def _execute(statements, database=None):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @pytest.fixture()
@@ -112,17 +114,19 @@ def scratch_db(monkeypatch):
 
 def _rows():
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    # `action_usage` since kuantorflow#447: one table, the action in a
-    # column. Both lookup actions are read together and projected back to
-    # `(user_id, used)`, so what these tests assert is unchanged -- the
-    # account rows carry a real id and the shared one is still row zero.
-    cursor.execute("SELECT user_id, used FROM action_usage "
-                   "WHERE day = CURDATE() AND action IN ('lookup', 'lookup:anon') "
-                   "ORDER BY user_id")
-    found = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        # `action_usage` since kuantorflow#447: one table, the action in a
+        # column. Both lookup actions are read together and projected back to
+        # `(user_id, used)`, so what these tests assert is unchanged -- the
+        # account rows carry a real id and the shared one is still row zero.
+        cursor.execute("SELECT user_id, used FROM action_usage "
+                       "WHERE day = CURDATE() AND action IN ('lookup', 'lookup:anon') "
+                       "ORDER BY user_id")
+        found = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
     return found
 
 

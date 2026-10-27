@@ -72,21 +72,25 @@ def _connect(database=None):
 
 def _execute(statements, database=SCRATCH_DB):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 def _query(sql, params=()):
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute(sql, params)
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
     return rows
 
 

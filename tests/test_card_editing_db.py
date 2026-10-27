@@ -66,12 +66,14 @@ def _connect(database=None):
 
 def _execute(statements, database=None):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @pytest.fixture()
@@ -105,10 +107,12 @@ def test_an_edit_leaves_created_at_alone(scratch_db):
     assert card_id, "the fixture database should be empty"
 
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT created_at FROM flashcards WHERE id = %s", (card_id,))
-    before = cursor.fetchone()[0]
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT created_at FROM flashcards WHERE id = %s", (card_id,))
+        before = cursor.fetchone()[0]
+    finally:
+        conn.close()
 
     time.sleep(1.1)          # a second of resolution, so a reset would show
     outcome, changed = utils.update_flashcard(
@@ -116,11 +120,13 @@ def test_an_edit_leaves_created_at_alone(scratch_db):
     assert (outcome, changed) == ("updated", ["explanation_en"])
 
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT created_at, explanation_en FROM flashcards WHERE id = %s",
-                   (card_id,))
-    after, explanation = cursor.fetchone()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT created_at, explanation_en FROM flashcards WHERE id = %s",
+                       (card_id,))
+        after, explanation = cursor.fetchone()
+    finally:
+        conn.close()
 
     assert explanation == "after", "the edit did land"
     assert after == before, "created_at must not move when a card is edited"
