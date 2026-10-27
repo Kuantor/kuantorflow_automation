@@ -44,12 +44,14 @@ def _execute(statements):
     conn = mysql.connector.connect(
         user=os.environ.get("DB_USER", "kuantorflow"),
         password=os.environ["DB_PASSWORD"], host=os.environ["DB_HOST"])
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @pytest.fixture()

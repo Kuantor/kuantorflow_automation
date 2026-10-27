@@ -86,12 +86,14 @@ def _connect(database=None):
 
 def _execute(statements, params=None, database=SCRATCH_DB):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for i, statement in enumerate(statements):
-        cursor.execute(statement, (params or {}).get(i, ()))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for i, statement in enumerate(statements):
+            cursor.execute(statement, (params or {}).get(i, ()))
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @pytest.fixture()
@@ -304,11 +306,13 @@ def test_making_a_topic_private_writes_both_columns(deck):
     assert deck.set_topic_visibility(13, False, viewer_id=OLENA) == "changed"
 
     conn = deck.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT is_public, namespace FROM topics WHERE id = 13")
-    assert cursor.fetchone() == (0, OLENA)
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_public, namespace FROM topics WHERE id = 13")
+        assert cursor.fetchone() == (0, OLENA)
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @requires_local_db
@@ -369,11 +373,13 @@ def test_deleting_an_account_frees_its_private_topics(deck):
     deck.resolve_user_cards(ANTON, keep_cards=True)
 
     conn = deck.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT is_public, namespace FROM topics WHERE id = 12")
-    assert cursor.fetchone() == (1, 0), "Diary is public again"
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_public, namespace FROM topics WHERE id = 12")
+        assert cursor.fetchone() == (1, 0), "Diary is public again"
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @requires_local_db
@@ -389,13 +395,15 @@ def test_a_released_name_that_collides_is_merged_rather_than_lost(deck):
     deck.resolve_user_cards(ANTON, keep_cards=True)
 
     conn = deck.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT topic_id FROM flashcards WHERE word = 'secret'")
-    assert cursor.fetchone()[0] == 10, "moved to the public Work"
-    cursor.execute("SELECT COUNT(*) FROM topics WHERE id = 11")
-    assert cursor.fetchone()[0] == 0, "and the empty private row is gone"
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT topic_id FROM flashcards WHERE word = 'secret'")
+        assert cursor.fetchone()[0] == 10, "moved to the public Work"
+        cursor.execute("SELECT COUNT(*) FROM topics WHERE id = 11")
+        assert cursor.fetchone()[0] == 0, "and the empty private row is gone"
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @requires_local_db

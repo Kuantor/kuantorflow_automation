@@ -77,12 +77,14 @@ def _connect(database=None):
 
 def _execute(statements, database=None):
     conn = _connect(database)
-    cursor = conn.cursor()
-    for statement in statements:
-        cursor.execute(statement)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @pytest.fixture()
@@ -101,12 +103,14 @@ def scratch_db(monkeypatch):
 
 def _rows():
     conn = _connect(SCRATCH_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, action, used FROM action_usage "
-                   "WHERE day = CURDATE() ORDER BY user_id, action")
-    found = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, action, used FROM action_usage "
+                       "WHERE day = CURDATE() ORDER BY user_id, action")
+        found = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
     return found
 
 
